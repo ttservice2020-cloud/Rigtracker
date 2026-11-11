@@ -70,6 +70,18 @@
         .header-actions {
             display: flex;
             gap: 8px;
+            align-items: center;
+        }
+
+        .cloud-badge {
+            background: #064e3b;
+            color: #34d399;
+            border: 1px solid #059669;
+            padding: 5px 8px;
+            border-radius: 6px;
+            font-size: 10px;
+            font-weight: bold;
+            text-transform: uppercase;
         }
 
         .btn-top {
@@ -341,7 +353,8 @@
             </div>
         </div>
         <div class="header-actions">
-            <button class="btn-top" onclick="exportData()">Export</button>
+            <div class="cloud-badge">Cloud Active</div>
+            <button class="btn-top" onclick="exportData()">Export Backup</button>
             <button class="btn-top" onclick="document.getElementById('importFile').click()">Import</button>
             <input type="file" id="importFile" style="display:none" onchange="importData(event)">
         </div>
@@ -590,7 +603,7 @@
     </div>
 
     <script>
-        // State Management
+        // State Management & Cloud Sync Persistence (localStorage linked with GitHub hosting)
         let appData = JSON.parse(localStorage.getItem('rigTrackerData')) || {
             settlements: [],
             perDiems: []
