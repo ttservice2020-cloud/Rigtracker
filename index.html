@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>RigTracker Pro</title>
-    <!-- PWA Mobile App Meta Tags -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="RigTracker">
@@ -12,10 +11,8 @@
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-    <script>
-        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-    </script>
+    <!-- Lightweight OCR library for reading text directly from screenshots -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/4.1.1/tesseract.min.js"></script>
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen">
     <!-- Header -->
@@ -25,14 +22,11 @@
                 <div class="bg-amber-500 text-slate-950 font-black px-3 py-1.5 rounded text-lg tracking-wider">RT</div>
                 <div>
                     <h1 class="text-xl font-bold tracking-tight text-white">RigTracker Pro</h1>
-                    <p class="text-xs text-slate-400">AI-Powered Itemized Ledger</p>
+                    <p class="text-xs text-slate-400">AI Screenshot & Itemized Ledger</p>
                 </div>
             </div>
             <div class="flex space-x-2 items-center">
-                <span class="text-xs bg-amber-500/20 text-amber-400 px-2.5 py-1 rounded font-medium flex items-center space-x-1">
-                    <span class="w-2 h-2 bg-amber-400 rounded-full animate-pulse"></span>
-                    <span>AI Mode Active</span>
-                </span>
+                <span class="text-xs bg-amber-500/20 text-amber-400 px-2.5 py-1 rounded font-medium">AI Vision Active</span>
                 <button onclick="exportData()" class="bg-slate-700 hover:bg-slate-600 text-xs px-3 py-2 rounded font-medium transition">Export Backup</button>
             </div>
         </div>
@@ -59,21 +53,21 @@
             </div>
         </div>
 
-        <!-- PDF Settlement Uploader -->
+        <!-- Screenshot Uploader -->
         <div class="bg-slate-800 p-6 rounded-xl border border-amber-500/30 shadow-md">
             <h2 class="text-lg font-bold mb-1 text-white flex items-center justify-between">
-                <span>AI Settlement Document Scanner</span>
-                <span class="text-xs bg-amber-500/20 text-amber-400 px-2.5 py-1 rounded-full font-normal">LTI Precision Parser</span>
+                <span>Upload Settlement Screenshot</span>
+                <span class="text-xs bg-amber-500/20 text-amber-400 px-2.5 py-1 rounded-full font-normal">AI Vision OCR</span>
             </h2>
-            <p class="text-xs text-slate-400 mb-4">Upload your LTI PDF to auto-extract Gross Earnings, Loaded Miles, and Total Deductions.</p>
+            <p class="text-xs text-slate-400 mb-4">Snap or upload a screenshot of your settlement statement. The AI vision scanner will read the text and fill out your numbers automatically.</p>
             
             <label class="flex flex-col items-center justify-center border-2 border-dashed border-slate-700 hover:border-amber-500 rounded-xl p-6 cursor-pointer bg-slate-900/50 transition">
                 <div class="flex flex-col items-center space-y-2 text-center">
-                    <svg class="w-8 h-8 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
-                    <p class="text-sm font-medium text-slate-200"><span id="uploadLabelText">Tap here to run AI PDF scan</span></p>
-                    <p class="text-xs text-slate-500">Extracts gross, miles, and deductions instantly</p>
+                    <svg class="w-8 h-8 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                    <p class="text-sm font-medium text-slate-200"><span id="uploadLabelText">Tap here to select settlement screenshot</span></p>
+                    <p class="text-xs text-slate-500">Reads text visually from photos & screenshots</p>
                 </div>
-                <input type="file" id="pdfUploadInput" onchange="handleAiPdfUpload(event)" class="hidden" accept=".pdf">
+                <input type="file" id="imageUploadInput" onchange="handleImageScan(event)" class="hidden" accept="image/*">
             </label>
         </div>
 
@@ -169,58 +163,48 @@
             localStorage.setItem('rigtracker_ledger', JSON.stringify(settlements));
         }
 
-        async function handleAiPdfUpload(event) {
+        // AI Vision OCR Scanner for Screenshots
+        async function handleImageScan(event) {
             const file = event.target.files[0];
             if (!file) return;
 
-            document.getElementById('uploadLabelText').innerText = `Scanning ${file.name}...`;
+            document.getElementById('uploadLabelText').innerText = `AI Vision scanning screenshot...`;
 
             try {
-                const reader = new FileReader();
-                reader.onload = async function() {
-                    try {
-                        const typedarray = new Uint8Array(this.result);
-                        const loadingTask = pdfjsLib.getDocument({ data: typedarray, disableWorker: true });
-                        const pdf = await loadingTask.promise;
-                        let fullText = "";
-
-                        for (let i = 1; i <= pdf.numPages; i++) {
-                            const page = await pdf.getPage(i);
-                            const textContent = await page.getTextContent();
-                            const pageText = textContent.items.map(item => item.str).join(" ");
-                            fullText += pageText + " ";
+                const result = await Tesseract.recognize(file, 'eng', {
+                    logger: m => {
+                        if (m.status === 'recognizing text') {
+                            let prog = Math.round(m.progress * 100);
+                            document.getElementById('uploadLabelText').innerText = `AI Reading Screenshot: ${prog}%`;
                         }
-
-                        let grossVal = 0;
-                        let milesVal = 0;
-                        let deductVal = 0;
-
-                        // Strict LTI keyword regex matchers
-                        const grossMatch = fullText.match(/TOTAL\s*GROSS\s*EARNINGS\s*[:\-]?\s*\$?\s*([\d,]+\.\d{2})/i);
-                        if (grossMatch) grossVal = parseFloat(grossMatch[1].replace(/,/g, ''));
-
-                        const milesMatch = fullText.match(/LOADED\s*MILES\s*[:\-]?\s*([\d,]+\.?\d*)/i);
-                        if (milesMatch) milesVal = parseFloat(milesMatch[1].replace(/,/g, ''));
-
-                        const deductMatch = fullText.match(/TOTAL\s*DEDUCTIONS\s*[:\-]?\s*\$?\s*-?([\d,]+\.\d{2})/i) || fullText.match(/DEDUCTIONS\s*[:\-]?\s*\$?\s*-?([\d,]+\.\d{2})/i);
-                        if (deductMatch) deductVal = parseFloat(deductMatch[1].replace(/,/g, ''));
-
-                        if (grossVal > 0) document.getElementById('gross').value = grossVal;
-                        if (milesVal > 0) document.getElementById('miles').value = milesVal;
-                        if (deductVal > 0) document.getElementById('expenses').value = deductVal;
-                        document.getElementById('date').value = new Date().toISOString().split('T')[0];
-
-                        document.getElementById('uploadLabelText').innerText = `Scan Complete! Review & Save Row below.`;
-                    } catch (innerErr) {
-                        console.error(innerErr);
-                        document.getElementById('uploadLabelText').innerText = `Error parsing PDF layout.`;
                     }
-                };
-                reader.readAsArrayBuffer(file);
+                });
+
+                const text = result.data.text;
+                let grossVal = 0;
+                let milesVal = 0;
+                let deductVal = 0;
+
+                // Regex matching extracted screenshot text
+                const grossMatch = text.match(/(?:GROSS|EARNINGS|TOTAL)[^\d\$]*([\d,]+\.\d{2})/i);
+                if (grossMatch) grossVal = parseFloat(grossMatch[1].replace(/,/g, ''));
+
+                const milesMatch = text.match(/(?:MILES|LOADED)[^\d]*([\d,]+)/i);
+                if (milesMatch) milesVal = parseInt(milesMatch[1].replace(/,/g, ''));
+
+                const deductMatch = text.match(/(?:DEDUCTIONS|EXPENSES|TOTAL)[^\d\$]*([\d,]+\.\d{2})/i);
+                if (deductMatch) deductVal = parseFloat(deductMatch[1].replace(/,/g, ''));
+
+                if (grossVal > 0) document.getElementById('gross').value = grossVal;
+                if (milesVal > 0) document.getElementById('miles').value = milesVal;
+                if (deductVal > 0) document.getElementById('expenses').value = deductVal;
+                document.getElementById('date').value = new Date().toISOString().split('T')[0];
+
+                document.getElementById('uploadLabelText').innerText = `AI Vision Scan Complete! Review & Save Row below.`;
             } catch (err) {
                 console.error(err);
-                alert("Error reading PDF file.");
-                document.getElementById('uploadLabelText').innerText = `Tap here to run AI PDF scan`;
+                alert("Error scanning screenshot.");
+                document.getElementById('uploadLabelText').innerText = `Tap here to select settlement screenshot`;
             }
         }
 
@@ -246,8 +230,8 @@
             saveToStorage();
             renderApp();
             document.getElementById('settlementForm').reset();
-            document.getElementById('uploadLabelText').innerText = `Tap here to run AI PDF scan`;
-            document.getElementById('pdfUploadInput').value = '';
+            document.getElementById('uploadLabelText').innerText = `Tap here to select settlement screenshot`;
+            document.getElementById('imageUploadInput').value = '';
         }
 
         function deleteSettlement(id) {
@@ -275,7 +259,7 @@
             tbody.innerHTML = '';
 
             if (settlements.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="8" class="p-6 text-center text-slate-500">No ledger entries recorded yet. Upload a PDF or add a row above.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="8" class="p-6 text-center text-slate-500">No ledger entries recorded yet. Upload a screenshot or add a row above.</td></tr>`;
                 return;
             }
 
