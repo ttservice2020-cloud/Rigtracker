@@ -94,7 +94,6 @@
             cursor: pointer;
         }
 
-        /* Back to Dashboard bar */
         .sub-header {
             display: flex;
             align-items: center;
@@ -143,7 +142,7 @@
         .val-red { color: var(--accent-red); }
         .val-green { color: var(--accent-green); }
 
-        /* Grid Menu Buttons on Dashboard */
+        /* Grid Menu Buttons */
         .menu-grid {
             display: flex;
             flex-direction: column;
@@ -161,7 +160,6 @@
             font-weight: 600;
             text-align: center;
             cursor: pointer;
-            transition: background-color 0.2s;
         }
 
         .menu-btn:active {
@@ -306,6 +304,34 @@
         <div class="card metric-card">
             <div class="metric-title">YTD Net Total Payout</div>
             <div class="metric-value val-green" id="dash-net">$0.00</div>
+        </div>
+
+        <div class="section-title">Itemized Deductions Breakdown</div>
+        <div class="grid-2">
+            <div class="sub-card">
+                <label>Fuel</label>
+                <div class="val val-red" id="sum-fuel">$0.00</div>
+            </div>
+            <div class="sub-card">
+                <label>Insurance</label>
+                <div class="val val-red" id="sum-insurance">$0.00</div>
+            </div>
+            <div class="sub-card">
+                <label>Plate</label>
+                <div class="val val-red" id="sum-plate">$0.00</div>
+            </div>
+            <div class="sub-card">
+                <label>Escrow</label>
+                <div class="val val-red" id="sum-escrow">$0.00</div>
+            </div>
+            <div class="sub-card">
+                <label>Toll</label>
+                <div class="val val-red" id="sum-toll">$0.00</div>
+            </div>
+            <div class="sub-card">
+                <label>Other</label>
+                <div class="val val-red" id="sum-other">$0.00</div>
+            </div>
         </div>
 
         <!-- Grid Menu Buttons -->
@@ -554,6 +580,13 @@
             document.getElementById('dash-gross').textContent = '$' + totalGross.toFixed(2);
             document.getElementById('dash-deductions').textContent = '$' + totalDed.toFixed(2);
             document.getElementById('dash-net').textContent = '$' + totalNet.toFixed(2);
+
+            document.getElementById('sum-fuel').textContent = '$' + totalFuel.toFixed(2);
+            document.getElementById('sum-insurance').textContent = '$' + totalIns.toFixed(2);
+            document.getElementById('sum-plate').textContent = '$' + totalPlate.toFixed(2);
+            document.getElementById('sum-escrow').textContent = '$' + totalEscrow.toFixed(2);
+            document.getElementById('sum-toll').textContent = '$' + totalToll.toFixed(2);
+            document.getElementById('sum-other').textContent = '$' + totalOther.toFixed(2);
 
             document.getElementById('entry-count').textContent = settlements.length + ' entries';
             document.getElementById('perdiem-count').textContent = perDiemNights.length + ' Nights';
