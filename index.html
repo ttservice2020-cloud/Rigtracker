@@ -169,7 +169,7 @@
             localStorage.setItem('rigtracker_ledger', JSON.stringify(settlements));
         }
 
-        // Advanced AI Matrix Inspector for LTI PDFs
+        // Expanded AI Matrix Inspector for LTI PDFs
         async function handleAiPdfUpload(event) {
             const file = event.target.files[0];
             if (!file) return;
@@ -196,14 +196,14 @@
                         let milesVal = 0;
                         let totalDeductVal = 0;
 
-                        // Flexible regex matching for LTI statements
-                        const grossMatch = fullText.match(/TOTAL\s*GROSS\s*EARNINGS[^0-9\$]*([\d,]+\.\d{2})/i) || fullText.match(/GROSS\s*PAY[^0-9\$]*([\d,]+\.\d{2})/i);
+                        // Broadened AI regex matching for LTI statements
+                        const grossMatch = fullText.match(/TOTAL\s*GROSS\s*EARNINGS[^0-9\$]*([\d,]+\.\d{2})/i) || fullText.match(/GROSS\s*PAY[^0-9\$]*([\d,]+\.\d{2})/i) || fullText.match(/EARNINGS[^0-9\$]*([\d,]+\.\d{2})/i);
                         if (grossMatch) grossVal = parseFloat(grossMatch[1].replace(/,/g, ''));
 
                         const milesMatch = fullText.match(/LOADED\s*MILES[^0-9]*([\d,]+\.?\d*)/i) || fullText.match(/MILES[^0-9]*([\d,]+\.?\d*)/i);
                         if (milesMatch) milesVal = parseFloat(milesMatch[1].replace(/,/g, ''));
 
-                        const deductMatch = fullText.match(/TOTAL\s*DEDUCTIONS[^0-9\$]*([\d,]+\.\d{2})/i) || fullText.match(/DEDUCTIONS[^0-9\$]*([\d,]+\.\d{2})/i);
+                        const deductMatch = fullText.match(/TOTAL\s*DEDUCTIONS[^0-9\$]*([\d,]+\.\d{2})/i) || fullText.match(/DEDUCTIONS[^0-9\$]*([\d,]+\.\d{2})/i) || fullText.match(/TOTAL\s*EXPENSES[^0-9\$]*([\d,]+\.\d{2})/i);
                         if (deductMatch) totalDeductVal = parseFloat(deductMatch[1].replace(/,/g, ''));
 
                         if (grossVal) document.getElementById('gross').value = grossVal;
