@@ -71,6 +71,7 @@
         .header-actions {
             display: flex;
             gap: 8px;
+            align-items: center;
         }
 
         .badge-cloud {
@@ -93,30 +94,23 @@
             cursor: pointer;
         }
 
-        .nav-tabs {
+        /* Back to Dashboard bar */
+        .sub-header {
             display: flex;
-            gap: 5px;
-            overflow-x: auto;
-            padding-bottom: 5px;
+            align-items: center;
+            justify-content: space-between;
             margin-bottom: 15px;
         }
 
-        .nav-tab {
+        .btn-back {
             background-color: var(--card-bg);
-            color: var(--text-muted);
+            color: var(--accent-yellow);
             border: 1px solid var(--border-color);
-            padding: 8px 12px;
+            padding: 8px 14px;
             border-radius: 8px;
             font-size: 13px;
-            white-space: nowrap;
+            font-weight: 600;
             cursor: pointer;
-        }
-
-        .nav-tab.active {
-            background-color: var(--accent-yellow);
-            color: #000;
-            font-weight: 700;
-            border-color: var(--accent-yellow);
         }
 
         .card {
@@ -148,6 +142,31 @@
         .val-yellow { color: var(--accent-yellow); }
         .val-red { color: var(--accent-red); }
         .val-green { color: var(--accent-green); }
+
+        /* Grid Menu Buttons on Dashboard */
+        .menu-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .menu-btn {
+            background-color: var(--card-bg);
+            color: #fff;
+            border: 1px solid var(--border-color);
+            padding: 16px;
+            border-radius: 10px;
+            font-size: 15px;
+            font-weight: 600;
+            text-align: center;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .menu-btn:active {
+            background-color: #2a2a2a;
+        }
 
         .grid-2 {
             display: grid;
@@ -251,7 +270,6 @@
             border: none;
         }
 
-        .btn-edit { background-color: var(--accent-yellow); color: #000; font-weight: 600; }
         .btn-delete { background-color: var(--accent-red); color: #fff; }
 
         .hidden { display: none !important; }
@@ -273,15 +291,7 @@
         </div>
     </header>
 
-    <div class="nav-tabs">
-        <button class="nav-tab active" onclick="switchTab('dashboard')">Dashboard</button>
-        <button class="nav-tab" onclick="switchTab('entry')">Settlement Entry</button>
-        <button class="nav-tab" onclick="switchTab('spreadsheet')">Spreadsheet Ledger</button>
-        <button class="nav-tab" onclick="switchTab('perdiem')">Per Diem / Nights</button>
-        <button class="nav-tab" onclick="switchTab('tax')">Annual Tax Forms</button>
-    </div>
-
-    <!-- DASHBOARD TAB -->
+    <!-- DASHBOARD VIEW -->
     <div id="tab-dashboard" class="tab-content">
         <div class="card metric-card">
             <div class="metric-title">YTD Gross Revenue</div>
@@ -298,37 +308,20 @@
             <div class="metric-value val-green" id="dash-net">$0.00</div>
         </div>
 
-        <div class="section-title">Itemized Deductions Breakdown</div>
-        <div class="grid-2">
-            <div class="sub-card">
-                <label>Fuel</label>
-                <div class="val val-red" id="sum-fuel">$0.00</div>
-            </div>
-            <div class="sub-card">
-                <label>Insurance</label>
-                <div class="val val-red" id="sum-insurance">$0.00</div>
-            </div>
-            <div class="sub-card">
-                <label>Plate</label>
-                <div class="val val-red" id="sum-plate">$0.00</div>
-            </div>
-            <div class="sub-card">
-                <label>Escrow</label>
-                <div class="val val-red" id="sum-escrow">$0.00</div>
-            </div>
-            <div class="sub-card">
-                <label>Toll</label>
-                <div class="val val-red" id="sum-toll">$0.00</div>
-            </div>
-            <div class="sub-card">
-                <label>Other</label>
-                <div class="val val-red" id="sum-other">$0.00</div>
-            </div>
+        <!-- Grid Menu Buttons -->
+        <div class="menu-grid">
+            <button class="menu-btn" onclick="switchTab('entry')">Settlement Entry</button>
+            <button class="menu-btn" onclick="switchTab('spreadsheet')">Spreadsheet Ledger</button>
+            <button class="menu-btn" onclick="switchTab('perdiem')">Per Diem Nights</button>
+            <button class="menu-btn" onclick="switchTab('tax')">Annual Tax Forms</button>
         </div>
     </div>
 
     <!-- SETTLEMENT ENTRY TAB -->
     <div id="tab-entry" class="tab-content hidden">
+        <div class="sub-header">
+            <button class="btn-back" onclick="switchTab('dashboard')">← Back to Dashboard</button>
+        </div>
         <div class="card">
             <div class="form-group">
                 <label>Date</label>
@@ -378,6 +371,9 @@
 
     <!-- SPREADSHEET LEDGER TAB -->
     <div id="tab-spreadsheet" class="tab-content hidden">
+        <div class="sub-header">
+            <button class="btn-back" onclick="switchTab('dashboard')">← Back to Dashboard</button>
+        </div>
         <div class="card">
             <div style="display: flex; justify-content: space-between; align-items: center;">
                 <h3 style="font-size: 15px; color:#fff;">Excel Spreadsheet Ledger</h3>
@@ -405,6 +401,9 @@
 
     <!-- PER DIEM TAB -->
     <div id="tab-perdiem" class="tab-content hidden">
+        <div class="sub-header">
+            <button class="btn-back" onclick="switchTab('dashboard')">← Back to Dashboard</button>
+        </div>
         <div class="card metric-card">
             <div class="metric-title">2026 Nights on Road</div>
             <div class="metric-value val-yellow" id="perdiem-count">0 Nights</div>
@@ -424,6 +423,9 @@
 
     <!-- TAX FORMS TAB -->
     <div id="tab-tax" class="tab-content hidden">
+        <div class="sub-header">
+            <button class="btn-back" onclick="switchTab('dashboard')">← Back to Dashboard</button>
+        </div>
         <div class="card">
             <h3 style="font-size: 15px; color:#fff; margin-bottom: 5px;">Annual Tax & Per Diem Packets</h3>
             <p style="font-size: 12px; color:var(--text-muted); margin-bottom: 12px;">Printable, accountant-ready financial summaries.</p>
@@ -448,9 +450,8 @@
 
         function switchTab(tabId) {
             document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
-            document.querySelectorAll('.nav-tab').forEach(el => el.classList.remove('active'));
             document.getElementById('tab-' + tabId).classList.remove('hidden');
-            event.currentTarget.classList.add('active');
+            window.scrollTo(0, 0);
             renderData();
         }
 
@@ -553,13 +554,6 @@
             document.getElementById('dash-gross').textContent = '$' + totalGross.toFixed(2);
             document.getElementById('dash-deductions').textContent = '$' + totalDed.toFixed(2);
             document.getElementById('dash-net').textContent = '$' + totalNet.toFixed(2);
-
-            document.getElementById('sum-fuel').textContent = '$' + totalFuel.toFixed(2);
-            document.getElementById('sum-insurance').textContent = '$' + totalIns.toFixed(2);
-            document.getElementById('sum-plate').textContent = '$' + totalPlate.toFixed(2);
-            document.getElementById('sum-escrow').textContent = '$' + totalEscrow.toFixed(2);
-            document.getElementById('sum-toll').textContent = '$' + totalToll.toFixed(2);
-            document.getElementById('sum-other').textContent = '$' + totalOther.toFixed(2);
 
             document.getElementById('entry-count').textContent = settlements.length + ' entries';
             document.getElementById('perdiem-count').textContent = perDiemNights.length + ' Nights';
