@@ -271,6 +271,13 @@
         .btn-delete { background-color: var(--accent-red); color: #fff; }
 
         .hidden { display: none !important; }
+
+        @media print {
+            body { background-color: #fff; color: #000; }
+            .card, header, .sub-header { border: 1px solid #ccc; background-color: #fff; color: #000; }
+            .menu-grid, .btn-primary, .btn-back, .btn-backup, .action-btns { display: none; }
+            .val-yellow, .val-red, .val-green { color: #000 !important; }
+        }
     </style>
 </head>
 <body>
@@ -454,15 +461,45 @@
         </div>
         <div class="card">
             <h3 style="font-size: 15px; color:#fff; margin-bottom: 5px;">Annual Tax & Per Diem Packets</h3>
-            <p style="font-size: 12px; color:var(--text-muted); margin-bottom: 12px;">Printable, accountant-ready financial summaries.</p>
-            <button class="btn-primary" onclick="window.print()">Print All Forms</button>
+            <p style="font-size: 12px; color:var(--text-muted); margin-bottom: 12px;">Printable, accountant-ready financial summaries & itemized spreadsheets grouped by year.</p>
+            <button class="btn-primary" onclick="window.print()">Print Complete Tax Packet</button>
         </div>
+
         <div class="card">
-            <h3 style="font-size: 15px; color:var(--accent-yellow); margin-bottom: 10px;">Year of 2026 Tax Summary</h3>
-            <div style="font-size: 13px; line-height: 1.6;">
+            <h3 style="font-size: 15px; color:var(--accent-yellow); margin-bottom: 10px;">Year of 2026 Tax & Per Diem Summary</h3>
+            <div style="font-size: 13px; line-height: 1.8; margin-bottom: 15px;">
                 <p>Gross Revenue: <span class="val-yellow" id="tax-gross">$0.00</span></p>
                 <p>Total Deductions: <span class="val-red" id="tax-deductions">$0.00</span></p>
                 <p>Net Payout: <span class="val-green" id="tax-net">$0.00</span></p>
+                <p>Total Sleeper Nights: <span class="val-yellow" id="tax-perdiem">0 Nights</span></p>
+            </div>
+
+            <div class="section-title" style="margin-top:15px;">Itemized Deductions Breakdown</div>
+            <div class="grid-2" style="margin-top: 8px;">
+                <div class="sub-card"><label>Fuel</label><div class="val val-red" id="tax-sum-fuel">$0.00</div></div>
+                <div class="sub-card"><label>Insurance</label><div class="val val-red" id="tax-sum-ins">$0.00</div></div>
+                <div class="sub-card"><label>Plate</label><div class="val val-red" id="tax-sum-plate">$0.00</div></div>
+                <div class="sub-card"><label>Escrow</label><div class="val val-red" id="tax-sum-escrow">$0.00</div></div>
+                <div class="sub-card"><label>Toll</label><div class="val val-red" id="tax-sum-toll">$0.00</div></div>
+                <div class="sub-card"><label>Other</label><div class="val val-red" id="tax-sum-other">$0.00</div></div>
+            </div>
+
+            <div class="section-title" style="margin-top:20px;">2026 Itemized Spreadsheet Ledger</div>
+            <div style="overflow-x: auto;">
+                <table class="ledger-table">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Gross</th>
+                            <th>Fuel</th>
+                            <th>Insurance</th>
+                            <th>Net Total</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tax-ledger-rows">
+                        <!-- Populated by JS -->
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
@@ -545,7 +582,9 @@
             let totalGross = 0, totalFuel = 0, totalIns = 0, totalPlate = 0, totalEscrow = 0, totalToll = 0, totalOther = 0;
 
             let tbody = document.getElementById('ledger-rows');
+            let taxTbody = document.getElementById('tax-ledger-rows');
             tbody.innerHTML = '';
+            taxTbody.innerHTML = '';
 
             settlements.sort((a,b) => new Date(b.date) - new Date(a.date)).forEach(s => {
                 totalGross += s.gross;
@@ -558,20 +597,17 @@
 
                 const net = s.gross - (s.fuel + s.insurance + s.plate + s.escrow + s.toll + s.other);
 
-                tbody.innerHTML += `
+                const rowHtml = `
                     <tr>
                         <td>${s.date}</td>
                         <td class="val-yellow">$${s.gross.toFixed(2)}</td>
                         <td class="val-red">$${s.fuel.toFixed(2)}</td>
                         <td class="val-red">$${s.insurance.toFixed(2)}</td>
                         <td class="val-green">$${net.toFixed(2)}</td>
-                        <td>
-                            <div class="action-btns">
-                                <button class="btn-sm btn-delete" onclick="deleteSettlement(${s.id})">Delete</button>
-                            </div>
-                        </td>
-                    </tr>
                 `;
+
+                tbody.innerHTML += rowHtml + `<td><div class="action-btns"><button class="btn-sm btn-delete" onclick="deleteSettlement(${s.id})">Delete</button></div></td></tr>`;
+                taxTbody.innerHTML += rowHtml + `</tr>`;
             });
 
             const totalDed = totalFuel + totalIns + totalPlate + totalEscrow + totalToll + totalOther;
@@ -594,6 +630,14 @@
             document.getElementById('tax-gross').textContent = '$' + totalGross.toFixed(2);
             document.getElementById('tax-deductions').textContent = '$' + totalDed.toFixed(2);
             document.getElementById('tax-net').textContent = '$' + totalNet.toFixed(2);
+            document.getElementById('tax-perdiem').textContent = perDiemNights.length + ' Nights';
+
+            document.getElementById('tax-sum-fuel').textContent = '$' + totalFuel.toFixed(2);
+            document.getElementById('tax-sum-ins').textContent = '$' + totalIns.toFixed(2);
+            document.getElementById('tax-sum-plate').textContent = '$' + totalPlate.toFixed(2);
+            document.getElementById('tax-sum-escrow').textContent = '$' + totalEscrow.toFixed(2);
+            document.getElementById('tax-sum-toll').textContent = '$' + totalToll.toFixed(2);
+            document.getElementById('tax-sum-other').textContent = '$' + totalOther.toFixed(2);
         }
 
         function exportBackup() {
