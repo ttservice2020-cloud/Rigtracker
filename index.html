@@ -95,39 +95,34 @@
             display: block;
         }
 
-        /* Dashboard Grid Navigation Menu */
+        /* Dashboard Grid Bar Menu */
         .menu-grid {
             display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 12px;
+            grid-template-columns: 1fr;
+            gap: 10px;
             margin-top: 16px;
             margin-bottom: 16px;
         }
 
-        .menu-card {
+        .menu-bar {
             background: var(--bg-card);
             border: 1px solid var(--border-color);
-            border-radius: 12px;
-            padding: 22px 14px;
+            border-radius: 10px;
+            padding: 18px 16px;
             text-align: center;
             cursor: pointer;
             transition: all 0.2s ease;
         }
 
-        .menu-card:hover {
+        .menu-bar:hover {
             border-color: var(--accent-yellow);
             background: var(--bg-input);
         }
 
-        .menu-card .icon {
-            font-size: 28px;
-            margin-bottom: 8px;
-            display: block;
-        }
-
-        .menu-card h3 {
-            font-size: 14px;
+        .menu-bar h3 {
+            font-size: 15px;
             color: var(--text-main);
+            font-weight: 600;
         }
 
         .back-btn {
@@ -352,7 +347,7 @@
         </div>
     </header>
 
-    <!-- 1. DASHBOARD HOME SCREEN (GRID MENU & 3 YTD SUMMARIES) -->
+    <!-- 1. DASHBOARD HOME SCREEN (3 YTD SUMMARIES + TAP BARS) -->
     <div id="home-section" class="app-section active">
         <div class="summary-card card-yellow">
             <span>YTD Gross Revenue</span>
@@ -368,20 +363,16 @@
         </div>
 
         <div class="menu-grid">
-            <div class="menu-card" onclick="switchSection('entry-section')">
-                <span class="icon">💵</span>
+            <div class="menu-bar" onclick="switchSection('entry-section')">
                 <h3>Settlement Entry</h3>
             </div>
-            <div class="menu-card" onclick="switchSection('ledger-section')">
-                <span class="icon">📊</span>
+            <div class="menu-bar" onclick="switchSection('ledger-section')">
                 <h3>Spreadsheet Ledger</h3>
             </div>
-            <div class="menu-card" onclick="switchSection('perdiem-section')">
-                <span class="icon">🌙</span>
+            <div class="menu-bar" onclick="switchSection('perdiem-section')">
                 <h3>Per Diem Nights</h3>
             </div>
-            <div class="menu-card" onclick="switchSection('tax-section')">
-                <span class="icon">📄</span>
+            <div class="menu-bar" onclick="switchSection('tax-section')">
                 <h3>Annual Tax Forms</h3>
             </div>
         </div>
@@ -610,7 +601,7 @@
             renderAll();
         }
 
-        // Section Switcher via Grid Cards
+        // Section Switcher via Tap Bars
         function switchSection(sectionId) {
             document.querySelectorAll('.app-section').forEach(sec => {
                 sec.classList.remove('active');
