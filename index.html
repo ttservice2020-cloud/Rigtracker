@@ -29,9 +29,9 @@
                 </div>
             </div>
             <div class="flex space-x-2 items-center">
-                <span id="cloudStatus" class="text-xs bg-amber-500/20 text-amber-400 px-2.5 py-1 rounded font-medium flex items-center space-x-1">
+                <span class="text-xs bg-amber-500/20 text-amber-400 px-2.5 py-1 rounded font-medium flex items-center space-x-1">
                     <span class="w-2 h-2 bg-amber-400 rounded-full animate-pulse"></span>
-                    <span>AI Mode Ready</span>
+                    <span>AI Mode Active</span>
                 </span>
                 <button onclick="exportData()" class="bg-slate-700 hover:bg-slate-600 text-xs px-3 py-2 rounded font-medium transition">Export Backup</button>
             </div>
@@ -63,15 +63,15 @@
         <div class="bg-slate-800 p-6 rounded-xl border border-amber-500/30 shadow-md">
             <h2 class="text-lg font-bold mb-1 text-white flex items-center justify-between">
                 <span>AI Settlement Document Scanner</span>
-                <span class="text-xs bg-amber-500/20 text-amber-400 px-2.5 py-1 rounded-full font-normal">Smart Context Extraction</span>
+                <span class="text-xs bg-amber-500/20 text-amber-400 px-2.5 py-1 rounded-full font-normal">Deep LTI Matrix Parser</span>
             </h2>
-            <p class="text-xs text-slate-400 mb-4">Upload your LTI PDF. The AI engine will read the entire document, isolate true gross earnings, and split itemized deductions (fuel, tolls, insurance, escrow, tires).</p>
+            <p class="text-xs text-slate-400 mb-4">Upload your LTI PDF. The AI engine extracts gross earnings, loaded miles, and itemized expenses automatically.</p>
             
             <label class="flex flex-col items-center justify-center border-2 border-dashed border-slate-700 hover:border-amber-500 rounded-xl p-6 cursor-pointer bg-slate-900/50 transition">
                 <div class="flex flex-col items-center space-y-2 text-center">
                     <svg class="w-8 h-8 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
                     <p class="text-sm font-medium text-slate-200"><span id="uploadLabelText">Tap here to run AI PDF scan</span></p>
-                    <p class="text-xs text-slate-500">Zero storage overhead • Automatic itemized splitting</p>
+                    <p class="text-xs text-slate-500">Extracts gross, miles, and deductions instantly</p>
                 </div>
                 <input type="file" id="pdfUploadInput" onchange="handleAiPdfUpload(event)" class="hidden" accept=".pdf">
             </label>
@@ -169,12 +169,12 @@
             localStorage.setItem('rigtracker_ledger', JSON.stringify(settlements));
         }
 
-        // AI Context Extraction Engine for LTI Settlements
+        // Advanced AI Matrix Inspector for LTI PDFs
         async function handleAiPdfUpload(event) {
             const file = event.target.files[0];
             if (!file) return;
 
-            document.getElementById('uploadLabelText').innerText = `AI analyzing ${file.name}...`;
+            document.getElementById('uploadLabelText').innerText = `AI deep-scanning ${file.name}...`;
 
             try {
                 const reader = new FileReader();
@@ -192,78 +192,29 @@
                             fullText += pageText + " ";
                         }
 
-                        // AI Heuristics to isolate exact metrics
                         let grossVal = 0;
                         let milesVal = 0;
+                        let totalDeductVal = 0;
 
-                        const grossMatch = fullText.match(/TOTAL GROSS EARNINGS\s*[:\-]?\s*\$?\s*([\d,]+\.\d{2})/i) || fullText.match(/GROSS PAY\s*[:\-]?\s*\$?\s*([\d,]+\.\d{2})/i);
+                        // Flexible regex matching for LTI statements
+                        const grossMatch = fullText.match(/TOTAL\s*GROSS\s*EARNINGS[^0-9\$]*([\d,]+\.\d{2})/i) || fullText.match(/GROSS\s*PAY[^0-9\$]*([\d,]+\.\d{2})/i);
                         if (grossMatch) grossVal = parseFloat(grossMatch[1].replace(/,/g, ''));
 
-                        const milesMatch = fullText.match(/LOADED MILES\s*[:\-]?\s*([\d,]+\.?\d*)/i);
+                        const milesMatch = fullText.match(/LOADED\s*MILES[^0-9]*([\d,]+\.?\d*)/i) || fullText.match(/MILES[^0-9]*([\d,]+\.?\d*)/i);
                         if (milesMatch) milesVal = parseFloat(milesMatch[1].replace(/,/g, ''));
+
+                        const deductMatch = fullText.match(/TOTAL\s*DEDUCTIONS[^0-9\$]*([\d,]+\.\d{2})/i) || fullText.match(/DEDUCTIONS[^0-9\$]*([\d,]+\.\d{2})/i);
+                        if (deductMatch) totalDeductVal = parseFloat(deductMatch[1].replace(/,/g, ''));
 
                         if (grossVal) document.getElementById('gross').value = grossVal;
                         if (milesVal) document.getElementById('miles').value = milesVal;
+                        if (totalDeductVal) document.getElementById('expenses').value = totalDeductVal;
                         document.getElementById('date').value = new Date().toISOString().split('T')[0];
 
-                        // AI Itemized Category Matcher (Splits fuel, tolls, insurance, escrow, tires, maintenance)
-                        const currentDate = new Date().toISOString().split('T')[0];
-                        const detectedExpenses = [];
-
-                        const categoryKeywords = [
-                            { regex: /fuel[^\d]*([\d,]+\.\d{2})/gi, category: 'Fuel' },
-                            { regex: /(?:insurance|occ\/acc)[^\d]*([\d,]+\.\d{2})/gi, category: 'Insurance' },
-                            { regex: /(?:repair|maintenance|parts)[^\d]*([\d,]+\.\d{2})/gi, category: 'Maintenance / Repairs' },
-                            { regex: /(?:toll|prepass)[^\d]*([\d,]+\.\d{2})/gi, category: 'Tolls / Permits' },
-                            { regex: /tire[^\d]*([\d,]+\.\d{2})/gi, category: 'Tires' },
-                            { regex: /(?:reserve|escrow)[^\d]*([\d,]+\.\d{2})/gi, category: 'Escrow / Reserve' }
-                        ];
-
-                        categoryKeywords.forEach(item => {
-                            let match;
-                            while ((match = item.regex.exec(fullText)) !== null) {
-                                const amount = parseFloat(match[1].replace(/,/g, ''));
-                                if (amount > 0 && amount < grossVal) {
-                                    // Prevent duplicate category entries per scan
-                                    if (!detectedExpenses.some(e => e.expenseType === item.category && e.expenses === amount)) {
-                                        detectedExpenses.push({
-                                            id: Date.now() + Math.random(),
-                                            date: currentDate,
-                                            gross: grossVal,
-                                            miles: milesVal,
-                                            expenses: amount,
-                                            expenseType: item.category
-                                        });
-                                    }
-                                }
-                            }
-                        });
-
-                        // Fallback: If no itemized lines matched, capture Total Deductions as a standard line
-                        if (detectedExpenses.length === 0) {
-                            const deductMatch = fullText.match(/TOTAL DEDUCTIONS\s*[:\-]?\s*\$?\s*-?([\d,]+\.\d{2})/i) || fullText.match(/DEDUCTIONS\s*[:\-]?\s*\$?\s*-?([\d,]+\.\d{2})/i);
-                            const fallbackDeduct = deductMatch ? parseFloat(deductMatch[1].replace(/,/g, '')) : 0;
-                            
-                            detectedExpenses.push({
-                                id: Date.now(),
-                                date: currentDate,
-                                gross: grossVal,
-                                miles: milesVal,
-                                expenses: fallbackDeduct,
-                                expenseType: 'Standard Deductions'
-                            });
-                        }
-
-                        // Push itemized AI breakdown into ledger storage
-                        settlements.push(...detectedExpenses);
-                        settlements.sort((a, b) => new Date(a.date) - new Date(b.date));
-                        saveToStorage();
-                        renderApp();
-
-                        document.getElementById('uploadLabelText').innerText = `AI Scan Complete! Itemized & Split Successfully.`;
+                        document.getElementById('uploadLabelText').innerText = `AI Scan Complete! Review & Save Row below.`;
                     } catch (innerErr) {
                         console.error(innerErr);
-                        document.getElementById('uploadLabelText').innerText = `AI scan finished. Verify details below.`;
+                        document.getElementById('uploadLabelText').innerText = `Scan finished. Verify fields below.`;
                     }
                 };
                 reader.readAsArrayBuffer(file);
