@@ -1,749 +1,1126 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RigTracker Pro</title>
-    <!-- PWA Mobile App Meta Tags -->
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="RigTracker">
-    <meta name="theme-color" content="#000000">
-    
+    <title>RigTracker Pro - Owner-Operator Ledger & Escrow Management</title>
+    <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        @media print {
-            body {
-                background-color: #ffffff !important;
-                color: #000000 !important;
-            }
-            header, nav, .no-print {
-                display: none !important;
-            }
-            .print-container {
-                display: block !important;
-                background: white !important;
-                color: black !important;
-                border: 1px solid #d1d5db !important;
-                box-shadow: none !important;
-                margin-bottom: 2rem;
-                page-break-after: always;
-            }
-            .print-bg {
-                background-color: #f9fafb !important;
-                border-color: #e5e7eb !important;
-                color: black !important;
-            }
-            table {
-                width: 100% !important;
-                border-collapse: collapse !important;
-            }
-            th, td {
-                border: 1px solid #d1d5db !important;
-                padding: 6px 8px !important;
-                color: #000000 !important;
-            }
-            th {
-                background-color: #f3f4f6 !important;
-            }
-            .text-amber-400, .text-emerald-400, .text-rose-500, .text-blue-400, .text-white {
-                color: #000000 !important;
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        dark: {
+                            900: '#0f172a',
+                            800: '#1e293b',
+                            700: '#334155',
+                            600: '#475569'
+                        }
+                    }
+                }
             }
         }
-    </style>
+    </script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- SheetJS for Excel/CSV parsing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- html2pdf & html2canvas for PDF export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 </head>
-<body class="bg-black text-white min-h-screen">
-    <!-- Header -->
-    <header class="bg-neutral-900 border-b border-neutral-800 sticky top-0 z-50">
-        <div class="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
+<body class="bg-dark-900 text-slate-100 font-sans min-h-screen pb-12">
+
+    <!-- Top Navigation Header -->
+    <header class="bg-dark-800 border-b border-dark-700 sticky top-0 z-40 shadow-md">
+        <div class="max-w-7xl mx-auto px-4 py-3 flex flex-col sm:flex-row justify-between items-center gap-4">
             <div class="flex items-center space-x-3">
-                <div class="bg-amber-500 text-black font-black px-3 py-1.5 rounded text-lg tracking-wider">RT</div>
+                <div class="bg-amber-500 text-dark-900 p-2.5 rounded-xl font-black text-xl shadow-lg flex items-center justify-center">
+                    <i class="fa-solid fa-truck-fast"></i>
+                </div>
                 <div>
-                    <h1 class="text-xl font-bold tracking-tight text-white">RigTracker Pro</h1>
-                    <p class="text-xs text-neutral-400">Professional Owner-Operator Ledger</p>
+                    <h1 class="text-xl font-black tracking-wide text-white flex items-center gap-2">
+                        RigTracker <span class="text-amber-500 font-light text-sm px-2 py-0.5 bg-amber-500/10 rounded-full border border-amber-500/20">PRO v2.7</span>
+                    </h1>
+                    <p class="text-xs text-slate-400">Owner-Operator Settlement & Maintenance Escrow Ledger</p>
                 </div>
             </div>
-            <div class="flex space-x-2 items-center">
-                <span class="text-xs bg-emerald-500/20 text-emerald-400 px-2.5 py-1 rounded font-medium">Cloud Active</span>
-                <button onclick="exportData()" class="bg-neutral-800 hover:bg-neutral-700 text-xs px-3 py-2 rounded font-medium transition">Export Backup</button>
+
+            <!-- Tab Navigation & Actions -->
+            <div class="flex flex-wrap items-center gap-2">
+                <div class="bg-dark-900 p-1 rounded-xl border border-dark-700 flex space-x-1">
+                    <button onclick="switchTab('dashboard')" id="tab-dashboard" class="px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all bg-amber-500 text-dark-900 shadow">
+                        <i class="fa-solid fa-chart-pie mr-1.5"></i> Dashboard
+                    </button>
+                    <button onclick="switchTab('settlements')" id="tab-settlements" class="px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all text-slate-300 hover:text-white">
+                        <i class="fa-solid fa-file-invoice-dollar mr-1.5"></i> Settlements
+                    </button>
+                    <button onclick="switchTab('escrow')" id="tab-escrow" class="px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all text-slate-300 hover:text-white relative">
+                        <i class="fa-solid fa-vault mr-1.5"></i> Escrow <span id="escrow-badge" class="ml-1 px-1.5 py-0.2 bg-emerald-500 text-dark-900 text-[10px] rounded-full font-bold">Active</span>
+                    </button>
+                    <button onclick="switchTab('tax')" id="tab-tax" class="px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all text-slate-300 hover:text-white">
+                        <i class="fa-solid fa-calculator mr-1.5"></i> Tax Summary
+                    </button>
+                    <button onclick="switchTab('settings')" id="tab-settings" class="px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all text-slate-300 hover:text-white">
+                        <i class="fa-solid fa-gear mr-1.5"></i> Settings
+                    </button>
+                </div>
+
+                <div class="flex items-center gap-1.5">
+                    <button onclick="openEntryModal()" class="bg-amber-500 hover:bg-amber-400 text-dark-900 px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-lg">
+                        <i class="fa-solid fa-plus text-sm"></i> New Settlement
+                    </button>
+                    <button onclick="openEscrowModal()" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-lg" title="Add Maintenance Escrow Transaction">
+                        <i class="fa-solid fa-vault text-sm"></i> Escrow Tx
+                    </button>
+                </div>
             </div>
         </div>
     </header>
 
-    <!-- Navigation Tabs -->
-    <nav class="bg-neutral-900 border-b border-neutral-800">
-        <div class="max-w-7xl mx-auto px-4 flex space-x-4 overflow-x-auto">
-            <button onclick="switchTab('dashboard')" id="navDashboard" class="py-3 px-4 text-sm font-bold border-b-2 border-amber-500 text-amber-400 transition whitespace-nowrap">Dashboard & Entry</button>
-            <button onclick="switchTab('ledger')" id="navLedger" class="py-3 px-4 text-sm font-medium border-b-2 border-transparent text-neutral-400 hover:text-white transition whitespace-nowrap">Excel Spreadsheet Ledger</button>
-            <button onclick="switchTab('perdiem')" id="navPerDiem" class="py-3 px-4 text-sm font-medium border-b-2 border-transparent text-neutral-400 hover:text-white transition whitespace-nowrap">Per Diem / Nights</button>
-            <button onclick="switchTab('taxforms')" id="navTaxForms" class="py-3 px-4 text-sm font-medium border-b-2 border-transparent text-neutral-400 hover:text-white transition whitespace-nowrap">Annual Tax Forms</button>
-        </div>
-    </nav>
-
+    <!-- Main Container -->
     <main class="max-w-7xl mx-auto px-4 py-6 space-y-6">
-        
-        <!-- ================= TAB 1: DASHBOARD & ENTRY ================= -->
-        <div id="tabDashboard" class="space-y-6">
-            <!-- YTD Summary Cards -->
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div class="bg-neutral-900 p-5 rounded-xl border border-neutral-800 shadow-sm">
-                    <p class="text-xs font-medium text-white uppercase tracking-wider">YTD Gross Revenue</p>
-                    <p id="statGross" class="text-2xl font-black text-amber-400 mt-1">$0.00</p>
+
+        <!-- ================= TAB 1: DASHBOARD ================= -->
+        <div id="section-dashboard" class="space-y-6 tab-content">
+            <!-- Summary Metric Cards -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="bg-dark-800 border border-dark-700 rounded-2xl p-4 shadow-md flex flex-col justify-between relative overflow-hidden">
+                    <div class="absolute right-3 top-3 bg-amber-500/10 text-amber-500 p-3 rounded-xl">
+                        <i class="fa-solid fa-sack-dollar text-xl"></i>
+                    </div>
+                    <div>
+                        <p class="text-xs font-bold tracking-wider text-amber-400 uppercase">YTD Gross Revenue</p>
+                        <h3 id="dash-gross" class="text-2xl font-black text-white mt-1">$0.00</h3>
+                    </div>
+                    <div class="mt-4 text-xs text-slate-400 flex items-center gap-1">
+                        <span id="dash-count" class="text-amber-400 font-bold">0</span> settlements recorded
+                    </div>
                 </div>
-                <div class="bg-neutral-900 p-5 rounded-xl border border-neutral-800 shadow-sm">
-                    <p class="text-xs font-medium text-white uppercase tracking-wider">YTD Total Deductions</p>
-                    <p id="statExpenses" class="text-2xl font-black text-rose-500 mt-1">$0.00</p>
+
+                <div class="bg-dark-800 border border-dark-700 rounded-2xl p-4 shadow-md flex flex-col justify-between relative overflow-hidden">
+                    <div class="absolute right-3 top-3 bg-rose-500/10 text-rose-500 p-3 rounded-xl">
+                        <i class="fa-solid fa-receipt text-xl"></i>
+                    </div>
+                    <div>
+                        <p class="text-xs font-bold tracking-wider text-rose-400 uppercase">YTD Total Deductions</p>
+                        <h3 id="dash-deductions" class="text-2xl font-black text-white mt-1">$0.00</h3>
+                    </div>
+                    <div class="mt-4 text-xs text-slate-400 flex items-center gap-1">
+                        Fuel, Escrow, Tolls & Fees
+                    </div>
                 </div>
-                <div class="bg-neutral-900 p-5 rounded-xl border border-neutral-800 shadow-sm">
-                    <p class="text-xs font-medium text-white uppercase tracking-wider">YTD Net Total Payout</p>
-                    <p id="statNet" class="text-2xl font-black text-emerald-400 mt-1">$0.00</p>
+
+                <div class="bg-dark-800 border border-dark-700 rounded-2xl p-4 shadow-md flex flex-col justify-between relative overflow-hidden">
+                    <div class="absolute right-3 top-3 bg-emerald-500/10 text-emerald-500 p-3 rounded-xl">
+                        <i class="fa-solid fa-wallet text-xl"></i>
+                    </div>
+                    <div>
+                        <p class="text-xs font-bold tracking-wider text-emerald-400 uppercase">YTD Net Payout</p>
+                        <h3 id="dash-net" class="text-2xl font-black text-white mt-1">$0.00</h3>
+                    </div>
+                    <div class="mt-4 text-xs text-slate-400 flex items-center gap-1">
+                        Actual bank deposits
+                    </div>
+                </div>
+
+                <div class="bg-dark-800 border border-dark-700 rounded-2xl p-4 shadow-md flex flex-col justify-between relative overflow-hidden">
+                    <div class="absolute right-3 top-3 bg-blue-500/10 text-blue-500 p-3 rounded-xl">
+                        <i class="fa-solid fa-vault text-xl"></i>
+                    </div>
+                    <div>
+                        <p class="text-xs font-bold tracking-wider text-blue-400 uppercase">Maintenance Escrow</p>
+                        <h3 id="dash-escrow-balance" class="text-2xl font-black text-white mt-1">$0.00</h3>
+                    </div>
+                    <div class="mt-4 text-xs text-slate-400 flex items-center gap-1">
+                        Available reserve balance
+                    </div>
                 </div>
             </div>
 
-            <!-- Data Entry Form -->
-            <div class="bg-neutral-900 p-6 rounded-xl border border-neutral-800 shadow-md">
-                <h2 id="formTitle" class="text-lg font-bold mb-1 text-white flex items-center justify-between">
-                    <span>Settlement Data Entry</span>
-                    <span id="formModeTag" class="text-xs bg-amber-500/20 text-amber-400 px-2.5 py-1 rounded-full font-normal">New Entry</span>
+            <!-- Quick Per Diem & Stats Bar -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="bg-dark-800 border border-dark-700 rounded-2xl p-4 flex items-center justify-between">
+                    <div>
+                        <p class="text-xs text-slate-400 font-semibold uppercase">Total Per Diem Nights</p>
+                        <p id="dash-per-diem-nights" class="text-xl font-bold text-white mt-0.5">0 Nights</p>
+                    </div>
+                    <div class="bg-purple-500/10 text-purple-400 p-3 rounded-xl">
+                        <i class="fa-solid fa-bed text-lg"></i>
+                    </div>
+                </div>
+                <div class="bg-dark-800 border border-dark-700 rounded-2xl p-4 flex items-center justify-between">
+                    <div>
+                        <p class="text-xs text-slate-400 font-semibold uppercase">Est. Per Diem Deduction</p>
+                        <p id="dash-per-diem-amount" class="text-xl font-bold text-emerald-400 mt-0.5">$0.00</p>
+                    </div>
+                    <div class="bg-emerald-500/10 text-emerald-400 p-3 rounded-xl">
+                        <i class="fa-solid fa-calculator text-lg"></i>
+                    </div>
+                </div>
+                <div class="bg-dark-800 border border-dark-700 rounded-2xl p-4 flex items-center justify-between">
+                    <div>
+                        <p class="text-xs text-slate-400 font-semibold uppercase">Zero-Net Deficits Covered</p>
+                        <p id="dash-escrow-draws" class="text-xl font-bold text-blue-400 mt-0.5">$0.00</p>
+                    </div>
+                    <div class="bg-blue-500/10 text-blue-400 p-3 rounded-xl">
+                        <i class="fa-solid fa-arrow-right-arrow-left text-lg"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Settlements & Escrow Widget -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div class="lg:col-span-2 bg-dark-800 border border-dark-700 rounded-2xl p-5 shadow-md space-y-4">
+                    <div class="flex justify-between items-center">
+                        <h2 class="text-sm font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
+                            <i class="fa-solid fa-clock-rotate-left text-amber-500"></i> Recent Settlements
+                        </h2>
+                        <button onclick="switchTab('settlements')" class="text-xs text-amber-400 hover:underline">View All</button>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs">
+                            <thead class="bg-dark-900 text-slate-400 uppercase tracking-wider border-b border-dark-700">
+                                <tr>
+                                    <th class="py-2.5 px-3">Date</th>
+                                    <th class="py-2.5 px-3">Load / Desc</th>
+                                    <th class="py-2.5 px-3">Gross</th>
+                                    <th class="py-2.5 px-3">Deductions</th>
+                                    <th class="py-2.5 px-3">Net Payout</th>
+                                </tr>
+                            </thead>
+                            <tbody id="recent-settlements-body" class="divide-y divide-dark-700/50"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="bg-dark-800 border border-dark-700 rounded-2xl p-5 shadow-md space-y-4 flex flex-col justify-between">
+                    <div>
+                        <div class="flex justify-between items-center mb-3">
+                            <h2 class="text-sm font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
+                                <i class="fa-solid fa-vault text-blue-400"></i> Escrow Fund Health
+                            </h2>
+                            <button onclick="switchTab('escrow')" class="text-xs text-blue-400 hover:underline">Manage</button>
+                        </div>
+                        <div class="space-y-3">
+                            <div class="bg-dark-900 p-3.5 rounded-xl border border-dark-700 flex justify-between items-center">
+                                <span class="text-xs text-slate-400">Starting Balance</span>
+                                <span id="summary-escrow-start" class="font-bold text-white">$0.00</span>
+                            </div>
+                            <div class="bg-dark-900 p-3.5 rounded-xl border border-dark-700 flex justify-between items-center">
+                                <span class="text-xs text-slate-400">Total Contributions</span>
+                                <span id="summary-escrow-contrib" class="font-bold text-emerald-400">+$0.00</span>
+                            </div>
+                            <div class="bg-dark-900 p-3.5 rounded-xl border border-dark-700 flex justify-between items-center">
+                                <span class="text-xs text-slate-400">Total Maintenance Deductions</span>
+                                <span id="summary-escrow-draws" class="font-bold text-rose-400">-$0.00</span>
+                            </div>
+                        </div>
+                    </div>
+                    <button onclick="openEscrowModal()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2.5 rounded-xl text-xs transition flex items-center justify-center gap-2 shadow">
+                        <i class="fa-solid fa-plus-circle"></i> Add Escrow Entry
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= TAB 2: SETTLEMENTS ================= -->
+        <div id="section-settlements" class="space-y-6 tab-content hidden">
+            <div class="bg-dark-800 border border-dark-700 rounded-2xl p-5 shadow-md space-y-4">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <div>
+                        <h2 class="text-base font-bold text-white flex items-center gap-2">
+                            <i class="fa-solid fa-file-invoice-dollar text-amber-500"></i> All Settlements & Load Records
+                        </h2>
+                        <p class="text-xs text-slate-400">Manage, filter, edit or export your weekly settlements and expenses.</p>
+                    </div>
+                    <div class="flex items-center gap-2 w-full sm:w-auto">
+                        <input type="text" id="search-input" onkeyup="renderSettlementsTable()" placeholder="Search loads, notes..." class="bg-dark-900 border border-dark-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500 w-full sm:w-64">
+                        <button onclick="openEntryModal()" class="bg-amber-500 hover:bg-amber-400 text-dark-900 px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap shadow">
+                            <i class="fa-solid fa-plus mr-1"></i> Add Entry
+                        </button>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs">
+                        <thead class="bg-dark-900 text-slate-400 uppercase tracking-wider border-b border-dark-700">
+                            <tr>
+                                <th class="py-3 px-3">Date</th>
+                                <th class="py-3 px-3">Load / Ref #</th>
+                                <th class="py-3 px-3">Gross</th>
+                                <th class="py-3 px-3">Fuel</th>
+                                <th class="py-3 px-3">Ins/Plate/Other</th>
+                                <th class="py-3 px-3">Escrow Withheld</th>
+                                <th class="py-3 px-3">Net Payout</th>
+                                <th class="py-3 px-3 text-center">Sleeper</th>
+                                <th class="py-3 px-3 text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="settlements-table-body" class="divide-y divide-dark-700/50"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= TAB 3: ESCROW (MAINTENANCE ESCROW BALANCE) ================= -->
+        <div id="section-escrow" class="space-y-6 tab-content hidden">
+            <!-- Escrow Overview Cards -->
+            <div class="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                <div class="bg-dark-800 border border-dark-700 rounded-2xl p-4 shadow-md">
+                    <p class="text-xs font-bold text-slate-400 uppercase">Starting Reserve</p>
+                    <h3 id="escrow-starting-display" class="text-xl font-black text-white mt-1">$0.00</h3>
+                </div>
+                <div class="bg-dark-800 border border-dark-700 rounded-2xl p-4 shadow-md">
+                    <p class="text-xs font-bold text-emerald-400 uppercase">Total Contributions / Withheld</p>
+                    <h3 id="escrow-deposits-display" class="text-xl font-black text-emerald-400 mt-1">+$0.00</h3>
+                </div>
+                <div class="bg-dark-800 border border-dark-700 rounded-2xl p-4 shadow-md">
+                    <p class="text-xs font-bold text-rose-400 uppercase">Total Maintenance Deductions</p>
+                    <h3 id="escrow-draws-display" class="text-xl font-black text-rose-400 mt-1">-$0.00</h3>
+                </div>
+                <div class="bg-dark-800 border border-dark-700 rounded-2xl p-4 shadow-md bg-blue-950/20 border-blue-500/30">
+                    <p class="text-xs font-bold text-blue-400 uppercase">Current Escrow Balance</p>
+                    <h3 id="escrow-current-display" class="text-xl font-black text-blue-400 mt-1">$0.00</h3>
+                </div>
+            </div>
+
+            <!-- Escrow Management Actions Bar -->
+            <div class="bg-dark-800 border border-dark-700 rounded-2xl p-5 shadow-md space-y-4">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <div>
+                        <h2 class="text-base font-bold text-white flex items-center gap-2">
+                            <i class="fa-solid fa-vault text-blue-400"></i> Maintenance Escrow Ledger & Back-Entry Adjustment
+                        </h2>
+                        <p class="text-xs text-slate-400">Record maintenance repair deductions, settlement withholdings, or manually adjust your starting balance for back-entries.</p>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <button onclick="openEscrowSettingsModal()" class="bg-dark-900 border border-dark-700 hover:border-slate-500 text-slate-300 px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow">
+                            <i class="fa-solid fa-sliders"></i> Manual Balance Adjust
+                        </button>
+                        <button onclick="openEscrowModal()" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow">
+                            <i class="fa-solid fa-plus"></i> Add Maintenance Deduction / Tx
+                        </button>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs">
+                        <thead class="bg-dark-900 text-slate-400 uppercase tracking-wider border-b border-dark-700">
+                            <tr>
+                                <th class="py-3 px-3">Date</th>
+                                <th class="py-3 px-3">Type</th>
+                                <th class="py-3 px-3">Description / Repair Shop / Reason</th>
+                                <th class="py-3 px-3">Amount</th>
+                                <th class="py-3 px-3">Running Balance</th>
+                                <th class="py-3 px-3 text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="escrow-table-body" class="divide-y divide-dark-700/50"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= TAB 4: TAX SUMMARY ================= -->
+        <div id="section-tax" class="space-y-6 tab-content hidden">
+            <div class="bg-dark-800 border border-dark-700 rounded-2xl p-6 shadow-md space-y-6">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-4 border-b border-dark-700">
+                    <div>
+                        <h2 class="text-lg font-black text-white flex items-center gap-2">
+                            <i class="fa-solid fa-calculator text-amber-500"></i> Annual Tax Summary & Per Diem Log
+                        </h2>
+                        <p class="text-xs text-slate-400">Printable annual tax form summarizing gross revenue, itemized deductions, net payout, and per diem records.</p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <select id="tax-year-select" onchange="renderTaxSummary()" class="bg-dark-900 border border-dark-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500">
+                            <option value="2026">2026 Tax Year</option>
+                            <option value="2025">2025 Tax Year</option>
+                        </select>
+                        <button onclick="printTaxForm()" class="bg-amber-500 hover:bg-amber-400 text-dark-900 px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow">
+                            <i class="fa-solid fa-print"></i> Print / Save PDF
+                        </button>
+                    </div>
+                </div>
+
+                <div id="printable-tax-form" class="space-y-6 bg-dark-900 p-6 rounded-2xl border border-dark-700 text-slate-200">
+                    <div class="text-center pb-4 border-b border-dark-700">
+                        <h3 class="text-xl font-black tracking-wide text-white">THOMAS TRANSPORT SERVICE LLC</h3>
+                        <p class="text-xs text-slate-400">Owner-Operator Annual Financial & Tax Summary (<span id="display-tax-year">2026</span>)</p>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="space-y-3">
+                            <h4 class="text-xs font-bold uppercase tracking-wider text-amber-400 border-b border-dark-700 pb-1">Revenue & Net Payouts</h4>
+                            <div class="flex justify-between text-xs py-1 border-b border-dark-700/50">
+                                <span class="text-slate-400">Total Gross Revenue:</span>
+                                <span id="tax-gross" class="font-bold text-white">$0.00</span>
+                            </div>
+                            <div class="flex justify-between text-xs py-1 border-b border-dark-700/50">
+                                <span class="text-slate-400">Total Net Payouts Received:</span>
+                                <span id="tax-net" class="font-bold text-emerald-400">$0.00</span>
+                            </div>
+                            <div class="flex justify-between text-xs py-1 border-b border-dark-700/50">
+                                <span class="text-slate-400">Total Escrow Withheld:</span>
+                                <span id="tax-escrow-withheld" class="font-bold text-blue-400">$0.00</span>
+                            </div>
+                        </div>
+
+                        <div class="space-y-3">
+                            <h4 class="text-xs font-bold uppercase tracking-wider text-rose-400 border-b border-dark-700 pb-1">Itemized Deductions</h4>
+                            <div class="flex justify-between text-xs py-1 border-b border-dark-700/50">
+                                <span class="text-slate-400">Fuel Expenses:</span>
+                                <span id="tax-fuel" class="font-bold text-rose-400">$0.00</span>
+                            </div>
+                            <div class="flex justify-between text-xs py-1 border-b border-dark-700/50">
+                                <span class="text-slate-400">Insurance & Plate Fees:</span>
+                                <span id="tax-insurance" class="font-bold text-rose-400">$0.00</span>
+                            </div>
+                            <div class="flex justify-between text-xs py-1 border-b border-dark-700/50">
+                                <span class="text-slate-400">Tolls, Escrow & Other Fees:</span>
+                                <span id="tax-fees" class="font-bold text-rose-400">$0.00</span>
+                            </div>
+                            <div class="flex justify-between text-xs py-1 font-bold border-t border-dark-700 pt-1">
+                                <span class="text-slate-300">Total Deductions:</span>
+                                <span id="tax-total-deductions" class="text-rose-400">$0.00</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="space-y-3 pt-4 border-t border-dark-700">
+                        <h4 class="text-xs font-bold uppercase tracking-wider text-purple-400 border-b border-dark-700 pb-1">Per Diem & Sleeper Berth Record</h4>
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            <div class="bg-dark-800 p-3 rounded-xl border border-dark-700">
+                                <span class="text-xs text-slate-400">Total Sleeper Nights:</span>
+                                <p id="tax-per-diem-nights" class="text-lg font-bold text-white">0 Nights</p>
+                            </div>
+                            <div class="bg-dark-800 p-3 rounded-xl border border-dark-700">
+                                <span class="text-xs text-slate-400">Standard Per Diem Rate:</span>
+                                <p class="text-lg font-bold text-white">$69.00 / day</p>
+                            </div>
+                            <div class="bg-dark-800 p-3 rounded-xl border border-dark-700">
+                                <span class="text-xs text-slate-400">Total Estimated Per Diem Deduction:</span>
+                                <p id="tax-per-diem-total" class="text-lg font-bold text-purple-400">$0.00</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= TAB 5: SETTINGS ================= -->
+        <div id="section-settings" class="space-y-6 tab-content hidden">
+            <div class="bg-dark-800 border border-dark-700 rounded-2xl p-6 shadow-md space-y-6">
+                <h2 class="text-lg font-black text-white flex items-center gap-2">
+                    <i class="fa-solid fa-gear text-amber-500"></i> Data & Storage Settings
                 </h2>
-                <p class="text-xs text-neutral-400 mb-4">Enter your settlement details below. Deduction numbers light up red automatically.</p>
-                
-                <form id="settlementForm" onsubmit="saveSettlement(event)" class="space-y-4">
-                    <input type="hidden" id="editId" value="">
-                    
-                    <!-- Row 1: Date & Gross -->
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-xs font-medium text-white mb-1">Date</label>
-                            <input type="date" id="date" required class="w-full bg-black border border-neutral-800 rounded p-2.5 text-sm text-white focus:outline-none focus:border-amber-500">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-medium text-white mb-1">Gross ($)</label>
-                            <input type="number" step="0.01" id="gross" placeholder="0.00" oninput="calculateLiveNet()" required class="w-full bg-black border border-neutral-800 rounded p-2.5 text-sm text-amber-400 font-bold focus:outline-none focus:border-amber-500">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div class="bg-dark-900 p-4 rounded-xl border border-dark-700 space-y-3">
+                        <h3 class="text-sm font-bold text-white">Backup & Restore</h3>
+                        <p class="text-xs text-slate-400">Download a complete JSON backup of all settlements, escrow records, and settings.</p>
+                        <div class="flex gap-2">
+                            <button onclick="exportDataJSON()" class="bg-dark-800 hover:bg-dark-700 text-white px-3 py-2 rounded-xl text-xs font-bold border border-dark-700 transition">
+                                <i class="fa-solid fa-download mr-1"></i> Export JSON
+                            </button>
+                            <label class="bg-dark-800 hover:bg-dark-700 text-white px-3 py-2 rounded-xl text-xs font-bold border border-dark-700 transition cursor-pointer">
+                                <i class="fa-solid fa-upload mr-1"></i> Import JSON
+                                <input type="file" id="import-file" onchange="importDataJSON(event)" accept=".json" class="hidden">
+                            </label>
                         </div>
                     </div>
 
-                    <!-- Deductions Section -->
-                    <div class="border-t border-neutral-800 pt-4">
-                        <p class="text-xs font-bold text-rose-500 uppercase tracking-wider mb-3">Deductions for Net Total</p>
-                        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-                            <div>
-                                <label class="block text-xs font-medium text-white mb-1">Fuel ($)</label>
-                                <input type="number" step="0.01" id="fuel" placeholder="0.00" oninput="calculateLiveNet()" class="w-full bg-black border border-neutral-800 rounded p-2 text-sm text-rose-500 font-bold focus:outline-none focus:border-amber-500">
-                            </div>
-                            <div>
-                                <label class="block text-xs font-medium text-white mb-1">Insurance ($)</label>
-                                <input type="number" step="0.01" id="insurance" placeholder="0.00" oninput="calculateLiveNet()" class="w-full bg-black border border-neutral-800 rounded p-2 text-sm text-rose-500 font-bold focus:outline-none focus:border-amber-500">
-                            </div>
-                            <div>
-                                <label class="block text-xs font-medium text-white mb-1">Plate ($)</label>
-                                <input type="number" step="0.01" id="plate" placeholder="0.00" oninput="calculateLiveNet()" class="w-full bg-black border border-neutral-800 rounded p-2 text-sm text-rose-500 font-bold focus:outline-none focus:border-amber-500">
-                            </div>
-                            <div>
-                                <label class="block text-xs font-medium text-white mb-1">Escrow ($)</label>
-                                <input type="number" step="0.01" id="escrow" placeholder="0.00" oninput="calculateLiveNet()" class="w-full bg-black border border-neutral-800 rounded p-2 text-sm text-rose-500 font-bold focus:outline-none focus:border-amber-500">
-                            </div>
-                            <div>
-                                <label class="block text-xs font-medium text-white mb-1">Toll ($)</label>
-                                <input type="number" step="0.01" id="toll" placeholder="0.00" oninput="calculateLiveNet()" class="w-full bg-black border border-neutral-800 rounded p-2 text-sm text-rose-500 font-bold focus:outline-none focus:border-amber-500">
-                            </div>
-                            <div>
-                                <label class="block text-xs font-medium text-white mb-1">Other ($)</label>
-                                <input type="number" step="0.01" id="other" placeholder="0.00" oninput="calculateLiveNet()" class="w-full bg-black border border-neutral-800 rounded p-2 text-sm text-rose-500 font-bold focus:outline-none focus:border-amber-500">
-                            </div>
-                        </div>
+                    <div class="bg-dark-900 p-4 rounded-xl border border-dark-700 space-y-3">
+                        <h3 class="text-sm font-bold text-rose-400">Danger Zone</h3>
+                        <p class="text-xs text-slate-400">Clear all stored settlements and escrow history. This cannot be undone.</p>
+                        <button onclick="clearAllData()" class="bg-rose-600/20 hover:bg-rose-600/30 text-rose-400 border border-rose-500/30 px-3 py-2 rounded-xl text-xs font-bold transition">
+                            <i class="fa-solid fa-triangle-exclamation mr-1"></i> Reset All Data
+                        </button>
                     </div>
-
-                    <!-- Live Net Total & Validation Box -->
-                    <div class="bg-black border border-neutral-800 p-4 rounded-xl flex flex-col sm:flex-row justify-between items-center space-y-2 sm:space-y-0">
-                        <div>
-                            <span class="text-xs text-neutral-400 uppercase tracking-wider block">Calculated Net Payout:</span>
-                            <span id="liveNetDisplay" class="text-xl font-black text-emerald-400">$0.00</span>
-                        </div>
-                        <div id="flagWarning" class="hidden bg-rose-500/20 text-rose-400 text-xs px-3 py-1.5 rounded font-bold animate-pulse">
-                            ⚠️ Warning: Deductions exceed Gross Revenue!
-                        </div>
-                    </div>
-
-                    <!-- Action Buttons -->
-                    <div class="flex space-x-3 pt-2">
-                        <button type="submit" id="saveButton" class="flex-1 bg-amber-500 hover:bg-amber-400 text-black font-bold p-2.5 rounded text-sm transition">Save Entry</button>
-                        <button type="button" id="cancelButton" onclick="resetForm()" class="hidden bg-neutral-800 hover:bg-neutral-700 text-white font-bold px-5 py-2.5 rounded text-sm transition">Cancel</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-
-        <!-- ================= TAB 2: EXCEL SPREADSHEET LEDGER ================= -->
-        <div id="tabLedger" class="hidden space-y-6">
-            <div class="bg-neutral-900 rounded-xl border border-neutral-800 overflow-hidden shadow-md">
-                <div class="p-6 border-b border-neutral-800 flex justify-between items-center">
-                    <div>
-                        <h3 class="text-lg font-bold text-white">Excel Spreadsheet Ledger</h3>
-                        <p class="text-xs text-neutral-400">Complete itemized financial records</p>
-                    </div>
-                    <span id="recordCount" class="text-xs bg-neutral-800 text-white px-2.5 py-1 rounded-full">0 entries</span>
                 </div>
-                <div class="overflow-x-auto">
-                    <table class="w-full text-left border-collapse text-sm font-mono">
-                        <thead>
-                            <tr class="bg-black text-white border-b border-neutral-800 text-xs uppercase tracking-wider">
-                                <th class="p-3">Date</th>
-                                <th class="p-3 text-amber-400">Gross</th>
-                                <th class="p-3 text-rose-500">Fuel</th>
-                                <th class="p-3 text-rose-500">Insurance</th>
-                                <th class="p-3 text-rose-500">Plate</th>
-                                <th class="p-3 text-rose-500">Escrow</th>
-                                <th class="p-3 text-rose-500">Toll</th>
-                                <th class="p-3 text-rose-500">Other</th>
-                                <th class="p-3 text-emerald-400">Net Total</th>
-                                <th class="p-3 text-right text-white">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="settlementTableBody" class="divide-y divide-neutral-800">
-                            <!-- Dynamic rows injected here -->
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-
-        <!-- ================= TAB 3: PER DIEM / NIGHTS ON THE ROAD ================= -->
-        <div id="tabPerDiem" class="hidden space-y-6">
-            <!-- Year Summary Cards -->
-            <div id="perDiemYearCards" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <!-- Dynamically injected year totals -->
-            </div>
-
-            <!-- Per Diem Entry Form -->
-            <div class="bg-neutral-900 p-6 rounded-xl border border-neutral-800 shadow-md">
-                <h3 class="text-lg font-bold mb-1 text-white flex items-center justify-between">
-                    <span>Log Night Slept in Truck</span>
-                    <span class="text-xs bg-blue-500/20 text-blue-400 px-2.5 py-1 rounded-full font-normal">Per Diem Tracker</span>
-                </h3>
-                <p class="text-xs text-neutral-400 mb-4">Record dates you spent overnight in the sleeper berth for tax per diem substantiation.</p>
-                
-                <form id="perDiemForm" onsubmit="savePerDiemNight(event)" class="space-y-4">
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-xs font-medium text-white mb-1">Night Date</label>
-                            <input type="date" id="perDiemDate" required class="w-full bg-black border border-neutral-800 rounded p-2.5 text-sm text-white focus:outline-none focus:border-blue-500">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-medium text-white mb-1">Location / Notes (Optional)</label>
-                            <input type="text" id="perDiemNotes" placeholder="e.g. Pilot Truck Stop - Chicago, IL" class="w-full bg-black border border-neutral-800 rounded p-2.5 text-sm text-white focus:outline-none focus:border-blue-500">
-                        </div>
-                    </div>
-                    <div>
-                        <button type="submit" class="bg-blue-600 hover:bg-blue-500 text-white font-bold px-5 py-2.5 rounded text-sm transition">Log Night in Truck</button>
-                    </div>
-                </form>
-            </div>
-
-            <!-- Nights History Table -->
-            <div class="bg-neutral-900 rounded-xl border border-neutral-800 overflow-hidden shadow-md">
-                <div class="p-6 border-b border-neutral-800 flex justify-between items-center">
-                    <div>
-                        <h3 class="text-lg font-bold text-white">Sleeper Berth Logbook</h3>
-                        <p class="text-xs text-neutral-400">Itemized history of nights on the road</p>
-                    </div>
-                    <span id="perDiemRecordCount" class="text-xs bg-neutral-800 text-white px-2.5 py-1 rounded-full">0 nights</span>
-                </div>
-                <div class="overflow-x-auto">
-                    <table class="w-full text-left border-collapse text-sm font-mono">
-                        <thead>
-                            <tr class="bg-black text-white border-b border-neutral-800 text-xs uppercase tracking-wider">
-                                <th class="p-3">Date</th>
-                                <th class="p-3">Location / Notes</th>
-                                <th class="p-3 text-right text-white">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="perDiemTableBody" class="divide-y divide-neutral-800">
-                            <!-- Dynamic rows injected here -->
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-
-        <!-- ================= TAB 4: ANNUAL TAX FORMS ================= -->
-        <div id="tabTaxForms" class="hidden space-y-8">
-            <div class="bg-neutral-900 p-6 rounded-xl border border-neutral-800 shadow-md no-print flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <div>
-                    <h3 class="text-lg font-bold text-white">Annual Tax & Per Diem Packets</h3>
-                    <p class="text-xs text-neutral-400">Printable, accountant-ready financial summaries & itemized spreadsheets grouped by year.</p>
-                </div>
-                <button onclick="window.print()" class="bg-amber-500 hover:bg-amber-400 text-black font-bold px-4 py-2.5 rounded text-sm transition flex items-center space-x-2">
-                    <span>🖨️ Print All Forms</span>
-                </button>
-            </div>
-
-            <div id="taxFormsContainer" class="space-y-8">
-                <!-- Dynamically injected printable year forms with embedded spreadsheets -->
             </div>
         </div>
 
     </main>
 
-    <script>
-        let settlements = JSON.parse(localStorage.getItem('rigtracker_ledger')) || [];
-        let perDiemNights = JSON.parse(localStorage.getItem('rigtracker_perdiem')) || [];
+    <!-- ================= MODAL: SETTLEMENT ENTRY ================= -->
+    <div id="entry-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-dark-800 border border-dark-700 rounded-2xl w-full max-w-xl max-h-[90vh] overflow-y-auto shadow-2xl">
+            <div class="p-5 border-b border-dark-700 flex justify-between items-center sticky top-0 bg-dark-800 z-10">
+                <h3 id="modal-title" class="text-sm font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-file-invoice-dollar text-amber-500"></i> New Settlement Entry
+                </h3>
+                <button onclick="closeEntryModal()" class="text-slate-400 hover:text-white text-sm"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <form id="settlement-form" onsubmit="saveSettlement(event)" class="p-6 space-y-4">
+                <input type="hidden" id="entry-id">
+                
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1">Date</label>
+                        <input type="date" id="entry-date" required class="w-full bg-dark-900 border border-dark-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1">Load / Ref #</label>
+                        <input type="text" id="entry-ref" placeholder="e.g. Load #1042 / LTI" required class="w-full bg-dark-900 border border-dark-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500">
+                    </div>
+                </div>
 
-        function saveToStorage() {
-            localStorage.setItem('rigtracker_ledger', JSON.stringify(settlements));
-            localStorage.setItem('rigtracker_perdiem', JSON.stringify(perDiemNights));
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-amber-400 mb-1">Gross Revenue ($)</label>
+                        <input type="number" step="0.01" id="entry-gross" placeholder="0.00" oninput="calculateNet()" required class="w-full bg-dark-900 border border-dark-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500 font-bold">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-blue-400 mb-1">Escrow Withheld ($)</label>
+                        <input type="number" step="0.01" id="entry-escrow" placeholder="0.00" oninput="calculateNet()" class="w-full bg-dark-900 border border-dark-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-rose-400 mb-1">Fuel Deduction ($)</label>
+                        <input type="number" step="0.01" id="entry-fuel" placeholder="0.00" oninput="calculateNet()" class="w-full bg-dark-900 border border-dark-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-rose-400 mb-1">Insurance & Plate ($)</label>
+                        <input type="number" step="0.01" id="entry-insurance" placeholder="0.00" oninput="calculateNet()" class="w-full bg-dark-900 border border-dark-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-rose-400 mb-1">Other Fees / Tolls ($)</label>
+                        <input type="number" step="0.01" id="entry-fees" placeholder="0.00" oninput="calculateNet()" class="w-full bg-dark-900 border border-dark-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center bg-dark-900 p-3.5 rounded-xl border border-dark-700">
+                    <div>
+                        <label class="block text-xs font-semibold text-purple-400 mb-1">Sleeper Berth / Overnight Stay</label>
+                        <span class="text-[10px] text-slate-400">Count toward annual per diem ($69/night)</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <input type="checkbox" id="entry-sleeper" class="w-4 h-4 accent-amber-500 rounded bg-dark-800 border-dark-700">
+                        <label for="entry-sleeper" class="text-xs text-white font-medium">Slept in Truck (1 Night)</label>
+                    </div>
+                </div>
+
+                <div class="bg-dark-900 p-4 rounded-xl border border-dark-700 space-y-3">
+                    <div class="flex justify-between items-center">
+                        <span class="text-xs font-bold text-slate-300 uppercase">Calculated Net Payout:</span>
+                        <span id="preview-net" class="text-lg font-black text-emerald-400">$0.00</span>
+                    </div>
+                    
+                    <div id="zero-net-alert" class="hidden bg-rose-500/10 border border-rose-500/30 p-3 rounded-xl flex items-center justify-between gap-2">
+                        <div class="flex items-center gap-2 text-xs text-rose-400">
+                            <i class="fa-solid fa-triangle-exclamation text-base"></i>
+                            <span>Net is $0 or negative! Deficit can be drawn from Maintenance Escrow.</span>
+                        </div>
+                        <button type="button" onclick="loadDeficitToEscrow()" class="bg-rose-600 hover:bg-rose-500 text-white px-2.5 py-1 rounded-lg text-[10px] font-bold whitespace-nowrap transition">
+                            Draw from Escrow
+                        </button>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1">Notes / Remarks</label>
+                    <textarea id="entry-notes" rows="2" placeholder="Optional delivery notes, broker info..." class="w-full bg-dark-900 border border-dark-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500"></textarea>
+                </div>
+
+                <div class="flex justify-end gap-2 pt-2">
+                    <button type="button" onclick="closeEntryModal()" class="bg-dark-900 hover:bg-dark-700 text-slate-300 px-4 py-2 rounded-xl text-xs font-bold transition border border-dark-700">Cancel</button>
+                    <button type="submit" class="bg-amber-500 hover:bg-amber-400 text-dark-900 px-5 py-2 rounded-xl text-xs font-bold transition shadow">Save Settlement</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ================= MODAL: ESCROW TRANSACTION ================= -->
+    <div id="escrow-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-dark-800 border border-dark-700 rounded-2xl w-full max-w-md shadow-2xl">
+            <div class="p-5 border-b border-dark-700 flex justify-between items-center">
+                <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-vault text-blue-400"></i> Maintenance Escrow Transaction
+                </h3>
+                <button onclick="closeEscrowModal()" class="text-slate-400 hover:text-white text-sm"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <form id="escrow-form" onsubmit="saveEscrowTx(event)" class="p-6 space-y-4">
+                <input type="hidden" id="escrow-tx-id">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1">Date</label>
+                    <input type="date" id="escrow-date" required class="w-full bg-dark-900 border border-dark-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1">Transaction Type</label>
+                    <select id="escrow-type" class="w-full bg-dark-900 border border-dark-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500">
+                        <option value="draw">Maintenance Deduction / Repair Expense (-)</option>
+                        <option value="deposit">Deposit / Settlement Withholding (+)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1">Amount ($)</label>
+                    <input type="number" step="0.01" id="escrow-amount" placeholder="0.00" required class="w-full bg-dark-900 border border-dark-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500 font-bold">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1">Description / Repair Shop / Reason</label>
+                    <input type="text" id="escrow-desc" placeholder="e.g. Cummins ISX Injector Repair / Weekly Withholding" required class="w-full bg-dark-900 border border-dark-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500">
+                </div>
+                <div class="flex justify-end gap-2 pt-2">
+                    <button type="button" onclick="closeEscrowModal()" class="bg-dark-900 hover:bg-dark-700 text-slate-300 px-4 py-2 rounded-xl text-xs font-bold transition border border-dark-700">Cancel</button>
+                    <button type="submit" class="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2 rounded-xl text-xs font-bold transition shadow">Save Escrow Entry</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ================= MODAL: MANUAL ESCROW BALANCE ADJUSTMENT (BACK-ENTRIES) ================= -->
+    <div id="escrow-settings-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-dark-800 border border-dark-700 rounded-2xl w-full max-w-sm shadow-2xl">
+            <div class="p-5 border-b border-dark-700 flex justify-between items-center">
+                <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-sliders text-blue-400"></i> Manual Escrow Base Adjustment
+                </h3>
+                <button onclick="closeEscrowSettingsModal()" class="text-slate-400 hover:text-white text-sm"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <form onsubmit="saveEscrowStartingBalance(event)" class="p-6 space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1">Starting / Base Escrow Reserve ($)</label>
+                    <input type="number" step="0.01" id="starting-escrow-input" required class="w-full bg-dark-900 border border-dark-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500 font-bold">
+                    <p class="text-[10px] text-slate-400 mt-1">Adjust this baseline figure to match your actual historical escrow starting balance for back-entries.</p>
+                </div>
+                <div class="flex justify-end gap-2 pt-2">
+                    <button type="button" onclick="closeEscrowSettingsModal()" class="bg-dark-900 hover:bg-dark-700 text-slate-300 px-4 py-2 rounded-xl text-xs font-bold transition border border-dark-700">Cancel</button>
+                    <button type="submit" class="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2 rounded-xl text-xs font-bold transition shadow">Update Baseline</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- JavaScript Application Logic -->
+    <script>
+        let appData = {
+            startingEscrow: 2500.00,
+            settlements: [],
+            escrowTxs: []
+        };
+
+        document.addEventListener('DOMContentLoaded', () => {
+            loadData();
+            setDefaultDates();
+            renderAll();
+        });
+
+        function setDefaultDates() {
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('entry-date').value = today;
+            document.getElementById('escrow-date').value = today;
         }
 
-        // Set default dates to today on load
-        const todayStr = new Date().toISOString().split('T')[0];
-        document.getElementById('date').value = todayStr;
-        document.getElementById('perDiemDate').value = todayStr;
+        function saveData() {
+            localStorage.setItem('rigtracker_pro_data', JSON.stringify(appData));
+        }
 
-        function calculateLiveNet() {
-            const gross = parseFloat(document.getElementById('gross').value) || 0;
-            const fuel = parseFloat(document.getElementById('fuel').value) || 0;
-            const insurance = parseFloat(document.getElementById('insurance').value) || 0;
-            const plate = parseFloat(document.getElementById('plate').value) || 0;
-            const escrow = parseFloat(document.getElementById('escrow').value) || 0;
-            const toll = parseFloat(document.getElementById('toll').value) || 0;
-            const other = parseFloat(document.getElementById('other').value) || 0;
-
-            const totalDeductions = fuel + insurance + plate + escrow + toll + other;
-            const net = gross - totalDeductions;
-
-            const netDisplay = document.getElementById('liveNetDisplay');
-            const flagWarning = document.getElementById('flagWarning');
-
-            netDisplay.innerText = `$${net.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-
-            if (totalDeductions > gross && gross > 0) {
-                flagWarning.classList.remove('hidden');
-                netDisplay.className = "text-xl font-black text-rose-500";
+        function loadData() {
+            const saved = localStorage.getItem('rigtracker_pro_data');
+            if (saved) {
+                try {
+                    appData = JSON.parse(saved);
+                    if (appData.startingEscrow === undefined) appData.startingEscrow = 2500.00;
+                    if (!appData.settlements) appData.settlements = [];
+                    if (!appData.escrowTxs) appData.escrowTxs = [];
+                } catch(e) {
+                    console.error("Error loading saved data", e);
+                }
             } else {
-                flagWarning.classList.add('hidden');
-                netDisplay.className = "text-xl font-black text-emerald-400";
+                appData.settlements = [];
+                appData.escrowTxs = [];
+                saveData();
             }
         }
 
-        function switchTab(tabName) {
-            const dash = document.getElementById('tabDashboard');
-            const ledger = document.getElementById('tabLedger');
-            const perdiem = document.getElementById('tabPerDiem');
-            const taxforms = document.getElementById('tabTaxForms');
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.getElementById(`section-${tabId}`).classList.remove('hidden');
+
+            ['dashboard', 'settlements', 'escrow', 'tax', 'settings'].forEach(t => {
+                const btn = document.getElementById(`tab-${t}`);
+                if (t === tabId) {
+                    btn.className = "px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all bg-amber-500 text-dark-900 shadow";
+                } else {
+                    btn.className = "px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all text-slate-300 hover:text-white";
+                }
+            });
+
+            if (tabId === 'tax') renderTaxSummary();
+        }
+
+        function renderAll() {
+            renderDashboard();
+            renderSettlementsTable();
+            renderEscrowTable();
+            renderTaxSummary();
+        }
+
+        function renderDashboard() {
+            let totalGross = 0;
+            let totalDeductions = 0;
+            let totalNet = 0;
+            let totalSleeperNights = 0;
+
+            appData.settlements.forEach(s => {
+                totalGross += parseFloat(s.gross || 0);
+                const ded = parseFloat(s.fuel || 0) + parseFloat(s.insurance || 0) + parseFloat(s.fees || 0) + parseFloat(s.escrow || 0);
+                totalDeductions += ded;
+                totalNet += parseFloat(s.net || 0);
+                if (s.sleeper === true) totalSleeperNights += 1;
+            });
+
+            let escrowDeposits = 0;
+            let escrowDraws = 0;
+            appData.escrowTxs.forEach(e => {
+                if (e.type === 'deposit') escrowDeposits += parseFloat(e.amount || 0);
+                if (e.type === 'draw') escrowDraws += parseFloat(e.amount || 0);
+            });
+
+            const currentEscrow = appData.startingEscrow + escrowDeposits - escrowDraws;
+
+            document.getElementById('dash-gross').textContent = formatMoney(totalGross);
+            document.getElementById('dash-deductions').textContent = formatMoney(totalDeductions);
+            document.getElementById('dash-net').textContent = formatMoney(totalNet);
+            document.getElementById('dash-count').textContent = appData.settlements.length;
+            document.getElementById('dash-escrow-balance').textContent = formatMoney(currentEscrow);
+            document.getElementById('escrow-badge').textContent = formatMoney(currentEscrow);
+
+            document.getElementById('dash-per-diem-nights').textContent = `${totalSleeperNights} Nights`;
+            const perDiemTotal = totalSleeperNights * 69.00;
+            document.getElementById('dash-per-diem-amount').textContent = formatMoney(perDiemTotal);
+            document.getElementById('dash-escrow-draws').textContent = formatMoney(escrowDraws);
+
+            document.getElementById('summary-escrow-start').textContent = formatMoney(appData.startingEscrow);
+            document.getElementById('summary-escrow-contrib').textContent = `+${formatMoney(escrowDeposits)}`;
+            document.getElementById('summary-escrow-draws').textContent = `-${formatMoney(escrowDraws)}`;
+
+            const recentBody = document.getElementById('recent-settlements-body');
+            recentBody.innerHTML = '';
             
-            const navDash = document.getElementById('navDashboard');
-            const navLedger = document.getElementById('navLedger');
-            const navPerDiem = document.getElementById('navPerDiem');
-            const navTaxForms = document.getElementById('navTaxForms');
+            const sorted = [...appData.settlements].sort((a,b) => new Date(b.date) - new Date(a.date)).slice(0, 5);
+            
+            if (sorted.length === 0) {
+                recentBody.innerHTML = `<tr><td colspan="5" class="py-4 text-center text-slate-500">No settlements recorded yet.</td></tr>`;
+                return;
+            }
 
-            // Hide all
-            dash.classList.add('hidden');
-            ledger.classList.add('hidden');
-            perdiem.classList.add('hidden');
-            taxforms.classList.add('hidden');
+            sorted.forEach(s => {
+                const ded = parseFloat(s.fuel || 0) + parseFloat(s.insurance || 0) + parseFloat(s.fees || 0) + parseFloat(s.escrow || 0);
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-dark-700/30 transition";
+                tr.innerHTML = `
+                    <td class="py-3 px-3 text-slate-300 font-medium">${s.date}</td>
+                    <td class="py-3 px-3 text-white font-semibold">${escapeHTML(s.ref)}</td>
+                    <td class="py-3 px-3 text-amber-400 font-bold">${formatMoney(s.gross)}</td>
+                    <td class="py-3 px-3 text-rose-400">-${formatMoney(ded)}</td>
+                    <td class="py-3 px-3 text-emerald-400 font-bold">${formatMoney(s.net)}</td>
+                `;
+                recentBody.appendChild(tr);
+            });
+        }
 
-            // Reset nav styles
-            navDash.className = "py-3 px-4 text-sm font-medium border-b-2 border-transparent text-neutral-400 hover:text-white transition whitespace-nowrap";
-            navLedger.className = "py-3 px-4 text-sm font-medium border-b-2 border-transparent text-neutral-400 hover:text-white transition whitespace-nowrap";
-            navPerDiem.className = "py-3 px-4 text-sm font-medium border-b-2 border-transparent text-neutral-400 hover:text-white transition whitespace-nowrap";
-            navTaxForms.className = "py-3 px-4 text-sm font-medium border-b-2 border-transparent text-neutral-400 hover:text-white transition whitespace-nowrap";
+        function renderSettlementsTable() {
+            const query = document.getElementById('search-input').value.toLowerCase();
+            const tbody = document.getElementById('settlements-table-body');
+            tbody.innerHTML = '';
 
-            if (tabName === 'dashboard') {
-                dash.classList.remove('hidden');
-                navDash.className = "py-3 px-4 text-sm font-bold border-b-2 border-amber-500 text-amber-400 transition whitespace-nowrap";
-            } else if (tabName === 'ledger') {
-                ledger.classList.remove('hidden');
-                navLedger.className = "py-3 px-4 text-sm font-bold border-b-2 border-amber-500 text-amber-400 transition whitespace-nowrap";
-                renderTable();
-            } else if (tabName === 'perdiem') {
-                perdiem.classList.remove('hidden');
-                navPerDiem.className = "py-3 px-4 text-sm font-bold border-b-2 border-amber-500 text-amber-400 transition whitespace-nowrap";
-                renderPerDiemApp();
-            } else if (tabName === 'taxforms') {
-                taxforms.classList.remove('hidden');
-                navTaxForms.className = "py-3 px-4 text-sm font-bold border-b-2 border-amber-500 text-amber-400 transition whitespace-nowrap";
-                renderTaxForms();
+            const filtered = appData.settlements.filter(s => 
+                s.ref.toLowerCase().includes(query) || 
+                s.date.includes(query) || 
+                (s.notes && s.notes.toLowerCase().includes(query))
+            ).sort((a,b) => new Date(b.date) - new Date(a.date));
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="9" class="py-6 text-center text-slate-500">No matching settlement records found.</td></tr>`;
+                return;
+            }
+
+            filtered.forEach(s => {
+                const otherDed = parseFloat(s.insurance || 0) + parseFloat(s.fees || 0);
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-dark-700/30 transition";
+                tr.innerHTML = `
+                    <td class="py-3.5 px-3 text-slate-300 font-medium">${s.date}</td>
+                    <td class="py-3.5 px-3 text-white font-semibold">
+                        ${escapeHTML(s.ref)}
+                        ${s.notes ? `<div class="text-[10px] text-slate-400 font-normal truncate max-w-xs">${escapeHTML(s.notes)}</div>` : ''}
+                    </td>
+                    <td class="py-3.5 px-3 text-amber-400 font-bold">${formatMoney(s.gross)}</td>
+                    <td class="py-3.5 px-3 text-rose-400">-${formatMoney(s.fuel)}</td>
+                    <td class="py-3.5 px-3 text-rose-400">-${formatMoney(otherDed)}</td>
+                    <td class="py-3.5 px-3 text-blue-400">-${formatMoney(s.escrow)}</td>
+                    <td class="py-3.5 px-3 text-emerald-400 font-bold">${formatMoney(s.net)}</td>
+                    <td class="py-3.5 px-3 text-center">
+                        ${s.sleeper ? '<span class="px-2 py-0.5 bg-purple-500/20 text-purple-400 rounded-full text-[10px] font-bold">Sleeper</span>' : '<span class="text-slate-600">-</span>'}
+                    </td>
+                    <td class="py-3.5 px-3 text-right space-x-1">
+                        <button onclick="editSettlement('${s.id}')" class="text-slate-400 hover:text-amber-400 p-1 transition" title="Edit"><i class="fa-solid fa-pen-to-square"></i></button>
+                        <button onclick="deleteSettlement('${s.id}')" class="text-slate-400 hover:text-rose-400 p-1 transition" title="Delete"><i class="fa-solid fa-trash"></i></button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function renderEscrowTable() {
+            let deposits = 0;
+            let draws = 0;
+            
+            appData.escrowTxs.forEach(e => {
+                if (e.type === 'deposit') deposits += parseFloat(e.amount || 0);
+                if (e.type === 'draw') draws += parseFloat(e.amount || 0);
+            });
+
+            const current = appData.startingEscrow + deposits - draws;
+
+            document.getElementById('escrow-starting-display').textContent = formatMoney(appData.startingEscrow);
+            document.getElementById('escrow-deposits-display').textContent = `+${formatMoney(deposits)}`;
+            document.getElementById('escrow-draws-display').textContent = `-${formatMoney(draws)}`;
+            document.getElementById('escrow-current-display').textContent = formatMoney(current);
+
+            const tbody = document.getElementById('escrow-table-body');
+            tbody.innerHTML = '';
+
+            const sorted = [...appData.escrowTxs].sort((a,b) => new Date(b.date) - new Date(a.date));
+
+            if (sorted.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" class="py-6 text-center text-slate-500">No maintenance escrow deductions or transactions recorded.</td></tr>`;
+                return;
+            }
+
+            let chronoSorted = [...appData.escrowTxs].sort((a,b) => new Date(a.date) - new Date(b.date));
+            let runningMap = {};
+            let runBalance = appData.startingEscrow;
+            
+            chronoSorted.forEach(e => {
+                if (e.type === 'deposit') runBalance += parseFloat(e.amount || 0);
+                if (e.type === 'draw') runBalance -= parseFloat(e.amount || 0);
+                runningMap[e.id] = runBalance;
+            });
+
+            sorted.forEach(e => {
+                const isDeposit = e.type === 'deposit';
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-dark-700/30 transition";
+                tr.innerHTML = `
+                    <td class="py-3.5 px-3 text-slate-300 font-medium">${e.date}</td>
+                    <td class="py-3.5 px-3">
+                        ${isDeposit ? '<span class="px-2 py-0.5 bg-emerald-500/20 text-emerald-400 rounded-full text-[10px] font-bold">Deposit / Withhold</span>' : '<span class="px-2 py-0.5 bg-rose-500/20 text-rose-400 rounded-full text-[10px] font-bold">Maintenance Deduction</span>'}
+                    </td>
+                    <td class="py-3.5 px-3 text-white font-semibold">${escapeHTML(e.desc)}</td>
+                    <td class="py-3.5 px-3 font-bold ${isDeposit ? 'text-emerald-400' : 'text-rose-400'}">
+                        ${isDeposit ? '+' : '-'}${formatMoney(e.amount)}
+                    </td>
+                    <td class="py-3.5 px-3 text-blue-400 font-bold">${formatMoney(runningMap[e.id])}</td>
+                    <td class="py-3.5 px-3 text-right space-x-1">
+                        <button onclick="editEscrowTx('${e.id}')" class="text-slate-400 hover:text-blue-400 p-1 transition" title="Edit"><i class="fa-solid fa-pen-to-square"></i></button>
+                        <button onclick="deleteEscrowTx('${e.id}')" class="text-slate-400 hover:text-rose-400 p-1 transition" title="Delete"><i class="fa-solid fa-trash"></i></button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function openEntryModal() {
+            document.getElementById('modal-title').innerHTML = `<i class="fa-solid fa-file-invoice-dollar text-amber-500"></i> New Settlement Entry`;
+            document.getElementById('settlement-form').reset();
+            document.getElementById('entry-id').value = '';
+            document.getElementById('entry-sleeper').checked = false;
+            setDefaultDates();
+            document.getElementById('preview-net').textContent = '$0.00';
+            document.getElementById('zero-net-alert').classList.add('hidden');
+            document.getElementById('entry-modal').classList.remove('hidden');
+        }
+
+        function closeEntryModal() {
+            document.getElementById('entry-modal').classList.add('hidden');
+        }
+
+        function calculateNet() {
+            const gross = parseFloat(document.getElementById('entry-gross').value) || 0;
+            const fuel = parseFloat(document.getElementById('entry-fuel').value) || 0;
+            const insurance = parseFloat(document.getElementById('entry-insurance').value) || 0;
+            const fees = parseFloat(document.getElementById('entry-fees').value) || 0;
+            const escrow = parseFloat(document.getElementById('entry-escrow').value) || 0;
+
+            const net = gross - (fuel + insurance + fees + escrow);
+            const netElem = document.getElementById('preview-net');
+            netElem.textContent = formatMoney(net);
+
+            if (net <= 0 && gross > 0) {
+                document.getElementById('zero-net-alert').classList.remove('hidden');
+                netElem.className = "text-lg font-black text-rose-400";
+            } else {
+                document.getElementById('zero-net-alert').classList.add('hidden');
+                netElem.className = "text-lg font-black text-emerald-400";
+            }
+        }
+
+        function loadDeficitToEscrow() {
+            const gross = parseFloat(document.getElementById('entry-gross').value) || 0;
+            const fuel = parseFloat(document.getElementById('entry-fuel').value) || 0;
+            const insurance = parseFloat(document.getElementById('entry-insurance').value) || 0;
+            const fees = parseFloat(document.getElementById('entry-fees').value) || 0;
+            const escrow = parseFloat(document.getElementById('entry-escrow').value) || 0;
+
+            const net = gross - (fuel + insurance + fees + escrow);
+            const deficit = Math.abs(net);
+
+            if (deficit > 0) {
+                closeEntryModal();
+                switchTab('escrow');
+                openEscrowModal();
+                document.getElementById('escrow-type').value = 'draw';
+                document.getElementById('escrow-amount').value = deficit.toFixed(2);
+                document.getElementById('escrow-desc').value = `Maintenance Deduction for Zero-Net Deficit (${document.getElementById('entry-ref').value || 'Load'})`;
             }
         }
 
         function saveSettlement(e) {
             e.preventDefault();
-            const editId = document.getElementById('editId').value;
-            const date = document.getElementById('date').value;
-            const gross = parseFloat(document.getElementById('gross').value) || 0;
-            const fuel = parseFloat(document.getElementById('fuel').value) || 0;
-            const insurance = parseFloat(document.getElementById('insurance').value) || 0;
-            const plate = parseFloat(document.getElementById('plate').value) || 0;
-            const escrow = parseFloat(document.getElementById('escrow').value) || 0;
-            const toll = parseFloat(document.getElementById('toll').value) || 0;
-            const other = parseFloat(document.getElementById('other').value) || 0;
+            const id = document.getElementById('entry-id').value;
+            const date = document.getElementById('entry-date').value;
+            const ref = document.getElementById('entry-ref').value;
+            const gross = parseFloat(document.getElementById('entry-gross').value) || 0;
+            const fuel = parseFloat(document.getElementById('entry-fuel').value) || 0;
+            const insurance = parseFloat(document.getElementById('entry-insurance').value) || 0;
+            const fees = parseFloat(document.getElementById('entry-fees').value) || 0;
+            const escrow = parseFloat(document.getElementById('entry-escrow').value) || 0;
+            const sleeper = document.getElementById('entry-sleeper').checked;
+            const notes = document.getElementById('entry-notes').value;
+            const net = gross - (fuel + insurance + fees + escrow);
 
-            if (editId) {
-                const index = settlements.findIndex(item => item.id == editId);
-                if (index !== -1) {
-                    settlements[index] = { id: Number(editId), date, gross, fuel, insurance, plate, escrow, toll, other };
-                }
+            const record = { id: id || 's_' + Date.now(), date, ref, gross, fuel, insurance, fees, escrow, net, sleeper, notes };
+
+            if (id) {
+                const idx = appData.settlements.findIndex(s => s.id === id);
+                if (idx !== -1) appData.settlements[idx] = record;
             } else {
-                const newItem = {
-                    id: Date.now(),
-                    date,
-                    gross,
-                    fuel,
-                    insurance,
-                    plate,
-                    escrow,
-                    toll,
-                    other
-                };
-                settlements.push(newItem);
+                appData.settlements.push(record);
+                if (escrow > 0) {
+                    appData.escrowTxs.push({
+                        id: 'e_' + Date.now(),
+                        date,
+                        type: 'deposit',
+                        amount: escrow,
+                        desc: `Settlement Withholding (${ref})`
+                    });
+                }
             }
 
-            settlements.sort((a, b) => new Date(a.date) - new Date(b.date));
-            saveToStorage();
-            renderApp();
-            resetForm();
+            saveData();
+            closeEntryModal();
+            renderAll();
         }
 
         function editSettlement(id) {
-            const item = settlements.find(i => i.id === id);
-            if (!item) return;
+            const s = appData.settlements.find(item => item.id === id);
+            if (!s) return;
 
-            document.getElementById('editId').value = item.id;
-            document.getElementById('date').value = item.date;
-            document.getElementById('gross').value = item.gross;
-            document.getElementById('fuel').value = item.fuel || '';
-            document.getElementById('insurance').value = item.insurance || '';
-            document.getElementById('plate').value = item.plate || '';
-            document.getElementById('escrow').value = item.escrow || '';
-            document.getElementById('toll').value = item.toll || '';
-            document.getElementById('other').value = item.other || '';
-
-            document.getElementById('formModeTag').innerText = "Editing Entry";
-            document.getElementById('saveButton').innerText = "Update Entry";
-            document.getElementById('cancelButton').classList.remove('hidden');
-
-            switchTab('dashboard');
-            calculateLiveNet();
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-        }
-
-        function resetForm() {
-            document.getElementById('settlementForm').reset();
-            document.getElementById('editId').value = '';
-            document.getElementById('date').value = new Date().toISOString().split('T')[0];
-            document.getElementById('formModeTag').innerText = "New Entry";
-            document.getElementById('saveButton').innerText = "Save Entry";
-            document.getElementById('cancelButton').classList.add('hidden');
-            calculateLiveNet();
+            document.getElementById('modal-title').innerHTML = `<i class="fa-solid fa-pen-to-square text-amber-500"></i> Edit Settlement Entry`;
+            document.getElementById('entry-id').value = s.id;
+            document.getElementById('entry-date').value = s.date;
+            document.getElementById('entry-ref').value = s.ref;
+            document.getElementById('entry-gross').value = s.gross;
+            document.getElementById('entry-fuel').value = s.fuel;
+            document.getElementById('entry-insurance').value = s.insurance;
+            document.getElementById('entry-fees').value = s.fees;
+            document.getElementById('entry-escrow').value = s.escrow;
+            document.getElementById('entry-sleeper').checked = Boolean(s.sleeper);
+            document.getElementById('entry-notes').value = s.notes || '';
+            
+            calculateNet();
+            document.getElementById('entry-modal').classList.remove('hidden');
         }
 
         function deleteSettlement(id) {
-            if (confirm("Are you sure you want to delete this settlement entry?")) {
-                settlements = settlements.filter(item => item.id !== id);
-                saveToStorage();
-                renderApp();
+            if (confirm("Are you sure you want to delete this settlement record?")) {
+                appData.settlements = appData.settlements.filter(s => s.id !== id);
+                saveData();
+                renderAll();
             }
         }
 
-        // --- Per Diem Logic ---
-        function savePerDiemNight(e) {
+        function openEscrowModal() {
+            document.getElementById('escrow-form').reset();
+            document.getElementById('escrow-tx-id').value = '';
+            document.getElementById('escrow-type').value = 'draw'; // Default to maintenance deduction
+            setDefaultDates();
+            document.getElementById('escrow-modal').classList.remove('hidden');
+        }
+
+        function closeEscrowModal() {
+            document.getElementById('escrow-modal').classList.add('hidden');
+        }
+
+        function saveEscrowTx(e) {
             e.preventDefault();
-            const date = document.getElementById('perDiemDate').value;
-            const notes = document.getElementById('perDiemNotes').value;
+            const id = document.getElementById('escrow-tx-id').value;
+            const date = document.getElementById('escrow-date').value;
+            const type = document.getElementById('escrow-type').value;
+            const amount = parseFloat(document.getElementById('escrow-amount').value) || 0;
+            const desc = document.getElementById('escrow-desc').value;
 
-            const newItem = {
-                id: Date.now(),
-                date,
-                notes
-            };
-            perDiemNights.push(newItem);
-            perDiemNights.sort((a, b) => new Date(a.date) - new Date(b.date));
-            
-            saveToStorage();
-            document.getElementById('perDiemForm').reset();
-            document.getElementById('perDiemDate').value = new Date().toISOString().split('T')[0];
-            renderPerDiemApp();
+            const tx = { id: id || 'e_' + Date.now(), date, type, amount, desc };
+
+            if (id) {
+                const idx = appData.escrowTxs.findIndex(item => item.id === id);
+                if (idx !== -1) appData.escrowTxs[idx] = tx;
+            } else {
+                appData.escrowTxs.push(tx);
+            }
+
+            saveData();
+            closeEscrowModal();
+            renderAll();
         }
 
-        function deletePerDiemNight(id) {
-            if (confirm("Delete this sleeper berth night record?")) {
-                perDiemNights = perDiemNights.filter(item => item.id !== id);
-                saveToStorage();
-                renderPerDiemApp();
+        function editEscrowTx(id) {
+            const tx = appData.escrowTxs.find(item => item.id === id);
+            if (!tx) return;
+
+            document.getElementById('escrow-tx-id').value = tx.id;
+            document.getElementById('escrow-date').value = tx.date;
+            document.getElementById('escrow-type').value = tx.type;
+            document.getElementById('escrow-amount').value = tx.amount;
+            document.getElementById('escrow-desc').value = tx.desc;
+
+            document.getElementById('escrow-modal').classList.remove('hidden');
+        }
+
+        function deleteEscrowTx(id) {
+            if (confirm("Are you sure you want to delete this maintenance escrow transaction?")) {
+                appData.escrowTxs = appData.escrowTxs.filter(item => item.id !== id);
+                saveData();
+                renderAll();
             }
         }
 
-        function renderPerDiemApp() {
-            const tbody = document.getElementById('perDiemTableBody');
-            const yearCardsContainer = document.getElementById('perDiemYearCards');
-            tbody.innerHTML = '';
-            yearCardsContainer.innerHTML = '';
+        function openEscrowSettingsModal() {
+            document.getElementById('starting-escrow-input').value = appData.startingEscrow;
+            document.getElementById('escrow-settings-modal').classList.remove('hidden');
+        }
 
-            document.getElementById('perDiemRecordCount').innerText = `${perDiemNights.length} nights`;
+        function closeEscrowSettingsModal() {
+            document.getElementById('escrow-settings-modal').classList.add('hidden');
+        }
 
-            if (perDiemNights.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="3" class="p-6 text-center text-neutral-400 font-sans">No nights on the road logged yet. Use the form above to add dates.</td></tr>`;
-                
-                const currentYear = new Date().getFullYear();
-                yearCardsContainer.innerHTML = `
-                    <div class="bg-neutral-900 p-5 rounded-xl border border-neutral-800 shadow-sm">
-                        <p class="text-xs font-medium text-white uppercase tracking-wider">${currentYear} Nights on Road</p>
-                        <p class="text-2xl font-black text-blue-400 mt-1">0 Nights</p>
-                    </div>
-                `;
-                return;
-            }
+        function saveEscrowStartingBalance(e) {
+            e.preventDefault();
+            const val = parseFloat(document.getElementById('starting-escrow-input').value) || 0;
+            appData.startingEscrow = val;
+            saveData();
+            closeEscrowSettingsModal();
+            renderAll();
+        }
 
-            const yearCounts = {};
-            perDiemNights.forEach(item => {
-                if (item.date) {
-                    const yr = item.date.substring(0, 4);
-                    yearCounts[yr] = (yearCounts[yr] || 0) + 1;
+        function renderTaxSummary() {
+            const selectedYear = document.getElementById('tax-year-select').value;
+            document.getElementById('display-tax-year').textContent = selectedYear;
+
+            let gross = 0;
+            let net = 0;
+            let escrowWithheld = 0;
+            let fuel = 0;
+            let insurance = 0;
+            let fees = 0;
+            let sleeperNights = 0;
+
+            appData.settlements.forEach(s => {
+                const year = s.date.split('-')[0];
+                if (year === selectedYear) {
+                    gross += parseFloat(s.gross || 0);
+                    net += parseFloat(s.net || 0);
+                    escrowWithheld += parseFloat(s.escrow || 0);
+                    fuel += parseFloat(s.fuel || 0);
+                    insurance += parseFloat(s.insurance || 0);
+                    fees += parseFloat(s.fees || 0);
+                    if (s.sleeper === true) sleeperNights += 1;
                 }
             });
 
-            const sortedYears = Object.keys(yearCounts).sort().reverse();
-            sortedYears.forEach(yr => {
-                const count = yearCounts[yr];
-                const card = document.createElement('div');
-                card.className = "bg-neutral-900 p-5 rounded-xl border border-neutral-800 shadow-sm";
-                card.innerHTML = `
-                    <p class="text-xs font-medium text-white uppercase tracking-wider">${yr} Nights on Road</p>
-                    <p class="text-2xl font-black text-blue-400 mt-1">${count} Night${count === 1 ? '' : 's'}</p>
-                `;
-                yearCardsContainer.appendChild(card);
-            });
+            const totalDeductions = fuel + insurance + fees + escrowWithheld;
+            const perDiemTotal = sleeperNights * 69.00;
 
-            const sortedTable = [...perDiemNights].reverse();
-            sortedTable.forEach(item => {
-                const tr = document.createElement('tr');
-                tr.className = 'hover:bg-neutral-800/50 transition';
-                tr.innerHTML = `
-                    <td class="p-3 text-white font-medium">${item.date}</td>
-                    <td class="p-3 text-neutral-300 font-sans">${item.notes || '—'}</td>
-                    <td class="p-3 text-right font-sans">
-                        <button onclick="deletePerDiemNight(${item.id})" class="text-xs font-medium px-2.5 py-1 rounded bg-rose-500/20 text-rose-400 hover:bg-rose-500/30 transition">Delete</button>
-                    </td>
-                `;
-                tbody.appendChild(tr);
-            });
+            document.getElementById('tax-gross').textContent = formatMoney(gross);
+            document.getElementById('tax-net').textContent = formatMoney(net);
+            document.getElementById('tax-escrow-withheld').textContent = formatMoney(escrowWithheld);
+            document.getElementById('tax-fuel').textContent = formatMoney(fuel);
+            document.getElementById('tax-insurance').textContent = formatMoney(insurance);
+            document.getElementById('tax-fees').textContent = formatMoney(fees);
+            document.getElementById('tax-total-deductions').textContent = formatMoney(totalDeductions);
+            
+            document.getElementById('tax-per-diem-nights').textContent = `${sleeperNights} Nights`;
+            document.getElementById('tax-per-diem-total').textContent = formatMoney(perDiemTotal);
         }
 
-        // --- Annual Tax Forms Logic ---
-        function renderTaxForms() {
-            const container = document.getElementById('taxFormsContainer');
-            container.innerHTML = '';
-
-            const allYearsSet = new Set();
-            settlements.forEach(s => { if (s.date) allYearsSet.add(s.date.substring(0, 4)); });
-            perDiemNights.forEach(p => { if (p.date) allYearsSet.add(p.date.substring(0, 4)); });
-
-            if (allYearsSet.size === 0) {
-                allYearsSet.add(new Date().getFullYear().toString());
-            }
-
-            const sortedYears = Array.from(allYearsSet).sort().reverse();
-
-            sortedYears.forEach(yr => {
-                const yearSettlements = settlements.filter(s => s.date && s.date.startsWith(yr));
-                yearSettlements.sort((a, b) => new Date(a.date) - new Date(b.date));
-
-                const totalGross = yearSettlements.reduce((sum, i) => sum + (i.gross || 0), 0);
-                const totalFuel = yearSettlements.reduce((sum, i) => sum + (i.fuel || 0), 0);
-                const totalInsurance = yearSettlements.reduce((sum, i) => sum + (i.insurance || 0), 0);
-                const totalPlate = yearSettlements.reduce((sum, i) => sum + (i.plate || 0), 0);
-                const totalEscrow = yearSettlements.reduce((sum, i) => sum + (i.escrow || 0), 0);
-                const totalToll = yearSettlements.reduce((sum, i) => sum + (i.toll || 0), 0);
-                const totalOther = yearSettlements.reduce((sum, i) => sum + (i.other || 0), 0);
-                const totalDeductions = totalFuel + totalInsurance + totalPlate + totalEscrow + totalToll + totalOther;
-                const netTotal = totalGross - totalDeductions;
-
-                const yearNights = perDiemNights.filter(p => p.date && p.date.startsWith(yr));
-                yearNights.sort((a, b) => new Date(a.date) - new Date(b.date));
-
-                const formCard = document.createElement('div');
-                formCard.className = "bg-neutral-900 print-container print-bg p-8 rounded-xl border border-neutral-800 shadow-md space-y-6";
-                formCard.innerHTML = `
-                    <div class="flex justify-between items-center border-b border-neutral-800 pb-4">
-                        <div>
-                            <h2 class="text-xl font-black text-white tracking-wide">Year of ${yr} Tax & Per Diem Summary</h2>
-                            <p class="text-xs text-neutral-400">RigTracker Pro Owner-Operator Tax Packet</p>
-                        </div>
-                    </div>
-
-                    <!-- Financial Summary Grid -->
-                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                        <div class="bg-black print-bg p-4 rounded-lg border border-neutral-800">
-                            <span class="text-xs text-neutral-400 uppercase tracking-wider block">Gross Revenue</span>
-                            <span class="text-xl font-bold text-amber-400">$${totalGross.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                        </div>
-                        <div class="bg-black print-bg p-4 rounded-lg border border-neutral-800">
-                            <span class="text-xs text-neutral-400 uppercase tracking-wider block">Total Deductions</span>
-                            <span class="text-xl font-bold text-rose-500">$${totalDeductions.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                        </div>
-                        <div class="bg-black print-bg p-4 rounded-lg border border-neutral-800">
-                            <span class="text-xs text-neutral-400 uppercase tracking-wider block">Net Payout</span>
-                            <span class="text-xl font-bold text-emerald-400">$${netTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                        </div>
-                    </div>
-
-                    <!-- Itemized Deductions Breakdown -->
-                    <div>
-                        <h4 class="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-2">Itemized Deductions Breakdown</h4>
-                        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 text-sm font-mono">
-                            <div class="bg-black print-bg p-3 rounded border border-neutral-800"><span class="text-xs text-neutral-400 block">Fuel:</span>$${totalFuel.toFixed(2)}</div>
-                            <div class="bg-black print-bg p-3 rounded border border-neutral-800"><span class="text-xs text-neutral-400 block">Insurance:</span>$${totalInsurance.toFixed(2)}</div>
-                            <div class="bg-black print-bg p-3 rounded border border-neutral-800"><span class="text-xs text-neutral-400 block">Plate:</span>$${totalPlate.toFixed(2)}</div>
-                            <div class="bg-black print-bg p-3 rounded border border-neutral-800"><span class="text-xs text-neutral-400 block">Escrow:</span>$${totalEscrow.toFixed(2)}</div>
-                            <div class="bg-black print-bg p-3 rounded border border-neutral-800"><span class="text-xs text-neutral-400 block">Toll:</span>$${totalToll.toFixed(2)}</div>
-                            <div class="bg-black print-bg p-3 rounded border border-neutral-800"><span class="text-xs text-neutral-400 block">Other:</span>$${totalOther.toFixed(2)}</div>
-                        </div>
-                    </div>
-
-                    <!-- Spreadsheet Ledger for Year -->
-                    <div class="border-t border-neutral-800 pt-4 space-y-3">
-                        <h4 class="text-xs font-bold text-amber-400 uppercase tracking-wider">${yr} Itemized Spreadsheet Ledger</h4>
-                        ${yearSettlements.length > 0 ? `
-                            <div class="overflow-x-auto">
-                                <table class="w-full text-left border-collapse text-xs font-mono">
-                                    <thead>
-                                        <tr class="bg-black print-bg text-neutral-300 border-b border-neutral-800 uppercase">
-                                            <th class="p-2">Date</th>
-                                            <th class="p-2 text-amber-400">Gross</th>
-                                            <th class="p-2 text-rose-500">Fuel</th>
-                                            <th class="p-2 text-rose-500">Insurance</th>
-                                            <th class="p-2 text-rose-500">Plate</th>
-                                            <th class="p-2 text-rose-500">Escrow</th>
-                                            <th class="p-2 text-rose-500">Toll</th>
-                                            <th class="p-2 text-rose-500">Other</th>
-                                            <th class="p-2 text-emerald-400">Net Total</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody class="divide-y divide-neutral-800">
-                                        ${yearSettlements.map(item => {
-                                            const deds = (item.fuel || 0) + (item.insurance || 0) + (item.plate || 0) + (item.escrow || 0) + (item.toll || 0) + (item.other || 0);
-                                            const net = (item.gross || 0) - deds;
-                                            return `
-                                                <tr>
-                                                    <td class="p-2 text-white font-medium">${item.date}</td>
-                                                    <td class="p-2 text-amber-400">$${(item.gross || 0).toFixed(2)}</td>
-                                                    <td class="p-2 text-rose-500">$${(item.fuel || 0).toFixed(2)}</td>
-                                                    <td class="p-2 text-rose-500">$${(item.insurance || 0).toFixed(2)}</td>
-                                                    <td class="p-2 text-rose-500">$${(item.plate || 0).toFixed(2)}</td>
-                                                    <td class="p-2 text-rose-500">$${(item.escrow || 0).toFixed(2)}</td>
-                                                    <td class="p-2 text-rose-500">$${(item.toll || 0).toFixed(2)}</td>
-                                                    <td class="p-2 text-rose-500">$${(item.other || 0).toFixed(2)}</td>
-                                                    <td class="p-2 text-emerald-400 font-bold">$${net.toFixed(2)}</td>
-                                                </tr>
-                                            `;
-                                        }).join('')}
-                                    </tbody>
-                                </table>
-                            </div>
-                        ` : `<p class="text-xs text-neutral-500 italic font-sans">No financial entries recorded for ${yr}.</p>`}
-                    </div>
-
-                    <!-- Per Diem Nights Section -->
-                    <div class="border-t border-neutral-800 pt-4 space-y-3">
-                        <div class="flex justify-between items-center">
-                            <h4 class="text-xs font-bold text-blue-400 uppercase tracking-wider">Per Diem / Nights on the Road</h4>
-                            <span class="text-sm font-bold text-white bg-blue-500/20 px-3 py-1 rounded-full">${yearNights.length} Total Nights</span>
-                        </div>
-
-                        ${yearNights.length > 0 ? `
-                            <div class="overflow-x-auto">
-                                <table class="w-full text-left border-collapse text-xs font-mono">
-                                    <thead>
-                                        <tr class="bg-black print-bg text-neutral-400 border-b border-neutral-800 uppercase">
-                                            <th class="p-2">Date</th>
-                                            <th class="p-2">Location / Notes</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody class="divide-y divide-neutral-800">
-                                        ${yearNights.map(n => `
-                                            <tr>
-                                                <td class="p-2 text-white font-medium">${n.date}</td>
-                                                <td class="p-2 text-neutral-300">${n.notes || '—'}</td>
-                                            </tr>
-                                        `).join('')}
-                                    </tbody>
-                                </table>
-                            </div>
-                        ` : `<p class="text-xs text-neutral-500 italic font-sans">No sleeper berth nights logged for ${yr}.</p>`}
-                    </div>
-                `;
-                container.appendChild(formCard);
-            });
-        }
-
-        function renderStats() {
-            const totalGross = settlements.reduce((sum, item) => sum + (item.gross || 0), 0);
-            const totalExpenses = settlements.reduce((sum, item) => {
-                return sum + (item.fuel || 0) + (item.insurance || 0) + (item.plate || 0) + (item.escrow || 0) + (item.toll || 0) + (item.other || 0);
-            }, 0);
-            const netProfit = totalGross - totalExpenses;
-
-            document.getElementById('statGross').innerText = `$${totalGross.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-            document.getElementById('statExpenses').innerText = `$${totalExpenses.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-            document.getElementById('statNet').innerText = `$${netProfit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-            document.getElementById('recordCount').innerText = `${settlements.length} entries`;
-        }
-
-        function renderTable() {
-            const tbody = document.getElementById('settlementTableBody');
-            tbody.innerHTML = '';
-
-            if (settlements.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="10" class="p-6 text-center text-neutral-400 font-sans">No settlement entries recorded yet. Add your entry on the Dashboard tab.</td></tr>`;
-                return;
-            }
-
-            const sortedForTable = [...settlements].reverse();
-            sortedForTable.forEach(item => {
-                const totalDeductions = (item.fuel || 0) + (item.insurance || 0) + (item.plate || 0) + (item.escrow || 0) + (item.toll || 0) + (item.other || 0);
-                const netTotal = (item.gross || 0) - totalDeductions;
-
-                const tr = document.createElement('tr');
-                tr.className = 'hover:bg-neutral-800/50 transition';
-                tr.innerHTML = `
-                    <td class="p-3 text-white font-sans">${item.date}</td>
-                    <td class="p-3 text-amber-400 font-semibold">$${(item.gross || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
-                    <td class="p-3 text-rose-500">$${(item.fuel || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
-                    <td class="p-3 text-rose-500">$${(item.insurance || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
-                    <td class="p-3 text-rose-500">$${(item.plate || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
-                    <td class="p-3 text-rose-500">$${(item.escrow || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
-                    <td class="p-3 text-rose-500">$${(item.toll || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
-                    <td class="p-3 text-rose-500">$${(item.other || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
-                    <td class="p-3 text-emerald-400 font-bold">$${netTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
-                    <td class="p-3 text-right space-x-1 font-sans">
-                        <button onclick="editSettlement(${item.id})" class="text-xs font-medium px-2.5 py-1 rounded bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 transition">Edit</button>
-                        <button onclick="deleteSettlement(${item.id})" class="text-xs font-medium px-2.5 py-1 rounded bg-rose-500/20 text-rose-400 hover:bg-rose-500/30 transition">Delete</button>
-                    </td>
-                `;
-                tbody.appendChild(tr);
-            });
-        }
-
-        function exportData() {
-            const exportObj = {
-                settlements: settlements,
-                perDiemNights: perDiemNights
+        function printTaxForm() {
+            const element = document.getElementById('printable-tax-form');
+            const opt = {
+                margin:       10,
+                filename:     `Thomas_Transport_Tax_Summary_${document.getElementById('tax-year-select').value}.pdf`,
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2, backgroundColor: '#0f172a' },
+                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
             };
-            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportObj, null, 2));
-            const downloadAnchor = document.createElement('a');
-            downloadAnchor.setAttribute("href", dataStr);
-            downloadAnchor.setAttribute("download", "rigtracker_complete_backup.json");
-            document.body.appendChild(downloadAnchor);
-            downloadAnchor.click();
-            downloadAnchor.remove();
+            html2pdf().from(element).set(opt).save();
         }
 
-        function renderApp() {
-            renderStats();
-            renderTable();
+        function exportDataJSON() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(appData, null, 2));
+            const dlAnchor = document.createElement('a');
+            dlAnchor.setAttribute("href", dataStr);
+            dlAnchor.setAttribute("download", `rigtracker_pro_backup_${new Date().toISOString().split('T')[0]}.json`);
+            document.body.appendChild(dlAnchor);
+            dlAnchor.click();
+            dlAnchor.remove();
         }
 
-        renderApp();
+        function importDataJSON(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const parsed = JSON.parse(e.target.result);
+                    if (parsed.settlements && Array.isArray(parsed.settlements)) {
+                        appData = parsed;
+                        saveData();
+                        renderAll();
+                        alert("Data imported successfully!");
+                    } else {
+                        alert("Invalid backup file format.");
+                    }
+                } catch(err) {
+                    alert("Error parsing JSON file.");
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        function clearAllData() {
+            if (confirm("DANGER: This will delete all saved settlements and escrow records. Are you completely sure?")) {
+                appData = { startingEscrow: 2500.00, settlements: [], escrowTxs: [] };
+                saveData();
+                renderAll();
+                alert("All data has been reset.");
+            }
+        }
+
+        function formatMoney(amount) {
+            return '$' + parseFloat(amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+
+        function escapeHTML(str) {
+            if (!str) return '';
+            return str.replace(/[&<>'"]/g, 
+                tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
+            );
+        }
     </script>
 </body>
 </html>
