@@ -25,14 +25,11 @@
                 <div class="bg-amber-500 text-slate-950 font-black px-3 py-1.5 rounded text-lg tracking-wider">RT</div>
                 <div>
                     <h1 class="text-xl font-bold tracking-tight text-white">RigTracker Pro</h1>
-                    <p class="text-xs text-slate-400">AI-Powered Itemized Ledger</p>
+                    <p class="text-xs text-slate-400">AI Debug & Itemized Ledger</p>
                 </div>
             </div>
             <div class="flex space-x-2 items-center">
-                <span class="text-xs bg-amber-500/20 text-amber-400 px-2.5 py-1 rounded font-medium flex items-center space-x-1">
-                    <span class="w-2 h-2 bg-amber-400 rounded-full animate-pulse"></span>
-                    <span>AI Mode Active</span>
-                </span>
+                <span class="text-xs bg-amber-500/20 text-amber-400 px-2.5 py-1 rounded font-medium">AI Debug Active</span>
                 <button onclick="exportData()" class="bg-slate-700 hover:bg-slate-600 text-xs px-3 py-2 rounded font-medium transition">Export Backup</button>
             </div>
         </div>
@@ -59,27 +56,33 @@
             </div>
         </div>
 
-        <!-- AI Settlement Uploader -->
+        <!-- PDF Settlement Uploader -->
         <div class="bg-slate-800 p-6 rounded-xl border border-amber-500/30 shadow-md">
             <h2 class="text-lg font-bold mb-1 text-white flex items-center justify-between">
-                <span>AI Settlement Document Scanner</span>
-                <span class="text-xs bg-amber-500/20 text-amber-400 px-2.5 py-1 rounded-full font-normal">Deep LTI Matrix Parser</span>
+                <span>AI Settlement Inspector</span>
+                <span class="text-xs bg-amber-500/20 text-amber-400 px-2.5 py-1 rounded-full font-normal">Shows Raw Text on Scan</span>
             </h2>
-            <p class="text-xs text-slate-400 mb-4">Upload your LTI PDF. The AI engine extracts gross earnings, loaded miles, and itemized expenses automatically.</p>
+            <p class="text-xs text-slate-400 mb-4">Upload your PDF. The scanner will populate the form and print out the raw text below so we can see how LTI formats your miles and deductions.</p>
             
             <label class="flex flex-col items-center justify-center border-2 border-dashed border-slate-700 hover:border-amber-500 rounded-xl p-6 cursor-pointer bg-slate-900/50 transition">
                 <div class="flex flex-col items-center space-y-2 text-center">
                     <svg class="w-8 h-8 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
-                    <p class="text-sm font-medium text-slate-200"><span id="uploadLabelText">Tap here to run AI PDF scan</span></p>
-                    <p class="text-xs text-slate-500">Extracts gross, miles, and deductions instantly</p>
+                    <p class="text-sm font-medium text-slate-200"><span id="uploadLabelText">Tap here to run AI Debug Scan</span></p>
+                    <p class="text-xs text-slate-500">Extracts layout data instantly</p>
                 </div>
                 <input type="file" id="pdfUploadInput" onchange="handleAiPdfUpload(event)" class="hidden" accept=".pdf">
             </label>
         </div>
 
+        <!-- AI Debug Inspector Box -->
+        <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-md">
+            <h3 class="text-sm font-bold text-amber-400 mb-2">AI Raw Text Inspector (Check what your PDF text says)</h3>
+            <textarea id="debugText" readonly class="w-full h-32 bg-slate-900 border border-slate-700 rounded p-3 text-xs text-slate-300 font-mono focus:outline-none" placeholder="Raw extracted PDF text will appear here after upload..."></textarea>
+        </div>
+
         <!-- Manual Spreadsheet Entry -->
         <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-md">
-            <h2 class="text-lg font-bold mb-4 text-white">Manual Spreadsheet Entry</h2>
+            <h2 class="text-lg font-bold mb-4 text-white">Manual Spreadsheet Entry / Review</h2>
             <form id="settlementForm" onsubmit="addSettlement(event)" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
                 <div>
                     <label class="block text-xs font-medium text-slate-300 mb-1">Week Ending Date</label>
@@ -169,12 +172,11 @@
             localStorage.setItem('rigtracker_ledger', JSON.stringify(settlements));
         }
 
-        // Expanded AI Matrix Inspector for LTI PDFs
         async function handleAiPdfUpload(event) {
             const file = event.target.files[0];
             if (!file) return;
 
-            document.getElementById('uploadLabelText').innerText = `AI deep-scanning ${file.name}...`;
+            document.getElementById('uploadLabelText').innerText = `Scanning ${file.name}...`;
 
             try {
                 const reader = new FileReader();
@@ -192,36 +194,42 @@
                             fullText += pageText + " ";
                         }
 
+                        // Display raw text in inspector box so we can see it
+                        document.getElementById('debugText').value = fullText;
+
+                        // Flexible numerical matchers
                         let grossVal = 0;
                         let milesVal = 0;
-                        let totalDeductVal = 0;
+                        let deductVal = 0;
 
-                        // Broadened AI regex matching for LTI statements
-                        const grossMatch = fullText.match(/TOTAL\s*GROSS\s*EARNINGS[^0-9\$]*([\d,]+\.\d{2})/i) || fullText.match(/GROSS\s*PAY[^0-9\$]*([\d,]+\.\d{2})/i) || fullText.match(/EARNINGS[^0-9\$]*([\d,]+\.\d{2})/i);
+                        // Match numbers following gross keywords anywhere
+                        const grossMatch = fullText.match(/(?:TOTAL GROSS EARNINGS|GROSS PAY|EARNINGS)[^\d\$]*([\d,]+\.\d{2})/i) || fullText.match(/([\d,]+\.\d{2})/);
                         if (grossMatch) grossVal = parseFloat(grossMatch[1].replace(/,/g, ''));
 
-                        const milesMatch = fullText.match(/LOADED\s*MILES[^0-9]*([\d,]+\.?\d*)/i) || fullText.match(/MILES[^0-9]*([\d,]+\.?\d*)/i);
-                        if (milesMatch) milesVal = parseFloat(milesMatch[1].replace(/,/g, ''));
+                        // Match miles
+                        const milesMatch = fullText.match(/(?:LOADED MILES|MILES)[^\d]*([\d,]+)/i);
+                        if (milesMatch) milesVal = parseInt(milesMatch[1].replace(/,/g, ''));
 
-                        const deductMatch = fullText.match(/TOTAL\s*DEDUCTIONS[^0-9\$]*([\d,]+\.\d{2})/i) || fullText.match(/DEDUCTIONS[^0-9\$]*([\d,]+\.\d{2})/i) || fullText.match(/TOTAL\s*EXPENSES[^0-9\$]*([\d,]+\.\d{2})/i);
-                        if (deductMatch) totalDeductVal = parseFloat(deductMatch[1].replace(/,/g, ''));
+                        // Match deductions / expenses
+                        const deductMatch = fullText.match(/(?:TOTAL DEDUCTIONS|DEDUCTIONS|TOTAL EXPENSES|EXPENSES)[^\d\$]*([\d,]+\.\d{2})/i);
+                        if (deductMatch) deductVal = parseFloat(deductMatch[1].replace(/,/g, ''));
 
                         if (grossVal) document.getElementById('gross').value = grossVal;
                         if (milesVal) document.getElementById('miles').value = milesVal;
-                        if (totalDeductVal) document.getElementById('expenses').value = totalDeductVal;
+                        if (deductVal) document.getElementById('expenses').value = deductVal;
                         document.getElementById('date').value = new Date().toISOString().split('T')[0];
 
-                        document.getElementById('uploadLabelText').innerText = `AI Scan Complete! Review & Save Row below.`;
+                        document.getElementById('uploadLabelText').innerText = `Scan Complete! Check debug text box below.`;
                     } catch (innerErr) {
                         console.error(innerErr);
-                        document.getElementById('uploadLabelText').innerText = `Scan finished. Verify fields below.`;
+                        document.getElementById('uploadLabelText').innerText = `Error parsing PDF text.`;
                     }
                 };
                 reader.readAsArrayBuffer(file);
             } catch (err) {
                 console.error(err);
                 alert("Error reading PDF file.");
-                document.getElementById('uploadLabelText').innerText = `Tap here to run AI PDF scan`;
+                document.getElementById('uploadLabelText').innerText = `Tap here to run AI Debug Scan`;
             }
         }
 
@@ -247,7 +255,7 @@
             saveToStorage();
             renderApp();
             document.getElementById('settlementForm').reset();
-            document.getElementById('uploadLabelText').innerText = `Tap here to run AI PDF scan`;
+            document.getElementById('uploadLabelText').innerText = `Tap here to run AI Debug Scan`;
             document.getElementById('pdfUploadInput').value = '';
         }
 
