@@ -56,15 +56,15 @@
         <div class="bg-slate-800 p-6 rounded-xl border border-amber-500/30 shadow-md">
             <h2 class="text-lg font-bold mb-1 text-white flex items-center justify-between">
                 <span>Upload Settlement PDF</span>
-                <span class="text-xs bg-amber-500/20 text-amber-400 px-2.5 py-1 rounded-full font-normal">Accurate YTD Match</span>
+                <span class="text-xs bg-amber-500/20 text-amber-400 px-2.5 py-1 rounded-full font-normal">Precise Extraction</span>
             </h2>
-            <p class="text-xs text-slate-400 mb-4">Select your settlement PDF to auto-extract exact Gross Pay, Loaded Miles, and Deductions.</p>
+            <p class="text-xs text-slate-400 mb-4">Select your settlement PDF to auto-extract exact Gross, Miles, and Deductions.</p>
             
             <label class="flex flex-col items-center justify-center border-2 border-dashed border-slate-700 hover:border-amber-500 rounded-xl p-6 cursor-pointer bg-slate-900/50 transition">
                 <div class="flex flex-col items-center space-y-2 text-center">
                     <svg class="w-8 h-8 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
                     <p class="text-sm font-medium text-slate-200"><span id="uploadLabelText">Tap here to choose PDF settlement</span></p>
-                    <p class="text-xs text-slate-500">Extracts official bottom totals safely</p>
+                    <p class="text-xs text-slate-500">Locks onto Pay Summary totals</p>
                 </div>
                 <input type="file" id="pdfUploadInput" onchange="handlePdfUpload(event)" class="hidden" accept=".pdf">
             </label>
@@ -183,14 +183,14 @@
                 let milesVal = 0;
                 let deductVal = 0;
 
-                // Target specifically the "TOTAL GROSS EARNINGS" or dispatch summary totals on LTI sheets
-                const grossMatch = fullText.match(/TOTAL GROSS EARNINGS[:\s]*\$?([\d,]+\.\d{2})/i) || fullText.match(/GROSS PAY[:\s]*\$?([\d,]+\.\d{2})/i);
+                // Precision matchers for LTI Pay Summary layout
+                const grossMatch = fullText.match(/TOTAL GROSS EARNINGS\s*[:\-]?\s*\$?\s*([\d,]+\.\d{2})/i);
                 if (grossMatch) grossVal = parseFloat(grossMatch[1].replace(/,/g, ''));
 
-                const milesMatch = fullText.match(/LOADED MILES[:\s]*([\d,]+\.?\d*)/i);
+                const milesMatch = fullText.match(/LOADED MILES\s*[:\-]?\s*([\d,]+\.?\d*)/i);
                 if (milesMatch) milesVal = parseFloat(milesMatch[1].replace(/,/g, ''));
 
-                const deductMatch = fullText.match(/TOTAL DEDUCTIONS[:\s]*\$?([\d,]+\.\d{2})/i) || fullText.match(/DEDUCTIONS[:\s]*\$?([\d,]+\.\d{2})/i);
+                const deductMatch = fullText.match(/DEDUCTIONS\s*[:\-]?\s*\$?\s*([\d,]+\.\d{2})/i);
                 if (deductMatch) deductVal = parseFloat(deductMatch[1].replace(/,/g, ''));
 
                 if (grossVal) document.getElementById('gross').value = grossVal;
