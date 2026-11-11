@@ -6,6 +6,11 @@
     <title>RigTracker Pro - Owner-Operator Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Include PDF.js for reading PDF files locally in the browser -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    </script>
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen">
     <!-- Header -->
@@ -48,17 +53,22 @@
             </div>
         </div>
 
-        <!-- Smart Settlement Parser Tool -->
+        <!-- PDF Settlement Uploader -->
         <div class="bg-slate-800 p-6 rounded-xl border border-amber-500/30 shadow-md">
             <h2 class="text-lg font-bold mb-1 text-white flex items-center justify-between">
-                <span>Quick Settlement Parser</span>
-                <span class="text-xs bg-amber-500/20 text-amber-400 px-2.5 py-1 rounded-full font-normal">Paste Statement Text</span>
+                <span>Upload Settlement PDF</span>
+                <span class="text-xs bg-amber-500/20 text-amber-400 px-2.5 py-1 rounded-full font-normal">Auto-Scan Document</span>
             </h2>
-            <p class="text-xs text-slate-400 mb-4">Paste your email settlement text or numbers below, and click parse to instantly populate the form.</p>
-            <div class="space-y-3">
-                <textarea id="rawSettlementText" rows="3" placeholder="Paste settlement text here (e.g., Gross: 4500.00, Miles: 2100, Expenses: 1200)..." class="w-full bg-slate-900 border border-slate-700 rounded p-3 text-sm text-white focus:outline-none focus:border-amber-500"></textarea>
-                <button type="button" onclick="parseSettlementText()" class="bg-slate-700 hover:bg-slate-600 text-amber-400 border border-amber-500/40 font-semibold px-4 py-2 rounded text-xs transition">Auto-Fill Form From Text</button>
-            </div>
+            <p class="text-xs text-slate-400 mb-4">Select your PDF settlement statement from your phone to automatically extract numbers into the form.</p>
+            
+            <label class="flex flex-col items-center justify-center border-2 border-dashed border-slate-700 hover:border-amber-500 rounded-xl p-6 cursor-pointer bg-slate-900/50 transition">
+                <div class="flex flex-col items-center space-y-2 text-center">
+                    <svg class="w-8 h-8 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+                    <p class="text-sm font-medium text-slate-200"><span id="uploadLabelText">Tap here to choose PDF settlement</span></p>
+                    <p class="text-xs text-slate-500">Supports carrier settlement PDFs</p>
+                </div>
+                <input type="file" id="pdfUploadInput" onchange="handlePdfUpload(event)" class="hidden" accept=".pdf">
+            </label>
         </div>
 
         <!-- Add Settlement Form -->
@@ -139,35 +149,43 @@
             localStorage.setItem('rigtracker_settlements', JSON.stringify(settlements));
         }
 
-        function parseSettlementText() {
-            const text = document.getElementById('rawSettlementText').value;
-            if (!text) {
-                alert("Please paste some settlement text first.");
-                return;
-            }
+        async function handlePdfUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
 
-            // Simple regex extractors for numbers and currency
-            const numbers = text.match(/[\d,]+\.\d{2}|\d+/g);
-            if (numbers && numbers.length > 0) {
-                // Clean numbers and populate fields based on typical patterns
-                const cleanNums = numbers.map(n => parseFloat(n.replace(/,/g, '')));
-                
-                // Look for largest figure as gross, smaller figures as miles/expenses if possible
-                if (cleanNums.length >= 1) {
-                    document.getElementById('gross').value = cleanNums[0];
+            document.getElementById('uploadLabelText').innerText = `Scanning: ${file.name}...`;
+
+            try {
+                const arrayBuffer = await file.arrayBuffer();
+                const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                let fullText = "";
+
+                for (let i = 1; i <= pdf.numPages; i++) {
+                    const page = await pdf.getPage(i);
+                    const textContent = await page.getTextContent();
+                    const pageText = textContent.items.map(item => item.str).join(" ");
+                    fullText += pageText + " ";
                 }
-                if (cleanNums.length >= 2) {
-                    document.getElementById('miles').value = cleanNums[1];
+
+                // Extract numbers from PDF text
+                const numbers = fullText.match(/[\d,]+\.\d{2}|\d+/g);
+                if (numbers && numbers.length > 0) {
+                    const cleanNums = numbers.map(n => parseFloat(n.replace(/,/g, ''))).filter(n => n > 10);
+                    
+                    if (cleanNums.length >= 1) document.getElementById('gross').value = cleanNums[0];
+                    if (cleanNums.length >= 2) document.getElementById('miles').value = cleanNums[1];
+                    if (cleanNums.length >= 3) document.getElementById('expenses').value = cleanNums[2];
+                    
+                    document.getElementById('date').value = new Date().toISOString().split('T')[0];
+                    document.getElementById('uploadLabelText').innerText = `Successfully scanned ${file.name}! Verify & Save below.`;
+                } else {
+                    alert("Could not extract numbers from this PDF layout. Please enter manually.");
+                    document.getElementById('uploadLabelText').innerText = `Tap here to choose PDF settlement`;
                 }
-                if (cleanNums.length >= 3) {
-                    document.getElementById('expenses').value = cleanNums[2];
-                }
-                
-                // Default to today if no date found
-                document.getElementById('date').value = new Date().toISOString().split('T')[0];
-                alert("Parsed successfully! Check the form values and click Save Settlement.");
-            } else {
-                alert("Could not automatically detect numbers. Please enter manually.");
+            } catch (err) {
+                console.error(err);
+                alert("Error reading PDF file.");
+                document.getElementById('uploadLabelText').innerText = `Tap here to choose PDF settlement`;
             }
         }
 
@@ -191,7 +209,8 @@
             saveToStorage();
             renderApp();
             document.getElementById('settlementForm').reset();
-            document.getElementById('rawSettlementText').value = '';
+            document.getElementById('uploadLabelText').innerText = `Tap here to choose PDF settlement`;
+            document.getElementById('pdfUploadInput').value = '';
         }
 
         function deleteSettlement(id) {
