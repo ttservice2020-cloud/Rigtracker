@@ -24,13 +24,27 @@
                 display: block !important;
                 background: white !important;
                 color: black !important;
-                border: none !important;
+                border: 1px solid #d1d5db !important;
                 box-shadow: none !important;
+                margin-bottom: 2rem;
+                page-break-after: always;
             }
             .print-bg {
-                background-color: #f3f4f6 !important;
-                border-color: #d1d5db !important;
+                background-color: #f9fafb !important;
+                border-color: #e5e7eb !important;
                 color: black !important;
+            }
+            table {
+                width: 100% !important;
+                border-collapse: collapse !important;
+            }
+            th, td {
+                border: 1px solid #d1d5db !important;
+                padding: 6px 8px !important;
+                color: #000000 !important;
+            }
+            th {
+                background-color: #f3f4f6 !important;
             }
             .text-amber-400, .text-emerald-400, .text-rose-500, .text-blue-400, .text-white {
                 color: #000000 !important;
@@ -257,15 +271,15 @@
             <div class="bg-neutral-900 p-6 rounded-xl border border-neutral-800 shadow-md no-print flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
                     <h3 class="text-lg font-bold text-white">Annual Tax & Per Diem Packets</h3>
-                    <p class="text-xs text-neutral-400">Printable, accountant-ready financial summaries grouped by calendar year.</p>
+                    <p class="text-xs text-neutral-400">Printable, accountant-ready financial summaries & itemized spreadsheets grouped by year.</p>
                 </div>
                 <button onclick="window.print()" class="bg-amber-500 hover:bg-amber-400 text-black font-bold px-4 py-2.5 rounded text-sm transition flex items-center space-x-2">
-                    <span>🖨️ Print Active View</span>
+                    <span>🖨️ Print All Forms</span>
                 </button>
             </div>
 
             <div id="taxFormsContainer" class="space-y-8">
-                <!-- Dynamically injected printable year forms -->
+                <!-- Dynamically injected printable year forms with embedded spreadsheets -->
             </div>
         </div>
 
@@ -520,21 +534,20 @@
             const container = document.getElementById('taxFormsContainer');
             container.innerHTML = '';
 
-            // Gather all distinct years from settlements and perDiemNights
             const allYearsSet = new Set();
             settlements.forEach(s => { if (s.date) allYearsSet.add(s.date.substring(0, 4)); });
             perDiemNights.forEach(p => { if (p.date) allYearsSet.add(p.date.substring(0, 4)); });
 
             if (allYearsSet.size === 0) {
-                // Default to current year if nothing logged
                 allYearsSet.add(new Date().getFullYear().toString());
             }
 
             const sortedYears = Array.from(allYearsSet).sort().reverse();
 
             sortedYears.forEach(yr => {
-                // Filter settlements for year
                 const yearSettlements = settlements.filter(s => s.date && s.date.startsWith(yr));
+                yearSettlements.sort((a, b) => new Date(a.date) - new Date(b.date));
+
                 const totalGross = yearSettlements.reduce((sum, i) => sum + (i.gross || 0), 0);
                 const totalFuel = yearSettlements.reduce((sum, i) => sum + (i.fuel || 0), 0);
                 const totalInsurance = yearSettlements.reduce((sum, i) => sum + (i.insurance || 0), 0);
@@ -545,7 +558,6 @@
                 const totalDeductions = totalFuel + totalInsurance + totalPlate + totalEscrow + totalToll + totalOther;
                 const netTotal = totalGross - totalDeductions;
 
-                // Filter per diem nights for year
                 const yearNights = perDiemNights.filter(p => p.date && p.date.startsWith(yr));
                 yearNights.sort((a, b) => new Date(a.date) - new Date(b.date));
 
@@ -557,9 +569,6 @@
                             <h2 class="text-xl font-black text-white tracking-wide">Year of ${yr} Tax & Per Diem Summary</h2>
                             <p class="text-xs text-neutral-400">RigTracker Pro Owner-Operator Tax Packet</p>
                         </div>
-                        <button onclick="printSpecificYear('${yr}')" class="no-print bg-neutral-800 hover:bg-neutral-700 text-white text-xs px-3 py-2 rounded font-medium transition">
-                            🖨️ Print ${yr} Form
-                        </button>
                     </div>
 
                     <!-- Financial Summary Grid -->
@@ -589,6 +598,49 @@
                             <div class="bg-black print-bg p-3 rounded border border-neutral-800"><span class="text-xs text-neutral-400 block">Toll:</span>$${totalToll.toFixed(2)}</div>
                             <div class="bg-black print-bg p-3 rounded border border-neutral-800"><span class="text-xs text-neutral-400 block">Other:</span>$${totalOther.toFixed(2)}</div>
                         </div>
+                    </div>
+
+                    <!-- Spreadsheet Ledger for Year -->
+                    <div class="border-t border-neutral-800 pt-4 space-y-3">
+                        <h4 class="text-xs font-bold text-amber-400 uppercase tracking-wider">${yr} Itemized Spreadsheet Ledger</h4>
+                        ${yearSettlements.length > 0 ? `
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-left border-collapse text-xs font-mono">
+                                    <thead>
+                                        <tr class="bg-black print-bg text-neutral-300 border-b border-neutral-800 uppercase">
+                                            <th class="p-2">Date</th>
+                                            <th class="p-2 text-amber-400">Gross</th>
+                                            <th class="p-2 text-rose-500">Fuel</th>
+                                            <th class="p-2 text-rose-500">Insurance</th>
+                                            <th class="p-2 text-rose-500">Plate</th>
+                                            <th class="p-2 text-rose-500">Escrow</th>
+                                            <th class="p-2 text-rose-500">Toll</th>
+                                            <th class="p-2 text-rose-500">Other</th>
+                                            <th class="p-2 text-emerald-400">Net Total</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-neutral-800">
+                                        ${yearSettlements.map(item => {
+                                            const deds = (item.fuel || 0) + (item.insurance || 0) + (item.plate || 0) + (item.escrow || 0) + (item.toll || 0) + (item.other || 0);
+                                            const net = (item.gross || 0) - deds;
+                                            return `
+                                                <tr>
+                                                    <td class="p-2 text-white font-medium">${item.date}</td>
+                                                    <td class="p-2 text-amber-400">$${(item.gross || 0).toFixed(2)}</td>
+                                                    <td class="p-2 text-rose-500">$${(item.fuel || 0).toFixed(2)}</td>
+                                                    <td class="p-2 text-rose-500">$${(item.insurance || 0).toFixed(2)}</td>
+                                                    <td class="p-2 text-rose-500">$${(item.plate || 0).toFixed(2)}</td>
+                                                    <td class="p-2 text-rose-500">$${(item.escrow || 0).toFixed(2)}</td>
+                                                    <td class="p-2 text-rose-500">$${(item.toll || 0).toFixed(2)}</td>
+                                                    <td class="p-2 text-rose-500">$${(item.other || 0).toFixed(2)}</td>
+                                                    <td class="p-2 text-emerald-400 font-bold">$${net.toFixed(2)}</td>
+                                                </tr>
+                                            `;
+                                        }).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+                        ` : `<p class="text-xs text-neutral-500 italic font-sans">No financial entries recorded for ${yr}.</p>`}
                     </div>
 
                     <!-- Per Diem Nights Section -->
@@ -622,10 +674,6 @@
                 `;
                 container.appendChild(formCard);
             });
-        }
-
-        function printSpecificYear(yr) {
-            window.print();
         }
 
         function renderStats() {
