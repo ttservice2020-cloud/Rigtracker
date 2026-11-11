@@ -3,19 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RigTracker Pro - Owner-Operator Ledger</title>
+    <title>RigTracker Pro - Professional Owner-Operator Ledger</title>
     <style>
         :root {
-            --bg-dark: #121212;
-            --bg-card: #1a1a1a;
-            --bg-input: #242424;
-            --text-main: #f3f4f6;
-            --text-muted: #9ca3af;
-            --accent-yellow: #f59e0b;
-            --accent-green: #22c55e;
-            --accent-red: #ef4444;
-            --accent-blue: #3b82f6;
-            --border-color: #2f2f2f;
+            --bg-color: #121212;
+            --card-bg: #1e1e1e;
+            --text-color: #e0e0e0;
+            --text-muted: #aaaaaa;
+            --accent-yellow: #ffb703;
+            --accent-green: #2ec4b6;
+            --accent-red: #e71d36;
+            --border-color: #333333;
+            --input-bg: #2a2a2a;
         }
 
         * {
@@ -26,9 +25,9 @@
         }
 
         body {
-            background-color: var(--bg-dark);
-            color: var(--text-main);
-            padding: 14px;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            padding: 10px;
             max-width: 600px;
             margin: 0 auto;
         }
@@ -37,32 +36,34 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 12px 0;
-            border-bottom: 1px solid var(--border-color);
-            margin-bottom: 20px;
+            background-color: var(--card-bg);
+            padding: 12px 15px;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            margin-bottom: 15px;
         }
 
         .logo-area {
             display: flex;
             align-items: center;
-            gap: 12px;
+            gap: 10px;
         }
 
         .logo-box {
-            background: var(--accent-yellow);
+            background-color: var(--accent-yellow);
             color: #000;
-            font-weight: bold;
+            font-weight: 800;
             font-size: 18px;
-            padding: 10px 14px;
+            padding: 8px 12px;
             border-radius: 8px;
         }
 
-        .header-title h1 {
+        .app-title h1 {
             font-size: 18px;
-            color: var(--text-main);
+            color: #fff;
         }
 
-        .header-title p {
+        .app-title p {
             font-size: 12px;
             color: var(--text-muted);
         }
@@ -70,772 +71,515 @@
         .header-actions {
             display: flex;
             gap: 8px;
-            align-items: center;
         }
 
-        .cloud-badge {
-            background: #064e3b;
-            color: #34d399;
-            border: 1px solid #059669;
-            padding: 5px 8px;
+        .badge-cloud {
+            background-color: #1b4332;
+            color: #52b788;
+            font-size: 11px;
+            padding: 4px 8px;
             border-radius: 6px;
-            font-size: 10px;
-            font-weight: bold;
-            text-transform: uppercase;
+            font-weight: 600;
+            border: 1px solid #2d6a4f;
         }
 
-        .btn-top {
-            background: var(--bg-input);
-            color: var(--text-main);
+        .btn-backup {
+            background-color: #2b2b2b;
+            color: #fff;
             border: 1px solid var(--border-color);
             padding: 6px 10px;
             border-radius: 6px;
-            font-size: 11px;
-            cursor: pointer;
-            font-weight: 500;
-        }
-
-        .btn-top:hover {
-            border-color: var(--accent-yellow);
-        }
-
-        /* App Sections */
-        .app-section {
-            display: none;
-        }
-        .app-section.active {
-            display: block;
-        }
-
-        /* Dashboard Grid Bar Menu */
-        .menu-grid {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 10px;
-            margin-top: 16px;
-            margin-bottom: 16px;
-        }
-
-        .menu-bar {
-            background: var(--bg-card);
-            border: 1px solid var(--border-color);
-            border-radius: 10px;
-            padding: 18px 16px;
-            text-align: center;
-            cursor: pointer;
-            transition: all 0.2s ease;
-        }
-
-        .menu-bar:hover {
-            border-color: var(--accent-yellow);
-            background: var(--bg-input);
-        }
-
-        .menu-bar h3 {
-            font-size: 15px;
-            color: var(--text-main);
-            font-weight: 600;
-        }
-
-        .back-btn {
-            background: var(--bg-input);
-            color: var(--text-main);
-            border: 1px solid var(--border-color);
-            padding: 8px 14px;
-            border-radius: 6px;
-            cursor: pointer;
             font-size: 12px;
-            margin-bottom: 16px;
+            cursor: pointer;
         }
 
-        .back-btn:hover {
+        .nav-tabs {
+            display: flex;
+            gap: 5px;
+            overflow-x: auto;
+            padding-bottom: 5px;
+            margin-bottom: 15px;
+        }
+
+        .nav-tab {
+            background-color: var(--card-bg);
+            color: var(--text-muted);
+            border: 1px solid var(--border-color);
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 13px;
+            white-space: nowrap;
+            cursor: pointer;
+        }
+
+        .nav-tab.active {
+            background-color: var(--accent-yellow);
+            color: #000;
+            font-weight: 700;
             border-color: var(--accent-yellow);
         }
 
-        /* Cards & Summary */
-        .summary-card {
-            background: var(--bg-card);
+        .card {
+            background-color: var(--card-bg);
             border: 1px solid var(--border-color);
             border-radius: 12px;
-            padding: 16px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+
+        .metric-card {
+            text-align: left;
             margin-bottom: 12px;
         }
 
-        .summary-card span {
+        .metric-title {
             font-size: 11px;
             text-transform: uppercase;
             letter-spacing: 0.5px;
             color: var(--text-muted);
-            display: block;
-            margin-bottom: 4px;
+            margin-bottom: 5px;
         }
 
-        .summary-card strong {
+        .metric-value {
             font-size: 26px;
             font-weight: 700;
         }
 
-        .card-yellow strong { color: var(--accent-yellow); }
-        .card-red strong { color: var(--accent-red); }
-        .card-green strong { color: var(--accent-green); }
+        .val-yellow { color: var(--accent-yellow); }
+        .val-red { color: var(--accent-red); }
+        .val-green { color: var(--accent-green); }
 
-        .card {
-            background: var(--bg-card);
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
-            padding: 16px;
-            margin-bottom: 16px;
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 15px;
         }
 
-        .card-title {
-            font-size: 15px;
+        .sub-card {
+            background-color: #242424;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 10px;
+        }
+
+        .sub-card label {
+            font-size: 11px;
+            color: var(--text-muted);
+            display: block;
+            margin-bottom: 3px;
+        }
+
+        .sub-card .val {
+            font-size: 16px;
             font-weight: 600;
-            margin-bottom: 12px;
-            color: var(--text-main);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+        }
+
+        .section-title {
+            font-size: 14px;
+            color: var(--accent-yellow);
+            margin: 20px 0 10px 0;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
 
         .form-group {
             margin-bottom: 12px;
         }
 
-        label {
+        .form-group label {
             display: block;
             font-size: 12px;
             color: var(--text-muted);
-            margin-bottom: 4px;
+            margin-bottom: 5px;
         }
 
-        input, select {
+        .form-control {
             width: 100%;
+            background-color: var(--input-bg);
+            border: 1px solid var(--border-color);
+            color: #fff;
             padding: 10px;
-            background: var(--bg-input);
-            border: 1px solid var(--border-color);
-            color: var(--text-main);
-            border-radius: 6px;
-            font-size: 13px;
-        }
-
-        input:focus, select:focus {
-            outline: none;
-            border-color: var(--accent-yellow);
-        }
-
-        .deductions-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 10px;
-            background: var(--bg-input);
-            padding: 12px;
             border-radius: 8px;
-            border: 1px solid var(--border-color);
-            margin-bottom: 12px;
-        }
-
-        .net-preview {
-            background: var(--bg-input);
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            padding: 12px;
-            text-align: center;
-            margin-bottom: 14px;
-        }
-
-        .net-preview span {
-            font-size: 11px;
-            color: var(--text-muted);
-            display: block;
-            margin-bottom: 2px;
-        }
-
-        .net-preview strong {
-            font-size: 20px;
-            color: var(--accent-green);
-        }
-
-        button.action-btn {
-            background: var(--accent-yellow);
-            color: #000;
-            font-weight: bold;
-            border: none;
-            padding: 12px;
-            border-radius: 6px;
-            width: 100%;
-            cursor: pointer;
             font-size: 14px;
         }
 
-        button.action-btn:hover {
-            opacity: 0.9;
+        .btn-primary {
+            width: 100%;
+            background-color: var(--accent-yellow);
+            color: #000;
+            border: none;
+            padding: 12px;
+            border-radius: 8px;
+            font-weight: 700;
+            font-size: 15px;
+            cursor: pointer;
+            margin-top: 10px;
         }
 
-        /* Tables */
-        .table-responsive {
-            overflow-x: auto;
-        }
-
-        table {
+        .ledger-table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 12px;
+            font-size: 13px;
+            margin-top: 10px;
+        }
+
+        .ledger-table th {
             text-align: left;
-        }
-
-        th, td {
-            padding: 8px 6px;
+            color: var(--accent-red);
+            padding: 8px 5px;
             border-bottom: 1px solid var(--border-color);
-            white-space: nowrap;
+            font-size: 11px;
+            text-transform: uppercase;
         }
 
-        th {
-            color: var(--text-muted);
-            font-weight: 600;
+        .ledger-table td {
+            padding: 10px 5px;
+            border-bottom: 1px solid #222;
+        }
+
+        .action-btns {
+            display: flex;
+            gap: 5px;
         }
 
         .btn-sm {
-            padding: 3px 6px;
-            font-size: 10px;
+            padding: 4px 8px;
             border-radius: 4px;
-            border: none;
+            font-size: 11px;
             cursor: pointer;
-            margin-right: 2px;
+            border: none;
         }
 
-        .btn-edit { background: var(--accent-blue); color: #fff; }
-        .btn-del { background: var(--accent-red); color: #fff; }
+        .btn-edit { background-color: var(--accent-yellow); color: #000; font-weight: 600; }
+        .btn-delete { background-color: var(--accent-red); color: #fff; }
 
-        /* Print Styling */
-        @media print {
-            body {
-                background: #fff;
-                color: #000;
-                max-width: 100%;
-                padding: 0;
-            }
-            header, .menu-grid, .back-btn, .action-btn, .btn-sm, .no-print {
-                display: none !important;
-            }
-            .app-section {
-                display: block !important;
-            }
-            .card {
-                background: #fff;
-                border: 1px solid #ddd;
-                box-shadow: none;
-                color: #000;
-            }
-            table {
-                color: #000;
-            }
-            th, td {
-                border-bottom: 1px solid #ccc;
-            }
-            .summary-card {
-                background: #f9f9f9;
-                border: 1px solid #ccc;
-            }
-            .summary-card strong, .summary-card span {
-                color: #000 !important;
-            }
-        }
+        .hidden { display: none !important; }
     </style>
 </head>
 <body>
 
-    <header class="no-print">
+    <header>
         <div class="logo-area">
             <div class="logo-box">RT</div>
-            <div class="header-title">
+            <div class="app-title">
                 <h1>RigTracker Pro</h1>
                 <p>Professional Owner-Operator Ledger</p>
             </div>
         </div>
         <div class="header-actions">
-            <div class="cloud-badge">Cloud Active</div>
-            <button class="btn-top" onclick="exportData()">Export Backup</button>
-            <button class="btn-top" onclick="document.getElementById('importFile').click()">Import</button>
-            <input type="file" id="importFile" style="display:none" onchange="importData(event)">
+            <div class="badge-cloud">Cloud Active</div>
+            <button class="btn-backup" onclick="exportBackup()">Export Backup</button>
         </div>
     </header>
 
-    <!-- 1. DASHBOARD HOME SCREEN (3 YTD SUMMARIES + TAP BARS) -->
-    <div id="home-section" class="app-section active">
-        <div class="summary-card card-yellow">
-            <span>YTD Gross Revenue</span>
-            <strong id="homeGross">$0.00</strong>
-        </div>
-        <div class="summary-card card-red">
-            <span>YTD Total Deductions</span>
-            <strong id="homeDeductions">$0.00</strong>
-        </div>
-        <div class="summary-card card-green">
-            <span>YTD Net Total Payout</span>
-            <strong id="homeNet">$0.00</strong>
+    <div class="nav-tabs">
+        <button class="nav-tab active" onclick="switchTab('dashboard')">Dashboard</button>
+        <button class="nav-tab" onclick="switchTab('entry')">Settlement Entry</button>
+        <button class="nav-tab" onclick="switchTab('spreadsheet')">Spreadsheet Ledger</button>
+        <button class="nav-tab" onclick="switchTab('perdiem')">Per Diem / Nights</button>
+        <button class="nav-tab" onclick="switchTab('tax')">Annual Tax Forms</button>
+    </div>
+
+    <!-- DASHBOARD TAB -->
+    <div id="tab-dashboard" class="tab-content">
+        <div class="card metric-card">
+            <div class="metric-title">YTD Gross Revenue</div>
+            <div class="metric-value val-yellow" id="dash-gross">$0.00</div>
         </div>
 
-        <div class="menu-grid">
-            <div class="menu-bar" onclick="switchSection('entry-section')">
-                <h3>Settlement Entry</h3>
+        <div class="card metric-card">
+            <div class="metric-title">YTD Total Deductions</div>
+            <div class="metric-value val-red" id="dash-deductions">$0.00</div>
+        </div>
+
+        <div class="card metric-card">
+            <div class="metric-title">YTD Net Total Payout</div>
+            <div class="metric-value val-green" id="dash-net">$0.00</div>
+        </div>
+
+        <div class="section-title">Itemized Deductions Breakdown</div>
+        <div class="grid-2">
+            <div class="sub-card">
+                <label>Fuel</label>
+                <div class="val val-red" id="sum-fuel">$0.00</div>
             </div>
-            <div class="menu-bar" onclick="switchSection('ledger-section')">
-                <h3>Spreadsheet Ledger</h3>
+            <div class="sub-card">
+                <label>Insurance</label>
+                <div class="val val-red" id="sum-insurance">$0.00</div>
             </div>
-            <div class="menu-bar" onclick="switchSection('perdiem-section')">
-                <h3>Per Diem Nights</h3>
+            <div class="sub-card">
+                <label>Plate</label>
+                <div class="val val-red" id="sum-plate">$0.00</div>
             </div>
-            <div class="menu-bar" onclick="switchSection('tax-section')">
-                <h3>Annual Tax Forms</h3>
+            <div class="sub-card">
+                <label>Escrow</label>
+                <div class="val val-red" id="sum-escrow">$0.00</div>
+            </div>
+            <div class="sub-card">
+                <label>Toll</label>
+                <div class="val val-red" id="sum-toll">$0.00</div>
+            </div>
+            <div class="sub-card">
+                <label>Other</label>
+                <div class="val val-red" id="sum-other">$0.00</div>
             </div>
         </div>
     </div>
 
-    <!-- 2. SETTLEMENT DATA ENTRY SECTION -->
-    <div id="entry-section" class="app-section">
-        <button class="back-btn no-print" onclick="switchSection('home-section')">← Back to Dashboard</button>
-        
+    <!-- SETTLEMENT ENTRY TAB -->
+    <div id="tab-entry" class="tab-content hidden">
         <div class="card">
-            <div class="card-title">
-                <span id="formTitle">Settlement Data Entry</span>
-                <span id="resetEditBtn" style="font-size: 11px; color: var(--accent-yellow); cursor: pointer; display: none;" onclick="resetForm()">New Entry</span>
+            <div class="form-group">
+                <label>Date</label>
+                <input type="date" id="ent-date" class="form-control">
             </div>
-            <form id="settlementForm" onsubmit="saveSettlement(event)">
-                <input type="hidden" id="editIndex" value="">
+            <div class="form-group">
+                <label>Gross ($)</label>
+                <input type="number" step="0.01" id="ent-gross" class="form-control" placeholder="0.00" oninput="calcEntry()">
+            </div>
+
+            <div class="section-title" style="margin-top:10px; font-size:12px;">Deductions For Net Total</div>
+            <div class="grid-2">
                 <div class="form-group">
-                    <label>Date</label>
-                    <input type="date" id="settleDate" required>
+                    <label>Fuel ($)</label>
+                    <input type="number" step="0.01" id="ent-fuel" class="form-control" placeholder="0.00" oninput="calcEntry()">
                 </div>
                 <div class="form-group">
-                    <label>Gross ($)</label>
-                    <input type="number" step="0.01" id="settleGross" placeholder="0.00" oninput="calculateLiveNet()" required>
+                    <label>Insurance ($)</label>
+                    <input type="number" step="0.01" id="ent-insurance" class="form-control" placeholder="0.00" oninput="calcEntry()">
                 </div>
-
-                <label style="color: var(--accent-red); margin-bottom: 6px; font-weight: 600;">DEDUCTIONS FOR NET TOTAL</label>
-                <div class="deductions-grid">
-                    <div class="form-group" style="margin-bottom:0;">
-                        <label>Fuel ($)</label>
-                        <input type="number" step="0.01" id="dedFuel" placeholder="0.00" oninput="calculateLiveNet()" value="0.00">
-                    </div>
-                    <div class="form-group" style="margin-bottom:0;">
-                        <label>Insurance ($)</label>
-                        <input type="number" step="0.01" id="dedIns" placeholder="0.00" oninput="calculateLiveNet()" value="0.00">
-                    </div>
-                    <div class="form-group" style="margin-bottom:0;">
-                        <label>Plate ($)</label>
-                        <input type="number" step="0.01" id="dedPlate" placeholder="0.00" oninput="calculateLiveNet()" value="0.00">
-                    </div>
-                    <div class="form-group" style="margin-bottom:0;">
-                        <label>Escrow ($)</label>
-                        <input type="number" step="0.01" id="dedEscrow" placeholder="0.00" oninput="calculateLiveNet()" value="0.00">
-                    </div>
-                    <div class="form-group" style="margin-bottom:0;">
-                        <label>Toll ($)</label>
-                        <input type="number" step="0.01" id="dedToll" placeholder="0.00" oninput="calculateLiveNet()" value="0.00">
-                    </div>
-                    <div class="form-group" style="margin-bottom:0;">
-                        <label>Other ($)</label>
-                        <input type="number" step="0.01" id="dedOther" placeholder="0.00" oninput="calculateLiveNet()" value="0.00">
-                    </div>
+                <div class="form-group">
+                    <label>Plate ($)</label>
+                    <input type="number" step="0.01" id="ent-plate" class="form-control" placeholder="0.00" oninput="calcEntry()">
                 </div>
-
-                <div class="net-preview">
-                    <span>CALCULATED NET PAYOUT:</span>
-                    <strong id="liveNetPreview">$0.00</strong>
+                <div class="form-group">
+                    <label>Escrow ($)</label>
+                    <input type="number" step="0.01" id="ent-escrow" class="form-control" placeholder="0.00" oninput="calcEntry()">
                 </div>
+                <div class="form-group">
+                    <label>Toll ($)</label>
+                    <input type="number" step="0.01" id="ent-toll" class="form-control" placeholder="0.00" oninput="calcEntry()">
+                </div>
+                <div class="form-group">
+                    <label>Other ($)</label>
+                    <input type="number" step="0.01" id="ent-other" class="form-control" placeholder="0.00" oninput="calcEntry()">
+                </div>
+            </div>
 
-                <button type="submit" class="action-btn" id="submitBtnText">Save Entry</button>
-            </form>
+            <div class="form-group" style="text-align: center; margin-top: 15px;">
+                <label>Calculated Net Payout:</label>
+                <div style="font-size: 22px; font-weight: 700;" class="val-green" id="ent-net">$0.00</div>
+            </div>
+
+            <button class="btn-primary" onclick="saveSettlement()">Save Entry</button>
         </div>
     </div>
 
-    <!-- 3. EXCEL SPREADSHEET LEDGER SECTION -->
-    <div id="ledger-section" class="app-section">
-        <button class="back-btn no-print" onclick="switchSection('home-section')">← Back to Dashboard</button>
-
+    <!-- SPREADSHEET LEDGER TAB -->
+    <div id="tab-spreadsheet" class="tab-content hidden">
         <div class="card">
-            <div class="card-title">
-                <span>Excel Spreadsheet Ledger</span>
-                <span id="entryCountBadge" style="font-size: 11px; color: var(--text-muted);">0 entries</span>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h3 style="font-size: 15px; color:#fff;">Excel Spreadsheet Ledger</h3>
+                <span style="font-size: 12px; color:var(--text-muted);" id="entry-count">0 entries</span>
             </div>
-            <div class="table-responsive">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>DATE</th>
-                            <th>GROSS</th>
-                            <th>FUEL</th>
-                            <th>INS</th>
-                            <th>PLATE</th>
-                            <th>ESCROW</th>
-                            <th>TOLL</th>
-                            <th>OTHER</th>
-                            <th>NET TOTAL</th>
-                            <th class="no-print">ACTIONS</th>
-                        </tr>
-                    </thead>
-                    <tbody id="ledgerTableBody">
-                        <!-- Populated via JS -->
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-
-    <!-- 4. PER DIEM NIGHTS SECTION -->
-    <div id="perdiem-section" class="app-section">
-        <button class="back-btn no-print" onclick="switchSection('home-section')">← Back to Dashboard</button>
-
-        <div class="card">
-            <div class="card-title">Per Diem Sleeper Nights</div>
-            <div class="summary-card card-yellow" style="margin-bottom: 14px; padding: 12px;">
-                <span>Total Overnight Road Nights</span>
-                <strong id="perDiemCountDisplay" style="font-size: 20px;">0 Nights</strong>
-            </div>
-            <form id="perDiemForm" onsubmit="savePerDiem(event)">
-                <div class="form-group">
-                    <label>Date on Road / Sleeper Berth</label>
-                    <input type="date" id="pdDate" required>
-                </div>
-                <div class="form-group">
-                    <label>Location / City, State</label>
-                    <input type="text" id="pdLocation" placeholder="e.g. Bloomington, IL">
-                </div>
-                <button type="submit" class="action-btn">Log Per Diem Night</button>
-            </form>
-        </div>
-
-        <div class="card">
-            <div class="card-title">Logged Nights History</div>
-            <div class="table-responsive">
-                <table>
+            <div style="overflow-x: auto;">
+                <table class="ledger-table">
                     <thead>
                         <tr>
                             <th>Date</th>
-                            <th>Location</th>
-                            <th class="no-print">Action</th>
+                            <th>Gross</th>
+                            <th>Fuel</th>
+                            <th>Insurance</th>
+                            <th>Net Total</th>
+                            <th>Actions</th>
                         </tr>
                     </thead>
-                    <tbody id="perDiemTableBody">
-                        <!-- Populated via JS -->
+                    <tbody id="ledger-rows">
+                        <!-- Populated by JS -->
                     </tbody>
                 </table>
             </div>
         </div>
     </div>
 
-    <!-- 5. ANNUAL TAX FORMS SECTION -->
-    <div id="tax-section" class="app-section">
-        <button class="back-btn no-print" onclick="switchSection('home-section')">← Back to Dashboard</button>
-
-        <div class="summary-card card-yellow">
-            <span>Gross Revenue</span>
-            <strong id="taxGross">$0.00</strong>
+    <!-- PER DIEM TAB -->
+    <div id="tab-perdiem" class="tab-content hidden">
+        <div class="card metric-card">
+            <div class="metric-title">2026 Nights on Road</div>
+            <div class="metric-value val-yellow" id="perdiem-count">0 Nights</div>
         </div>
-        <div class="summary-card card-red">
-            <span>Total Deductions</span>
-            <strong id="taxTotalDed">$0.00</strong>
-        </div>
-        <div class="summary-card card-green">
-            <span>Net Payout / Income</span>
-            <strong id="taxNetIncome">$0.00</strong>
-        </div>
-
         <div class="card">
-            <div class="card-title">
-                <span>Itemized Deductions Breakdown</span>
+            <div class="form-group">
+                <label>Night Date</label>
+                <input type="date" id="pd-date" class="form-control">
             </div>
-            <div class="deductions-grid">
-                <div class="form-group" style="margin-bottom:0;">
-                    <label>Fuel:</label>
-                    <strong id="taxFuel" style="color: var(--accent-red); font-size: 15px;">$0.00</strong>
-                </div>
-                <div class="form-group" style="margin-bottom:0;">
-                    <label>Insurance:</label>
-                    <strong id="taxIns" style="color: var(--accent-red); font-size: 15px;">$0.00</strong>
-                </div>
-                <div class="form-group" style="margin-bottom:0;">
-                    <label>Plate:</label>
-                    <strong id="taxPlate" style="color: var(--accent-red); font-size: 15px;">$0.00</strong>
-                </div>
-                <div class="form-group" style="margin-bottom:0;">
-                    <label>Escrow:</label>
-                    <strong id="taxEscrow" style="color: var(--accent-red); font-size: 15px;">$0.00</strong>
-                </div>
-                <div class="form-group" style="margin-bottom:0;">
-                    <label>Toll:</label>
-                    <strong id="taxTolls" style="color: var(--accent-red); font-size: 15px;">$0.00</strong>
-                </div>
-                <div class="form-group" style="margin-bottom:0;">
-                    <label>Other:</label>
-                    <strong id="taxOther" style="color: var(--accent-red); font-size: 15px;">$0.00</strong>
-                </div>
+            <div class="form-group">
+                <label>Location / Notes (Optional)</label>
+                <input type="text" id="pd-note" class="form-control" placeholder="e.g. Pilot Truck Stop - Chicago, IL">
             </div>
-
-            <div class="net-preview" style="margin-top: 14px;">
-                <span>TOTAL PER DIEM SLEEPER NIGHTS:</span>
-                <strong id="taxPerDiemNights" style="color: var(--accent-yellow);">0 Nights</strong>
-            </div>
-
-            <button onclick="window.print()" class="action-btn no-print" style="margin-top: 14px; background: var(--bg-input); color: var(--text-main); border: 1px solid var(--border-color);">🖨️ Print Tax Summary Form</button>
+            <button class="btn-primary" onclick="savePerDiem()">Log Night in Truck</button>
         </div>
+    </div>
 
+    <!-- TAX FORMS TAB -->
+    <div id="tab-tax" class="tab-content hidden">
         <div class="card">
-            <div class="card-title">
-                <span>2026 Itemized Spreadsheet Ledger</span>
-            </div>
-            <div class="table-responsive">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>DATE</th>
-                            <th>GROSS</th>
-                            <th>FUEL</th>
-                            <th>INSURANCE</th>
-                        </tr>
-                    </thead>
-                    <tbody id="taxLedgerTableBody">
-                        <!-- Populated via JS -->
-                    </tbody>
-                </table>
+            <h3 style="font-size: 15px; color:#fff; margin-bottom: 5px;">Annual Tax & Per Diem Packets</h3>
+            <p style="font-size: 12px; color:var(--text-muted); margin-bottom: 12px;">Printable, accountant-ready financial summaries.</p>
+            <button class="btn-primary" onclick="window.print()">Print All Forms</button>
+        </div>
+        <div class="card">
+            <h3 style="font-size: 15px; color:var(--accent-yellow); margin-bottom: 10px;">Year of 2026 Tax Summary</h3>
+            <div style="font-size: 13px; line-height: 1.6;">
+                <p>Gross Revenue: <span class="val-yellow" id="tax-gross">$0.00</span></p>
+                <p>Total Deductions: <span class="val-red" id="tax-deductions">$0.00</span></p>
+                <p>Net Payout: <span class="val-green" id="tax-net">$0.00</span></p>
             </div>
         </div>
     </div>
 
     <script>
-        // State Management & Cloud Sync Persistence (localStorage linked with GitHub hosting)
-        let appData = JSON.parse(localStorage.getItem('rigTrackerData')) || {
-            settlements: [],
-            perDiems: []
-        };
+        let settlements = JSON.parse(localStorage.getItem('rt_settlements')) || [];
+        let perDiemNights = JSON.parse(localStorage.getItem('rt_perdiem')) || [];
 
-        function saveData() {
-            localStorage.setItem('rigTrackerData', JSON.stringify(appData));
-            renderAll();
+        document.getElementById('ent-date').valueAsDate = new Date();
+        document.getElementById('pd-date').valueAsDate = new Date();
+
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('.nav-tab').forEach(el => el.classList.remove('active'));
+            document.getElementById('tab-' + tabId).classList.remove('hidden');
+            event.currentTarget.classList.add('active');
+            renderData();
         }
 
-        // Section Switcher via Tap Bars
-        function switchSection(sectionId) {
-            document.querySelectorAll('.app-section').forEach(sec => {
-                sec.classList.remove('active');
-            });
-            document.getElementById(sectionId).classList.add('active');
-            window.scrollTo(0, 0);
-        }
-
-        // Live Net Calculation in Data Entry Form
-        function calculateLiveNet() {
-            const gross = parseFloat(document.getElementById('settleGross').value) || 0;
-            const fuel = parseFloat(document.getElementById('dedFuel').value) || 0;
-            const ins = parseFloat(document.getElementById('dedIns').value) || 0;
-            const plate = parseFloat(document.getElementById('dedPlate').value) || 0;
-            const escrow = parseFloat(document.getElementById('dedEscrow').value) || 0;
-            const toll = parseFloat(document.getElementById('dedToll').value) || 0;
-            const other = parseFloat(document.getElementById('dedOther').value) || 0;
+        function calcEntry() {
+            const gross = parseFloat(document.getElementById('ent-gross').value) || 0;
+            const fuel = parseFloat(document.getElementById('ent-fuel').value) || 0;
+            const ins = parseFloat(document.getElementById('ent-insurance').value) || 0;
+            const plate = parseFloat(document.getElementById('ent-plate').value) || 0;
+            const escrow = parseFloat(document.getElementById('ent-escrow').value) || 0;
+            const toll = parseFloat(document.getElementById('ent-toll').value) || 0;
+            const other = parseFloat(document.getElementById('ent-other').value) || 0;
 
             const totalDed = fuel + ins + plate + escrow + toll + other;
             const net = gross - totalDed;
-
-            const preview = document.getElementById('liveNetPreview');
-            preview.innerText = `$${net.toFixed(2)}`;
-            preview.style.color = net < 0 ? 'var(--accent-red)' : 'var(--accent-green)';
+            document.getElementById('ent-net').textContent = '$' + net.toFixed(2);
         }
 
-        // Save / Update Settlement Entry
-        function saveSettlement(e) {
-            e.preventDefault();
-            const editIdx = document.getElementById('editIndex').value;
+        function saveSettlement() {
             const entry = {
-                date: document.getElementById('settleDate').value,
-                gross: parseFloat(document.getElementById('settleGross').value) || 0,
-                fuel: parseFloat(document.getElementById('dedFuel').value) || 0,
-                ins: parseFloat(document.getElementById('dedIns').value) || 0,
-                plate: parseFloat(document.getElementById('dedPlate').value) || 0,
-                escrow: parseFloat(document.getElementById('dedEscrow').value) || 0,
-                toll: parseFloat(document.getElementById('dedToll').value) || 0,
-                other: parseFloat(document.getElementById('dedOther').value) || 0
+                id: Date.now(),
+                date: document.getElementById('ent-date').value,
+                gross: parseFloat(document.getElementById('ent-gross').value) || 0,
+                fuel: parseFloat(document.getElementById('ent-fuel').value) || 0,
+                insurance: parseFloat(document.getElementById('ent-insurance').value) || 0,
+                plate: parseFloat(document.getElementById('ent-plate').value) || 0,
+                escrow: parseFloat(document.getElementById('ent-escrow').value) || 0,
+                toll: parseFloat(document.getElementById('ent-toll').value) || 0,
+                other: parseFloat(document.getElementById('ent-other').value) || 0,
             };
 
-            if (editIdx === "") {
-                appData.settlements.push(entry);
-            } else {
-                appData.settlements[parseInt(editIdx)] = entry;
-                resetForm();
-            }
-
-            document.getElementById('settlementForm').reset();
-            calculateLiveNet();
-            saveData();
-            
-            // Switch to Ledger view automatically after saving
-            switchSection('ledger-section');
+            settlements.push(entry);
+            localStorage.setItem('rt_settlements', JSON.stringify(settlements));
+            alert('Settlement saved successfully!');
+            document.getElementById('ent-gross').value = '';
+            document.getElementById('ent-fuel').value = '';
+            document.getElementById('ent-insurance').value = '';
+            document.getElementById('ent-plate').value = '';
+            document.getElementById('ent-escrow').value = '';
+            document.getElementById('ent-toll').value = '';
+            document.getElementById('ent-other').value = '';
+            calcEntry();
+            renderData();
         }
 
-        function editSettlement(index) {
-            const item = appData.settlements[index];
-            document.getElementById('editIndex').value = index;
-            document.getElementById('settleDate').value = item.date;
-            document.getElementById('settleGross').value = item.gross;
-            document.getElementById('dedFuel').value = item.fuel;
-            document.getElementById('dedIns').value = item.ins;
-            document.getElementById('dedPlate').value = item.plate;
-            document.getElementById('dedEscrow').value = item.escrow;
-            document.getElementById('dedToll').value = item.toll;
-            document.getElementById('dedOther').value = item.other;
-
-            document.getElementById('formTitle').innerText = `Edit Entry #${index + 1}`;
-            document.getElementById('resetEditBtn').style.display = 'inline';
-            document.getElementById('submitBtnText').innerText = 'Update Entry';
-
-            calculateLiveNet();
-            switchSection('entry-section');
+        function deleteSettlement(id) {
+            settlements = settlements.filter(s => s.id !== id);
+            localStorage.setItem('rt_settlements', JSON.stringify(settlements));
+            renderData();
         }
 
-        function resetForm() {
-            document.getElementById('editIndex').value = '';
-            document.getElementById('settlementForm').reset();
-            document.getElementById('formTitle').innerText = 'Settlement Data Entry';
-            document.getElementById('resetEditBtn').style.display = 'none';
-            document.getElementById('submitBtnText').innerText = 'Save Entry';
-            calculateLiveNet();
-        }
-
-        function deleteSettlement(index) {
-            if(confirm("Delete this entry?")) {
-                appData.settlements.splice(index, 1);
-                saveData();
-            }
-        }
-
-        // Per Diem Logic
-        function savePerDiem(e) {
-            e.preventDefault();
-            const entry = {
-                date: document.getElementById('pdDate').value,
-                location: document.getElementById('pdLocation').value
+        function savePerDiem() {
+            const pd = {
+                id: Date.now(),
+                date: document.getElementById('pd-date').value,
+                note: document.getElementById('pd-note').value
             };
-            appData.perDiems.push(entry);
-            document.getElementById('perDiemForm').reset();
-            saveData();
+            perDiemNights.push(pd);
+            localStorage.setItem('rt_perdiem', JSON.stringify(perDiemNights));
+            alert('Per diem night logged!');
+            document.getElementById('pd-note').value = '';
+            renderData();
         }
 
-        function deletePerDiem(index) {
-            if(confirm("Delete this per diem entry?")) {
-                appData.perDiems.splice(index, 1);
-                saveData();
-            }
-        }
+        function renderData() {
+            let totalGross = 0, totalFuel = 0, totalIns = 0, totalPlate = 0, totalEscrow = 0, totalToll = 0, totalOther = 0;
 
-        // Backup IO
-        function exportData() {
-            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(appData, null, 2));
-            const dlAnchor = document.createElement('a');
-            dlAnchor.setAttribute("href", dataStr);
-            dlAnchor.setAttribute("download", "RigTrackerPro_Backup.json");
-            document.body.appendChild(dlAnchor);
-            dlAnchor.click();
-            dlAnchor.remove();
-        }
+            let tbody = document.getElementById('ledger-rows');
+            tbody.innerHTML = '';
 
-        function importData(event) {
-            const fileReader = new FileReader();
-            if(event.target.files[0]) {
-                fileReader.readAsText(event.target.files[0], "UTF-8");
-                fileReader.onload = function(e) {
-                    try {
-                        appData = JSON.parse(e.target.result);
-                        saveData();
-                        alert("Backup imported successfully!");
-                    } catch(err) {
-                        alert("Invalid JSON backup file.");
-                    }
-                };
-            }
-        }
-
-        // Render All UI Data & Summaries
-        function renderAll() {
-            let totalGross = 0;
-            let sumFuel = 0, sumIns = 0, sumPlate = 0, sumEscrow = 0, sumToll = 0, sumOther = 0;
-            let ledgerHtml = '';
-            let taxLedgerHtml = '';
-
-            appData.settlements.forEach((s, i) => {
-                const totalDed = s.fuel + s.ins + s.plate + s.escrow + s.toll + s.other;
-                const net = s.gross - totalDed;
-
+            settlements.sort((a,b) => new Date(b.date) - new Date(a.date)).forEach(s => {
                 totalGross += s.gross;
-                sumFuel += s.fuel;
-                sumIns += s.ins;
-                sumPlate += s.plate;
-                sumEscrow += s.escrow;
-                sumToll += s.toll;
-                sumOther += s.other;
+                totalFuel += s.fuel;
+                totalIns += s.insurance;
+                totalPlate += s.plate;
+                totalEscrow += s.escrow;
+                totalToll += s.toll;
+                totalOther += s.other;
 
-                ledgerHtml += `<tr>
-                    <td>${s.date}</td>
-                    <td style="color:var(--accent-yellow)">$${s.gross.toFixed(2)}</td>
-                    <td style="color:var(--accent-red)">$${s.fuel.toFixed(2)}</td>
-                    <td style="color:var(--accent-red)">$${s.ins.toFixed(2)}</td>
-                    <td style="color:var(--accent-red)">$${s.plate.toFixed(2)}</td>
-                    <td style="color:var(--accent-red)">$${s.escrow.toFixed(2)}</td>
-                    <td style="color:var(--accent-red)">$${s.toll.toFixed(2)}</td>
-                    <td style="color:var(--accent-red)">$${s.other.toFixed(2)}</td>
-                    <td style="color:var(--accent-green); font-weight:bold;">$${net.toFixed(2)}</td>
-                    <td class="no-print">
-                        <button class="btn-sm btn-edit" onclick="editSettlement(${i})">Edit</button>
-                        <button class="btn-sm btn-del" onclick="deleteSettlement(${i})">Del</button>
-                    </td>
-                </tr>`;
+                const net = s.gross - (s.fuel + s.insurance + s.plate + s.escrow + s.toll + s.other);
 
-                taxLedgerHtml += `<tr>
-                    <td>${s.date}</td>
-                    <td style="color:var(--accent-yellow)">$${s.gross.toFixed(2)}</td>
-                    <td style="color:var(--accent-red)">$${s.fuel.toFixed(2)}</td>
-                    <td style="color:var(--accent-red)">$${s.ins.toFixed(2)}</td>
-                </tr>`;
+                tbody.innerHTML += `
+                    <tr>
+                        <td>${s.date}</td>
+                        <td class="val-yellow">$${s.gross.toFixed(2)}</td>
+                        <td class="val-red">$${s.fuel.toFixed(2)}</td>
+                        <td class="val-red">$${s.insurance.toFixed(2)}</td>
+                        <td class="val-green">$${net.toFixed(2)}</td>
+                        <td>
+                            <div class="action-btns">
+                                <button class="btn-sm btn-delete" onclick="deleteSettlement(${s.id})">Delete</button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
             });
 
-            document.getElementById('ledgerTableBody').innerHTML = ledgerHtml;
-            document.getElementById('taxLedgerTableBody').innerHTML = taxLedgerHtml;
-            document.getElementById('entryCountBadge').innerText = `${appData.settlements.length} entries`;
+            const totalDed = totalFuel + totalIns + totalPlate + totalEscrow + totalToll + totalOther;
+            const totalNet = totalGross - totalDed;
 
-            const totalDeductions = sumFuel + sumIns + sumPlate + sumEscrow + sumToll + sumOther;
-            const totalNetPayout = totalGross - totalDeductions;
+            document.getElementById('dash-gross').textContent = '$' + totalGross.toFixed(2);
+            document.getElementById('dash-deductions').textContent = '$' + totalDed.toFixed(2);
+            document.getElementById('dash-net').textContent = '$' + totalNet.toFixed(2);
 
-            // Dashboard & Home Summary Cards
-            document.getElementById('homeGross').innerText = `$${totalGross.toFixed(2)}`;
-            document.getElementById('homeDeductions').innerText = `$${totalDeductions.toFixed(2)}`;
-            document.getElementById('homeNet').innerText = `$${totalNetPayout.toFixed(2)}`;
+            document.getElementById('sum-fuel').textContent = '$' + totalFuel.toFixed(2);
+            document.getElementById('sum-insurance').textContent = '$' + totalIns.toFixed(2);
+            document.getElementById('sum-plate').textContent = '$' + totalPlate.toFixed(2);
+            document.getElementById('sum-escrow').textContent = '$' + totalEscrow.toFixed(2);
+            document.getElementById('sum-toll').textContent = '$' + totalToll.toFixed(2);
+            document.getElementById('sum-other').textContent = '$' + totalOther.toFixed(2);
 
-            // Tax Form Summary Cards & Breakdown Boxes
-            document.getElementById('taxGross').innerText = `$${totalGross.toFixed(2)}`;
-            document.getElementById('taxTotalDed').innerText = `$${totalDeductions.toFixed(2)}`;
-            document.getElementById('taxNetIncome').innerText = `$${totalNetPayout.toFixed(2)}`;
-            document.getElementById('taxFuel').innerText = `$${sumFuel.toFixed(2)}`;
-            document.getElementById('taxIns').innerText = `$${sumIns.toFixed(2)}`;
-            document.getElementById('taxPlate').innerText = `$${sumPlate.toFixed(2)}`;
-            document.getElementById('taxEscrow').innerText = `$${sumEscrow.toFixed(2)}`;
-            document.getElementById('taxTolls').innerText = `$${sumToll.toFixed(2)}`;
-            document.getElementById('taxOther').innerText = `$${sumOther.toFixed(2)}`;
-            document.getElementById('taxPerDiemNights').innerText = `${appData.perDiems.length} Nights`;
+            document.getElementById('entry-count').textContent = settlements.length + ' entries';
+            document.getElementById('perdiem-count').textContent = perDiemNights.length + ' Nights';
 
-            // Per Diem Render
-            let pdHtml = '';
-            appData.perDiems.forEach((pd, i) => {
-                pdHtml += `<tr>
-                    <td>${pd.date}</td>
-                    <td>${pd.location}</td>
-                    <td class="no-print"><button class="btn-sm btn-del" onclick="deletePerDiem(${i})">Del</button></td>
-                </tr>`;
-            });
-            document.getElementById('perDiemTableBody').innerHTML = pdHtml;
-            document.getElementById('perDiemCountDisplay').innerText = `${appData.perDiems.length} Nights`;
+            document.getElementById('tax-gross').textContent = '$' + totalGross.toFixed(2);
+            document.getElementById('tax-deductions').textContent = '$' + totalDed.toFixed(2);
+            document.getElementById('tax-net').textContent = '$' + totalNet.toFixed(2);
         }
 
-        // Initialize
-        renderAll();
-        calculateLiveNet();
+        function exportBackup() {
+            const data = { settlements, perDiemNights };
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'rigtracker_backup_' + new Date().toISOString().slice(0,10) + '.json';
+            a.click();
+        }
+
+        renderData();
     </script>
 </body>
 </html>
