@@ -11,6 +11,32 @@
     <meta name="theme-color" content="#000000">
     
     <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @media print {
+            body {
+                background-color: #ffffff !important;
+                color: #000000 !important;
+            }
+            header, nav, .no-print {
+                display: none !important;
+            }
+            .print-container {
+                display: block !important;
+                background: white !important;
+                color: black !important;
+                border: none !important;
+                box-shadow: none !important;
+            }
+            .print-bg {
+                background-color: #f3f4f6 !important;
+                border-color: #d1d5db !important;
+                color: black !important;
+            }
+            .text-amber-400, .text-emerald-400, .text-rose-500, .text-blue-400, .text-white {
+                color: #000000 !important;
+            }
+        }
+    </style>
 </head>
 <body class="bg-black text-white min-h-screen">
     <!-- Header -->
@@ -32,9 +58,11 @@
 
     <!-- Navigation Tabs -->
     <nav class="bg-neutral-900 border-b border-neutral-800">
-        <div class="max-w-7xl mx-auto px-4 flex space-x-4">
-            <button onclick="switchTab('dashboard')" id="navDashboard" class="py-3 px-4 text-sm font-bold border-b-2 border-amber-500 text-amber-400 transition">Dashboard & Entry</button>
-            <button onclick="switchTab('ledger')" id="navLedger" class="py-3 px-4 text-sm font-medium border-b-2 border-transparent text-neutral-400 hover:text-white transition">Excel Spreadsheet Ledger</button>
+        <div class="max-w-7xl mx-auto px-4 flex space-x-4 overflow-x-auto">
+            <button onclick="switchTab('dashboard')" id="navDashboard" class="py-3 px-4 text-sm font-bold border-b-2 border-amber-500 text-amber-400 transition whitespace-nowrap">Dashboard & Entry</button>
+            <button onclick="switchTab('ledger')" id="navLedger" class="py-3 px-4 text-sm font-medium border-b-2 border-transparent text-neutral-400 hover:text-white transition whitespace-nowrap">Excel Spreadsheet Ledger</button>
+            <button onclick="switchTab('perdiem')" id="navPerDiem" class="py-3 px-4 text-sm font-medium border-b-2 border-transparent text-neutral-400 hover:text-white transition whitespace-nowrap">Per Diem / Nights</button>
+            <button onclick="switchTab('taxforms')" id="navTaxForms" class="py-3 px-4 text-sm font-medium border-b-2 border-transparent text-neutral-400 hover:text-white transition whitespace-nowrap">Annual Tax Forms</button>
         </div>
     </nav>
 
@@ -58,7 +86,7 @@
                 </div>
             </div>
 
-            <!-- Data Entry Form at the Bottom of Main Screen -->
+            <!-- Data Entry Form -->
             <div class="bg-neutral-900 p-6 rounded-xl border border-neutral-800 shadow-md">
                 <h2 id="formTitle" class="text-lg font-bold mb-1 text-white flex items-center justify-between">
                     <span>Settlement Data Entry</span>
@@ -95,7 +123,7 @@
                             </div>
                             <div>
                                 <label class="block text-xs font-medium text-white mb-1">Plate ($)</label>
-                                <input type="number" step="0.01" id="plate" placeholder="0.00" oninput="calculateLiveNet()" class="w-full bg-black border border-neutral-800 rounded p-2 text-sm text-white text-rose-500 font-bold focus:outline-none focus:border-amber-500">
+                                <input type="number" step="0.01" id="plate" placeholder="0.00" oninput="calculateLiveNet()" class="w-full bg-black border border-neutral-800 rounded p-2 text-sm text-rose-500 font-bold focus:outline-none focus:border-amber-500">
                             </div>
                             <div>
                                 <label class="block text-xs font-medium text-white mb-1">Escrow ($)</label>
@@ -166,17 +194,96 @@
             </div>
         </div>
 
+        <!-- ================= TAB 3: PER DIEM / NIGHTS ON THE ROAD ================= -->
+        <div id="tabPerDiem" class="hidden space-y-6">
+            <!-- Year Summary Cards -->
+            <div id="perDiemYearCards" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <!-- Dynamically injected year totals -->
+            </div>
+
+            <!-- Per Diem Entry Form -->
+            <div class="bg-neutral-900 p-6 rounded-xl border border-neutral-800 shadow-md">
+                <h3 class="text-lg font-bold mb-1 text-white flex items-center justify-between">
+                    <span>Log Night Slept in Truck</span>
+                    <span class="text-xs bg-blue-500/20 text-blue-400 px-2.5 py-1 rounded-full font-normal">Per Diem Tracker</span>
+                </h3>
+                <p class="text-xs text-neutral-400 mb-4">Record dates you spent overnight in the sleeper berth for tax per diem substantiation.</p>
+                
+                <form id="perDiemForm" onsubmit="savePerDiemNight(event)" class="space-y-4">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-medium text-white mb-1">Night Date</label>
+                            <input type="date" id="perDiemDate" required class="w-full bg-black border border-neutral-800 rounded p-2.5 text-sm text-white focus:outline-none focus:border-blue-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-white mb-1">Location / Notes (Optional)</label>
+                            <input type="text" id="perDiemNotes" placeholder="e.g. Pilot Truck Stop - Chicago, IL" class="w-full bg-black border border-neutral-800 rounded p-2.5 text-sm text-white focus:outline-none focus:border-blue-500">
+                        </div>
+                    </div>
+                    <div>
+                        <button type="submit" class="bg-blue-600 hover:bg-blue-500 text-white font-bold px-5 py-2.5 rounded text-sm transition">Log Night in Truck</button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Nights History Table -->
+            <div class="bg-neutral-900 rounded-xl border border-neutral-800 overflow-hidden shadow-md">
+                <div class="p-6 border-b border-neutral-800 flex justify-between items-center">
+                    <div>
+                        <h3 class="text-lg font-bold text-white">Sleeper Berth Logbook</h3>
+                        <p class="text-xs text-neutral-400">Itemized history of nights on the road</p>
+                    </div>
+                    <span id="perDiemRecordCount" class="text-xs bg-neutral-800 text-white px-2.5 py-1 rounded-full">0 nights</span>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse text-sm font-mono">
+                        <thead>
+                            <tr class="bg-black text-white border-b border-neutral-800 text-xs uppercase tracking-wider">
+                                <th class="p-3">Date</th>
+                                <th class="p-3">Location / Notes</th>
+                                <th class="p-3 text-right text-white">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="perDiemTableBody" class="divide-y divide-neutral-800">
+                            <!-- Dynamic rows injected here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= TAB 4: ANNUAL TAX FORMS ================= -->
+        <div id="tabTaxForms" class="hidden space-y-8">
+            <div class="bg-neutral-900 p-6 rounded-xl border border-neutral-800 shadow-md no-print flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div>
+                    <h3 class="text-lg font-bold text-white">Annual Tax & Per Diem Packets</h3>
+                    <p class="text-xs text-neutral-400">Printable, accountant-ready financial summaries grouped by calendar year.</p>
+                </div>
+                <button onclick="window.print()" class="bg-amber-500 hover:bg-amber-400 text-black font-bold px-4 py-2.5 rounded text-sm transition flex items-center space-x-2">
+                    <span>🖨️ Print Active View</span>
+                </button>
+            </div>
+
+            <div id="taxFormsContainer" class="space-y-8">
+                <!-- Dynamically injected printable year forms -->
+            </div>
+        </div>
+
     </main>
 
     <script>
         let settlements = JSON.parse(localStorage.getItem('rigtracker_ledger')) || [];
+        let perDiemNights = JSON.parse(localStorage.getItem('rigtracker_perdiem')) || [];
 
         function saveToStorage() {
             localStorage.setItem('rigtracker_ledger', JSON.stringify(settlements));
+            localStorage.setItem('rigtracker_perdiem', JSON.stringify(perDiemNights));
         }
 
-        // Set default date to today on load
-        document.getElementById('date').value = new Date().toISOString().split('T')[0];
+        // Set default dates to today on load
+        const todayStr = new Date().toISOString().split('T')[0];
+        document.getElementById('date').value = todayStr;
+        document.getElementById('perDiemDate').value = todayStr;
 
         function calculateLiveNet() {
             const gross = parseFloat(document.getElementById('gross').value) || 0;
@@ -207,20 +314,41 @@
         function switchTab(tabName) {
             const dash = document.getElementById('tabDashboard');
             const ledger = document.getElementById('tabLedger');
+            const perdiem = document.getElementById('tabPerDiem');
+            const taxforms = document.getElementById('tabTaxForms');
+            
             const navDash = document.getElementById('navDashboard');
             const navLedger = document.getElementById('navLedger');
+            const navPerDiem = document.getElementById('navPerDiem');
+            const navTaxForms = document.getElementById('navTaxForms');
+
+            // Hide all
+            dash.classList.add('hidden');
+            ledger.classList.add('hidden');
+            perdiem.classList.add('hidden');
+            taxforms.classList.add('hidden');
+
+            // Reset nav styles
+            navDash.className = "py-3 px-4 text-sm font-medium border-b-2 border-transparent text-neutral-400 hover:text-white transition whitespace-nowrap";
+            navLedger.className = "py-3 px-4 text-sm font-medium border-b-2 border-transparent text-neutral-400 hover:text-white transition whitespace-nowrap";
+            navPerDiem.className = "py-3 px-4 text-sm font-medium border-b-2 border-transparent text-neutral-400 hover:text-white transition whitespace-nowrap";
+            navTaxForms.className = "py-3 px-4 text-sm font-medium border-b-2 border-transparent text-neutral-400 hover:text-white transition whitespace-nowrap";
 
             if (tabName === 'dashboard') {
                 dash.classList.remove('hidden');
-                ledger.classList.add('hidden');
-                navDash.className = "py-3 px-4 text-sm font-bold border-b-2 border-amber-500 text-amber-400 transition";
-                navLedger.className = "py-3 px-4 text-sm font-medium border-b-2 border-transparent text-neutral-400 hover:text-white transition";
-            } else {
-                dash.classList.add('hidden');
+                navDash.className = "py-3 px-4 text-sm font-bold border-b-2 border-amber-500 text-amber-400 transition whitespace-nowrap";
+            } else if (tabName === 'ledger') {
                 ledger.classList.remove('hidden');
-                navLedger.className = "py-3 px-4 text-sm font-bold border-b-2 border-amber-500 text-amber-400 transition";
-                navDash.className = "py-3 px-4 text-sm font-medium border-b-2 border-transparent text-neutral-400 hover:text-white transition";
+                navLedger.className = "py-3 px-4 text-sm font-bold border-b-2 border-amber-500 text-amber-400 transition whitespace-nowrap";
                 renderTable();
+            } else if (tabName === 'perdiem') {
+                perdiem.classList.remove('hidden');
+                navPerDiem.className = "py-3 px-4 text-sm font-bold border-b-2 border-amber-500 text-amber-400 transition whitespace-nowrap";
+                renderPerDiemApp();
+            } else if (tabName === 'taxforms') {
+                taxforms.classList.remove('hidden');
+                navTaxForms.className = "py-3 px-4 text-sm font-bold border-b-2 border-amber-500 text-amber-400 transition whitespace-nowrap";
+                renderTaxForms();
             }
         }
 
@@ -303,6 +431,203 @@
             }
         }
 
+        // --- Per Diem Logic ---
+        function savePerDiemNight(e) {
+            e.preventDefault();
+            const date = document.getElementById('perDiemDate').value;
+            const notes = document.getElementById('perDiemNotes').value;
+
+            const newItem = {
+                id: Date.now(),
+                date,
+                notes
+            };
+            perDiemNights.push(newItem);
+            perDiemNights.sort((a, b) => new Date(a.date) - new Date(b.date));
+            
+            saveToStorage();
+            document.getElementById('perDiemForm').reset();
+            document.getElementById('perDiemDate').value = new Date().toISOString().split('T')[0];
+            renderPerDiemApp();
+        }
+
+        function deletePerDiemNight(id) {
+            if (confirm("Delete this sleeper berth night record?")) {
+                perDiemNights = perDiemNights.filter(item => item.id !== id);
+                saveToStorage();
+                renderPerDiemApp();
+            }
+        }
+
+        function renderPerDiemApp() {
+            const tbody = document.getElementById('perDiemTableBody');
+            const yearCardsContainer = document.getElementById('perDiemYearCards');
+            tbody.innerHTML = '';
+            yearCardsContainer.innerHTML = '';
+
+            document.getElementById('perDiemRecordCount').innerText = `${perDiemNights.length} nights`;
+
+            if (perDiemNights.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="3" class="p-6 text-center text-neutral-400 font-sans">No nights on the road logged yet. Use the form above to add dates.</td></tr>`;
+                
+                const currentYear = new Date().getFullYear();
+                yearCardsContainer.innerHTML = `
+                    <div class="bg-neutral-900 p-5 rounded-xl border border-neutral-800 shadow-sm">
+                        <p class="text-xs font-medium text-white uppercase tracking-wider">${currentYear} Nights on Road</p>
+                        <p class="text-2xl font-black text-blue-400 mt-1">0 Nights</p>
+                    </div>
+                `;
+                return;
+            }
+
+            const yearCounts = {};
+            perDiemNights.forEach(item => {
+                if (item.date) {
+                    const yr = item.date.substring(0, 4);
+                    yearCounts[yr] = (yearCounts[yr] || 0) + 1;
+                }
+            });
+
+            const sortedYears = Object.keys(yearCounts).sort().reverse();
+            sortedYears.forEach(yr => {
+                const count = yearCounts[yr];
+                const card = document.createElement('div');
+                card.className = "bg-neutral-900 p-5 rounded-xl border border-neutral-800 shadow-sm";
+                card.innerHTML = `
+                    <p class="text-xs font-medium text-white uppercase tracking-wider">${yr} Nights on Road</p>
+                    <p class="text-2xl font-black text-blue-400 mt-1">${count} Night${count === 1 ? '' : 's'}</p>
+                `;
+                yearCardsContainer.appendChild(card);
+            });
+
+            const sortedTable = [...perDiemNights].reverse();
+            sortedTable.forEach(item => {
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-neutral-800/50 transition';
+                tr.innerHTML = `
+                    <td class="p-3 text-white font-medium">${item.date}</td>
+                    <td class="p-3 text-neutral-300 font-sans">${item.notes || '—'}</td>
+                    <td class="p-3 text-right font-sans">
+                        <button onclick="deletePerDiemNight(${item.id})" class="text-xs font-medium px-2.5 py-1 rounded bg-rose-500/20 text-rose-400 hover:bg-rose-500/30 transition">Delete</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // --- Annual Tax Forms Logic ---
+        function renderTaxForms() {
+            const container = document.getElementById('taxFormsContainer');
+            container.innerHTML = '';
+
+            // Gather all distinct years from settlements and perDiemNights
+            const allYearsSet = new Set();
+            settlements.forEach(s => { if (s.date) allYearsSet.add(s.date.substring(0, 4)); });
+            perDiemNights.forEach(p => { if (p.date) allYearsSet.add(p.date.substring(0, 4)); });
+
+            if (allYearsSet.size === 0) {
+                // Default to current year if nothing logged
+                allYearsSet.add(new Date().getFullYear().toString());
+            }
+
+            const sortedYears = Array.from(allYearsSet).sort().reverse();
+
+            sortedYears.forEach(yr => {
+                // Filter settlements for year
+                const yearSettlements = settlements.filter(s => s.date && s.date.startsWith(yr));
+                const totalGross = yearSettlements.reduce((sum, i) => sum + (i.gross || 0), 0);
+                const totalFuel = yearSettlements.reduce((sum, i) => sum + (i.fuel || 0), 0);
+                const totalInsurance = yearSettlements.reduce((sum, i) => sum + (i.insurance || 0), 0);
+                const totalPlate = yearSettlements.reduce((sum, i) => sum + (i.plate || 0), 0);
+                const totalEscrow = yearSettlements.reduce((sum, i) => sum + (i.escrow || 0), 0);
+                const totalToll = yearSettlements.reduce((sum, i) => sum + (i.toll || 0), 0);
+                const totalOther = yearSettlements.reduce((sum, i) => sum + (i.other || 0), 0);
+                const totalDeductions = totalFuel + totalInsurance + totalPlate + totalEscrow + totalToll + totalOther;
+                const netTotal = totalGross - totalDeductions;
+
+                // Filter per diem nights for year
+                const yearNights = perDiemNights.filter(p => p.date && p.date.startsWith(yr));
+                yearNights.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+                const formCard = document.createElement('div');
+                formCard.className = "bg-neutral-900 print-container print-bg p-8 rounded-xl border border-neutral-800 shadow-md space-y-6";
+                formCard.innerHTML = `
+                    <div class="flex justify-between items-center border-b border-neutral-800 pb-4">
+                        <div>
+                            <h2 class="text-xl font-black text-white tracking-wide">Year of ${yr} Tax & Per Diem Summary</h2>
+                            <p class="text-xs text-neutral-400">RigTracker Pro Owner-Operator Tax Packet</p>
+                        </div>
+                        <button onclick="printSpecificYear('${yr}')" class="no-print bg-neutral-800 hover:bg-neutral-700 text-white text-xs px-3 py-2 rounded font-medium transition">
+                            🖨️ Print ${yr} Form
+                        </button>
+                    </div>
+
+                    <!-- Financial Summary Grid -->
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div class="bg-black print-bg p-4 rounded-lg border border-neutral-800">
+                            <span class="text-xs text-neutral-400 uppercase tracking-wider block">Gross Revenue</span>
+                            <span class="text-xl font-bold text-amber-400">$${totalGross.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        </div>
+                        <div class="bg-black print-bg p-4 rounded-lg border border-neutral-800">
+                            <span class="text-xs text-neutral-400 uppercase tracking-wider block">Total Deductions</span>
+                            <span class="text-xl font-bold text-rose-500">$${totalDeductions.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        </div>
+                        <div class="bg-black print-bg p-4 rounded-lg border border-neutral-800">
+                            <span class="text-xs text-neutral-400 uppercase tracking-wider block">Net Payout</span>
+                            <span class="text-xl font-bold text-emerald-400">$${netTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        </div>
+                    </div>
+
+                    <!-- Itemized Deductions Breakdown -->
+                    <div>
+                        <h4 class="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-2">Itemized Deductions Breakdown</h4>
+                        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 text-sm font-mono">
+                            <div class="bg-black print-bg p-3 rounded border border-neutral-800"><span class="text-xs text-neutral-400 block">Fuel:</span>$${totalFuel.toFixed(2)}</div>
+                            <div class="bg-black print-bg p-3 rounded border border-neutral-800"><span class="text-xs text-neutral-400 block">Insurance:</span>$${totalInsurance.toFixed(2)}</div>
+                            <div class="bg-black print-bg p-3 rounded border border-neutral-800"><span class="text-xs text-neutral-400 block">Plate:</span>$${totalPlate.toFixed(2)}</div>
+                            <div class="bg-black print-bg p-3 rounded border border-neutral-800"><span class="text-xs text-neutral-400 block">Escrow:</span>$${totalEscrow.toFixed(2)}</div>
+                            <div class="bg-black print-bg p-3 rounded border border-neutral-800"><span class="text-xs text-neutral-400 block">Toll:</span>$${totalToll.toFixed(2)}</div>
+                            <div class="bg-black print-bg p-3 rounded border border-neutral-800"><span class="text-xs text-neutral-400 block">Other:</span>$${totalOther.toFixed(2)}</div>
+                        </div>
+                    </div>
+
+                    <!-- Per Diem Nights Section -->
+                    <div class="border-t border-neutral-800 pt-4 space-y-3">
+                        <div class="flex justify-between items-center">
+                            <h4 class="text-xs font-bold text-blue-400 uppercase tracking-wider">Per Diem / Nights on the Road</h4>
+                            <span class="text-sm font-bold text-white bg-blue-500/20 px-3 py-1 rounded-full">${yearNights.length} Total Nights</span>
+                        </div>
+
+                        ${yearNights.length > 0 ? `
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-left border-collapse text-xs font-mono">
+                                    <thead>
+                                        <tr class="bg-black print-bg text-neutral-400 border-b border-neutral-800 uppercase">
+                                            <th class="p-2">Date</th>
+                                            <th class="p-2">Location / Notes</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-neutral-800">
+                                        ${yearNights.map(n => `
+                                            <tr>
+                                                <td class="p-2 text-white font-medium">${n.date}</td>
+                                                <td class="p-2 text-neutral-300">${n.notes || '—'}</td>
+                                            </tr>
+                                        `).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+                        ` : `<p class="text-xs text-neutral-500 italic font-sans">No sleeper berth nights logged for ${yr}.</p>`}
+                    </div>
+                `;
+                container.appendChild(formCard);
+            });
+        }
+
+        function printSpecificYear(yr) {
+            window.print();
+        }
+
         function renderStats() {
             const totalGross = settlements.reduce((sum, item) => sum + (item.gross || 0), 0);
             const totalExpenses = settlements.reduce((sum, item) => {
@@ -352,10 +677,14 @@
         }
 
         function exportData() {
-            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(settlements, null, 2));
+            const exportObj = {
+                settlements: settlements,
+                perDiemNights: perDiemNights
+            };
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportObj, null, 2));
             const downloadAnchor = document.createElement('a');
             downloadAnchor.setAttribute("href", dataStr);
-            downloadAnchor.setAttribute("download", "rigtracker_ledger_backup.json");
+            downloadAnchor.setAttribute("download", "rigtracker_complete_backup.json");
             document.body.appendChild(downloadAnchor);
             downloadAnchor.click();
             downloadAnchor.remove();
