@@ -1,5 +1,3 @@
-# Rigtracker
-Index.htnl
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -47,6 +45,19 @@ Index.htnl
             <div class="bg-slate-800 p-5 rounded-xl border border-slate-700 shadow-sm">
                 <p class="text-xs font-medium text-slate-400 uppercase tracking-wider">Net Profit After Expenses</p>
                 <p id="statNet" class="text-2xl font-black text-cyan-400 mt-1">$0.00</p>
+            </div>
+        </div>
+
+        <!-- Smart Settlement Parser Tool -->
+        <div class="bg-slate-800 p-6 rounded-xl border border-amber-500/30 shadow-md">
+            <h2 class="text-lg font-bold mb-1 text-white flex items-center justify-between">
+                <span>Quick Settlement Parser</span>
+                <span class="text-xs bg-amber-500/20 text-amber-400 px-2.5 py-1 rounded-full font-normal">Paste Statement Text</span>
+            </h2>
+            <p class="text-xs text-slate-400 mb-4">Paste your email settlement text or numbers below, and click parse to instantly populate the form.</p>
+            <div class="space-y-3">
+                <textarea id="rawSettlementText" rows="3" placeholder="Paste settlement text here (e.g., Gross: 4500.00, Miles: 2100, Expenses: 1200)..." class="w-full bg-slate-900 border border-slate-700 rounded p-3 text-sm text-white focus:outline-none focus:border-amber-500"></textarea>
+                <button type="button" onclick="parseSettlementText()" class="bg-slate-700 hover:bg-slate-600 text-amber-400 border border-amber-500/40 font-semibold px-4 py-2 rounded text-xs transition">Auto-Fill Form From Text</button>
             </div>
         </div>
 
@@ -120,13 +131,44 @@ Index.htnl
     </main>
 
     <script>
-        // Initialize state from localStorage or default empty array
         let settlements = JSON.parse(localStorage.getItem('rigtracker_settlements')) || [];
         let financeChartInstance = null;
         let mileageChartInstance = null;
 
         function saveToStorage() {
             localStorage.setItem('rigtracker_settlements', JSON.stringify(settlements));
+        }
+
+        function parseSettlementText() {
+            const text = document.getElementById('rawSettlementText').value;
+            if (!text) {
+                alert("Please paste some settlement text first.");
+                return;
+            }
+
+            // Simple regex extractors for numbers and currency
+            const numbers = text.match(/[\d,]+\.\d{2}|\d+/g);
+            if (numbers && numbers.length > 0) {
+                // Clean numbers and populate fields based on typical patterns
+                const cleanNums = numbers.map(n => parseFloat(n.replace(/,/g, '')));
+                
+                // Look for largest figure as gross, smaller figures as miles/expenses if possible
+                if (cleanNums.length >= 1) {
+                    document.getElementById('gross').value = cleanNums[0];
+                }
+                if (cleanNums.length >= 2) {
+                    document.getElementById('miles').value = cleanNums[1];
+                }
+                if (cleanNums.length >= 3) {
+                    document.getElementById('expenses').value = cleanNums[2];
+                }
+                
+                // Default to today if no date found
+                document.getElementById('date').value = new Date().toISOString().split('T')[0];
+                alert("Parsed successfully! Check the form values and click Save Settlement.");
+            } else {
+                alert("Could not automatically detect numbers. Please enter manually.");
+            }
         }
 
         function addSettlement(e) {
@@ -149,6 +191,7 @@ Index.htnl
             saveToStorage();
             renderApp();
             document.getElementById('settlementForm').reset();
+            document.getElementById('rawSettlementText').value = '';
         }
 
         function deleteSettlement(id) {
@@ -180,7 +223,6 @@ Index.htnl
                 return;
             }
 
-            // Render in reverse chronological order for the table view
             const sortedForTable = [...settlements].reverse();
             sortedForTable.forEach(item => {
                 const rpm = item.miles > 0 ? (item.gross / item.miles).toFixed(2) : '0.00';
@@ -209,7 +251,6 @@ Index.htnl
             const expenseData = settlements.map(item => item.expenses);
             const mileageData = settlements.map(item => item.miles);
 
-            // Finance Chart
             const ctxFinance = document.getElementById('financeChart').getContext('2d');
             if (financeChartInstance) financeChartInstance.destroy();
             financeChartInstance = new Chart(ctxFinance, {
@@ -232,7 +273,6 @@ Index.htnl
                 }
             });
 
-            // Mileage Chart
             const ctxMileage = document.getElementById('mileageChart').getContext('2d');
             if (mileageChartInstance) mileageChartInstance.destroy();
             mileageChartInstance = new Chart(ctxMileage, {
@@ -298,7 +338,6 @@ Index.htnl
             renderCharts();
         }
 
-        // Initial load
         renderApp();
     </script>
 </body>
