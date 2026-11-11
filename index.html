@@ -7,15 +7,15 @@
     <style>
         :root {
             --bg-dark: #121212;
-            --bg-card: #1e1e1e;
-            --bg-input: #2a2a2a;
+            --bg-card: #1a1a1a;
+            --bg-input: #242424;
             --text-main: #f3f4f6;
             --text-muted: #9ca3af;
-            --accent-yellow: #eab308;
+            --accent-yellow: #f59e0b;
             --accent-green: #22c55e;
             --accent-red: #ef4444;
             --accent-blue: #3b82f6;
-            --border-color: #333333;
+            --border-color: #2f2f2f;
         }
 
         * {
@@ -28,30 +28,66 @@
         body {
             background-color: var(--bg-dark);
             color: var(--text-main);
-            padding: 16px;
-            max-width: 900px;
+            padding: 14px;
+            max-width: 600px;
             margin: 0 auto;
         }
 
         header {
-            text-align: center;
-            padding: 20px 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 0;
             border-bottom: 1px solid var(--border-color);
             margin-bottom: 20px;
         }
 
-        header h1 {
-            color: var(--accent-yellow);
-            font-size: 24px;
-            margin-bottom: 4px;
+        .logo-area {
+            display: flex;
+            align-items: center;
+            gap: 12px;
         }
 
-        header p {
+        .logo-box {
+            background: var(--accent-yellow);
+            color: #000;
+            font-weight: bold;
+            font-size: 18px;
+            padding: 10px 14px;
+            border-radius: 8px;
+        }
+
+        .header-title h1 {
+            font-size: 18px;
+            color: var(--text-main);
+        }
+
+        .header-title p {
+            font-size: 12px;
             color: var(--text-muted);
-            font-size: 14px;
         }
 
-        /* Section Visibility & Layout */
+        .header-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn-top {
+            background: var(--bg-input);
+            color: var(--text-main);
+            border: 1px solid var(--border-color);
+            padding: 6px 10px;
+            border-radius: 6px;
+            font-size: 11px;
+            cursor: pointer;
+            font-weight: 500;
+        }
+
+        .btn-top:hover {
+            border-color: var(--accent-yellow);
+        }
+
+        /* App Sections */
         .app-section {
             display: none;
         }
@@ -59,128 +95,157 @@
             display: block;
         }
 
-        /* Grid Navigation Menu */
-        .nav-grid {
+        /* Dashboard Grid Navigation Menu */
+        .menu-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-            gap: 16px;
-            padding: 20px 0;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            margin-top: 16px;
+            margin-bottom: 16px;
         }
 
-        .nav-card {
+        .menu-card {
             background: var(--bg-card);
             border: 1px solid var(--border-color);
             border-radius: 12px;
-            padding: 24px 16px;
+            padding: 22px 14px;
             text-align: center;
             cursor: pointer;
             transition: all 0.2s ease;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
         }
 
-        .nav-card:hover {
-            background: var(--bg-input);
+        .menu-card:hover {
             border-color: var(--accent-yellow);
-            transform: translateY(-2px);
+            background: var(--bg-input);
         }
 
-        .nav-card .card-icon {
-            font-size: 32px;
-            margin-bottom: 12px;
+        .menu-card .icon {
+            font-size: 28px;
+            margin-bottom: 8px;
             display: block;
         }
 
-        .nav-card h3 {
+        .menu-card h3 {
+            font-size: 14px;
             color: var(--text-main);
-            font-size: 16px;
         }
 
         .back-btn {
             background: var(--bg-input);
             color: var(--text-main);
             border: 1px solid var(--border-color);
-            padding: 8px 16px;
+            padding: 8px 14px;
             border-radius: 6px;
             cursor: pointer;
-            margin-bottom: 20px;
-            font-size: 14px;
+            font-size: 12px;
+            margin-bottom: 16px;
         }
 
         .back-btn:hover {
-            background: var(--border-color);
+            border-color: var(--accent-yellow);
         }
 
-        /* Cards & Containers */
-        .card {
+        /* Cards & Summary */
+        .summary-card {
             background: var(--bg-card);
             border: 1px solid var(--border-color);
-            border-radius: 10px;
+            border-radius: 12px;
             padding: 16px;
-            margin-bottom: 20px;
+            margin-bottom: 12px;
         }
 
-        h2 {
-            font-size: 18px;
-            margin-bottom: 14px;
-            color: var(--text-main);
-        }
-
-        /* Summary Dashboard Cards */
-        .summary-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 10px;
-            margin-bottom: 20px;
-        }
-
-        .stat-card {
-            background: var(--bg-card);
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            padding: 12px;
-            text-align: center;
-        }
-
-        .stat-card span {
-            font-size: 12px;
+        .summary-card span {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
             color: var(--text-muted);
             display: block;
             margin-bottom: 4px;
         }
 
-        .stat-card strong {
-            font-size: 16px;
+        .summary-card strong {
+            font-size: 26px;
+            font-weight: 700;
         }
 
-        .stat-card.yellow strong { color: var(--accent-yellow); }
-        .stat-card.red strong { color: var(--accent-red); }
-        .stat-card.green strong { color: var(--accent-green); }
+        .card-yellow strong { color: var(--accent-yellow); }
+        .card-red strong { color: var(--accent-red); }
+        .card-green strong { color: var(--accent-green); }
 
-        /* Forms & Inputs */
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+
+        .card-title {
+            font-size: 15px;
+            font-weight: 600;
+            margin-bottom: 12px;
+            color: var(--text-main);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
         .form-group {
             margin-bottom: 12px;
         }
 
         label {
             display: block;
-            font-size: 13px;
+            font-size: 12px;
             color: var(--text-muted);
             margin-bottom: 4px;
         }
 
-        input, select, textarea {
+        input, select {
             width: 100%;
             padding: 10px;
             background: var(--bg-input);
             border: 1px solid var(--border-color);
             color: var(--text-main);
             border-radius: 6px;
-            font-size: 14px;
+            font-size: 13px;
         }
 
-        input:focus, select:focus, textarea:focus {
+        input:focus, select:focus {
             outline: none;
             border-color: var(--accent-yellow);
+        }
+
+        .deductions-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            background: var(--bg-input);
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            margin-bottom: 12px;
+        }
+
+        .net-preview {
+            background: var(--bg-input);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 12px;
+            text-align: center;
+            margin-bottom: 14px;
+        }
+
+        .net-preview span {
+            font-size: 11px;
+            color: var(--text-muted);
+            display: block;
+            margin-bottom: 2px;
+        }
+
+        .net-preview strong {
+            font-size: 20px;
+            color: var(--accent-green);
         }
 
         button.action-btn {
@@ -192,15 +257,14 @@
             border-radius: 6px;
             width: 100%;
             cursor: pointer;
-            font-size: 15px;
-            margin-top: 6px;
+            font-size: 14px;
         }
 
         button.action-btn:hover {
             opacity: 0.9;
         }
 
-        /* Tables & Lists */
+        /* Tables */
         .table-responsive {
             overflow-x: auto;
         }
@@ -208,13 +272,14 @@
         table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 13px;
+            font-size: 12px;
             text-align: left;
         }
 
         th, td {
-            padding: 10px;
+            padding: 8px 6px;
             border-bottom: 1px solid var(--border-color);
+            white-space: nowrap;
         }
 
         th {
@@ -223,96 +288,114 @@
         }
 
         .btn-sm {
-            padding: 4px 8px;
-            font-size: 11px;
+            padding: 3px 6px;
+            font-size: 10px;
             border-radius: 4px;
             border: none;
             cursor: pointer;
-            margin-right: 4px;
+            margin-right: 2px;
         }
 
         .btn-edit { background: var(--accent-blue); color: #fff; }
         .btn-del { background: var(--accent-red); color: #fff; }
 
-        /* Backup / Restore bar */
-        .io-bar {
-            display: flex;
-            gap: 10px;
-            margin-top: 20px;
-        }
-        .io-bar button {
-            flex: 1;
-            padding: 8px;
-            background: var(--bg-input);
-            color: var(--text-main);
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 12px;
+        /* Print Styling */
+        @media print {
+            body {
+                background: #fff;
+                color: #000;
+                max-width: 100%;
+                padding: 0;
+            }
+            header, .menu-grid, .back-btn, .action-btn, .btn-sm, .no-print {
+                display: none !important;
+            }
+            .app-section {
+                display: block !important;
+            }
+            .card {
+                background: #fff;
+                border: 1px solid #ddd;
+                box-shadow: none;
+                color: #000;
+            }
+            table {
+                color: #000;
+            }
+            th, td {
+                border-bottom: 1px solid #ccc;
+            }
+            .summary-card {
+                background: #f9f9f9;
+                border: 1px solid #ccc;
+            }
+            .summary-card strong, .summary-card span {
+                color: #000 !important;
+            }
         }
     </style>
 </head>
 <body>
 
-    <header>
-        <h1>RigTracker Pro</h1>
-        <p>Owner-Operator Financial Ledger</p>
+    <header class="no-print">
+        <div class="logo-area">
+            <div class="logo-box">RT</div>
+            <div class="header-title">
+                <h1>RigTracker Pro</h1>
+                <p>Professional Owner-Operator Ledger</p>
+            </div>
+        </div>
+        <div class="header-actions">
+            <button class="btn-top" onclick="exportData()">Export</button>
+            <button class="btn-top" onclick="document.getElementById('importFile').click()">Import</button>
+            <input type="file" id="importFile" style="display:none" onchange="importData(event)">
+        </div>
     </header>
 
-    <!-- MAIN DASHBOARD GRID MENU -->
-    <div id="main-menu-section" class="app-section active">
-        <div style="text-align: center; padding: 10px 0 20px 0;">
-            <h2>Operations Dashboard</h2>
-            <p style="color: var(--text-muted); font-size: 13px;">Select a module to open</p>
+    <!-- 1. DASHBOARD HOME SCREEN (GRID MENU & 3 YTD SUMMARIES) -->
+    <div id="home-section" class="app-section active">
+        <div class="summary-card card-yellow">
+            <span>YTD Gross Revenue</span>
+            <strong id="homeGross">$0.00</strong>
         </div>
-        
-        <div class="nav-grid">
-            <div class="nav-card" onclick="switchSection('settlement-section')">
-                <span class="card-icon">💵</span>
-                <h3>Settlement Entry</h3>
-            </div>
-            <div class="nav-card" onclick="switchSection('expenses-section')">
-                <span class="card-icon">📉</span>
-                <h3>Expenses & Escrow</h3>
-            </div>
-            <div class="nav-card" onclick="switchSection('perdiem-section')">
-                <span class="card-icon">🌙</span>
-                <h3>Per Diem Nights</h3>
-            </div>
-            <div class="nav-card" onclick="switchSection('tax-section')">
-                <span class="card-icon">📊</span>
-                <h3>Tax Summary</h3>
-            </div>
+        <div class="summary-card card-red">
+            <span>YTD Total Deductions</span>
+            <strong id="homeDeductions">$0.00</strong>
+        </div>
+        <div class="summary-card card-green">
+            <span>YTD Net Total Payout</span>
+            <strong id="homeNet">$0.00</strong>
         </div>
 
-        <div class="io-bar">
-            <button onclick="exportData()">Export Backup (JSON)</button>
-            <button onclick="document.getElementById('importFile').click()">Import Backup</button>
-            <input type="file" id="importFile" style="display:none" onchange="importData(event)">
+        <div class="menu-grid">
+            <div class="menu-card" onclick="switchSection('entry-section')">
+                <span class="icon">💵</span>
+                <h3>Settlement Entry</h3>
+            </div>
+            <div class="menu-card" onclick="switchSection('ledger-section')">
+                <span class="icon">📊</span>
+                <h3>Spreadsheet Ledger</h3>
+            </div>
+            <div class="menu-card" onclick="switchSection('perdiem-section')">
+                <span class="icon">🌙</span>
+                <h3>Per Diem Nights</h3>
+            </div>
+            <div class="menu-card" onclick="switchSection('tax-section')">
+                <span class="icon">📄</span>
+                <h3>Annual Tax Forms</h3>
+            </div>
         </div>
     </div>
 
-    <!-- 1. SETTLEMENT ENTRY SECTION -->
-    <div id="settlement-section" class="app-section">
-        <button class="back-btn" onclick="showMainMenu()">← Back to Dashboard</button>
+    <!-- 2. SETTLEMENT DATA ENTRY SECTION -->
+    <div id="entry-section" class="app-section">
+        <button class="back-btn no-print" onclick="switchSection('home-section')">← Back to Dashboard</button>
         
-        <div class="summary-grid">
-            <div class="stat-card yellow">
-                <span>YTD Gross</span>
-                <strong id="ytdGross">$0.00</strong>
-            </div>
-            <div class="stat-card red">
-                <span>YTD Deductions</span>
-                <strong id="ytdDeductions">$0.00</strong>
-            </div>
-            <div class="stat-card green">
-                <span>YTD Net Payout</span>
-                <strong id="ytdNet">$0.00</strong>
-            </div>
-        </div>
-
         <div class="card">
-            <h2>Add / Edit Settlement</h2>
+            <div class="card-title">
+                <span id="formTitle">Settlement Data Entry</span>
+                <span id="resetEditBtn" style="font-size: 11px; color: var(--accent-yellow); cursor: pointer; display: none;" onclick="resetForm()">New Entry</span>
+            </div>
             <form id="settlementForm" onsubmit="saveSettlement(event)">
                 <input type="hidden" id="editIndex" value="">
                 <div class="form-group">
@@ -320,35 +403,74 @@
                     <input type="date" id="settleDate" required>
                 </div>
                 <div class="form-group">
-                    <label>Load / Settlement ID</label>
-                    <input type="text" id="settleId" placeholder="e.g. LTI-84920" required>
+                    <label>Gross ($)</label>
+                    <input type="number" step="0.01" id="settleGross" placeholder="0.00" oninput="calculateLiveNet()" required>
                 </div>
-                <div class="form-group">
-                    <label>Gross Revenue ($)</label>
-                    <input type="number" step="0.01" id="settleGross" placeholder="0.00" required>
+
+                <label style="color: var(--accent-red); margin-bottom: 6px; font-weight: 600;">DEDUCTIONS FOR NET TOTAL</label>
+                <div class="deductions-grid">
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label>Fuel ($)</label>
+                        <input type="number" step="0.01" id="dedFuel" placeholder="0.00" oninput="calculateLiveNet()" value="0.00">
+                    </div>
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label>Insurance ($)</label>
+                        <input type="number" step="0.01" id="dedIns" placeholder="0.00" oninput="calculateLiveNet()" value="0.00">
+                    </div>
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label>Plate ($)</label>
+                        <input type="number" step="0.01" id="dedPlate" placeholder="0.00" oninput="calculateLiveNet()" value="0.00">
+                    </div>
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label>Escrow ($)</label>
+                        <input type="number" step="0.01" id="dedEscrow" placeholder="0.00" oninput="calculateLiveNet()" value="0.00">
+                    </div>
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label>Toll ($)</label>
+                        <input type="number" step="0.01" id="dedToll" placeholder="0.00" oninput="calculateLiveNet()" value="0.00">
+                    </div>
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label>Other ($)</label>
+                        <input type="number" step="0.01" id="dedOther" placeholder="0.00" oninput="calculateLiveNet()" value="0.00">
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label>Deductions / Escrow / Fuel ($)</label>
-                    <input type="number" step="0.01" id="settleDed" placeholder="0.00" value="0.00" required>
+
+                <div class="net-preview">
+                    <span>CALCULATED NET PAYOUT:</span>
+                    <strong id="liveNetPreview">$0.00</strong>
                 </div>
-                <button type="submit" class="action-btn">Save Settlement Entry</button>
+
+                <button type="submit" class="action-btn" id="submitBtnText">Save Entry</button>
             </form>
         </div>
+    </div>
+
+    <!-- 3. EXCEL SPREADSHEET LEDGER SECTION -->
+    <div id="ledger-section" class="app-section">
+        <button class="back-btn no-print" onclick="switchSection('home-section')">← Back to Dashboard</button>
 
         <div class="card">
-            <h2>Settlement History</h2>
+            <div class="card-title">
+                <span>Excel Spreadsheet Ledger</span>
+                <span id="entryCountBadge" style="font-size: 11px; color: var(--text-muted);">0 entries</span>
+            </div>
             <div class="table-responsive">
                 <table>
                     <thead>
                         <tr>
-                            <th>Date</th>
-                            <th>ID</th>
-                            <th>Gross</th>
-                            <th>Net</th>
-                            <th>Action</th>
+                            <th>DATE</th>
+                            <th>GROSS</th>
+                            <th>FUEL</th>
+                            <th>INS</th>
+                            <th>PLATE</th>
+                            <th>ESCROW</th>
+                            <th>TOLL</th>
+                            <th>OTHER</th>
+                            <th>NET TOTAL</th>
+                            <th class="no-print">ACTIONS</th>
                         </tr>
                     </thead>
-                    <tbody id="settlementTableBody">
+                    <tbody id="ledgerTableBody">
                         <!-- Populated via JS -->
                     </tbody>
                 </table>
@@ -356,106 +478,38 @@
         </div>
     </div>
 
-    <!-- 2. EXPENSES & ESCROW SECTION -->
-    <div id="expenses-section" class="app-section">
-        <button class="back-btn" onclick="showMainMenu()">← Back to Dashboard</button>
-
-        <div class="card">
-            <h2>Maintenance Escrow Balance</h2>
-            <div class="stat-card green" style="margin-bottom: 14px;">
-                <span>Current Escrow Reserve</span>
-                <strong id="escrowBalanceDisplay">$0.00</strong>
-            </div>
-            <div class="form-group">
-                <label>Adjust / Set Escrow Balance ($)</label>
-                <input type="number" step="0.01" id="escrowInput" placeholder="Enter total escrow amount">
-            </div>
-            <button type="button" class="action-btn" onclick="updateEscrow()">Update Escrow Balance</button>
-        </div>
-
-        <div class="card">
-            <h2>Itemized Operating Expense</h2>
-            <form id="expenseForm" onsubmit="saveExpense(event)">
-                <div class="form-group">
-                    <label>Date</label>
-                    <input type="date" id="expDate" required>
-                </div>
-                <div class="form-group">
-                    <label>Category</label>
-                    <select id="expCategory">
-                        <option value="Fuel">Fuel</option>
-                        <option value="Insurance">Insurance</option>
-                        <option value="Maintenance">Maintenance & Repairs</option>
-                        <option value="Tolls & Permits">Tolls & Permits</option>
-                        <option value="Plate & Licensing">Plate & Licensing</option>
-                        <option value="Other">Other Operating Expense</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Amount ($)</label>
-                    <input type="number" step="0.01" id="expAmount" placeholder="0.00" required>
-                </div>
-                <div class="form-group">
-                    <label>Notes / Vendor</label>
-                    <input type="text" id="expNotes" placeholder="e.g. Pilot Flying J, Cummins ISX filter">
-                </div>
-                <button type="submit" class="action-btn">Log Expense</button>
-            </form>
-        </div>
-
-        <div class="card">
-            <h2>Expense Ledger</h2>
-            <div class="table-responsive">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Date</th>
-                            <th>Category</th>
-                            <th>Amount</th>
-                            <th>Notes</th>
-                            <th>Action</th>
-                        </tr>
-                    </thead>
-                    <tbody id="expenseTableBody">
-                        <!-- Populated via JS -->
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-
-    <!-- 3. PER DIEM NIGHTS SECTION -->
+    <!-- 4. PER DIEM NIGHTS SECTION -->
     <div id="perdiem-section" class="app-section">
-        <button class="back-btn" onclick="showMainMenu()">← Back to Dashboard</button>
+        <button class="back-btn no-print" onclick="switchSection('home-section')">← Back to Dashboard</button>
 
         <div class="card">
-            <h2>Per Diem Nights Tracker (Sleeper Berth)</h2>
-            <div class="stat-card yellow" style="margin-bottom: 14px;">
+            <div class="card-title">Per Diem Sleeper Nights</div>
+            <div class="summary-card card-yellow" style="margin-bottom: 14px; padding: 12px;">
                 <span>Total Overnight Road Nights</span>
-                <strong id="perDiemCountDisplay">0 Nights</strong>
+                <strong id="perDiemCountDisplay" style="font-size: 20px;">0 Nights</strong>
             </div>
             <form id="perDiemForm" onsubmit="savePerDiem(event)">
                 <div class="form-group">
                     <label>Date on Road / Sleeper Berth</label>
-                    <input type="date" id="perDiemDate" required>
+                    <input type="date" id="pdDate" required>
                 </div>
                 <div class="form-group">
                     <label>Location / City, State</label>
-                    <input type="text" id="perDiemLocation" placeholder="e.g. Bloomington, IL">
+                    <input type="text" id="pdLocation" placeholder="e.g. Bloomington, IL">
                 </div>
                 <button type="submit" class="action-btn">Log Per Diem Night</button>
             </form>
         </div>
 
         <div class="card">
-            <h2>Logged Road Nights</h2>
+            <div class="card-title">Logged Nights History</div>
             <div class="table-responsive">
                 <table>
                     <thead>
                         <tr>
                             <th>Date</th>
                             <th>Location</th>
-                            <th>Action</th>
+                            <th class="no-print">Action</th>
                         </tr>
                     </thead>
                     <tbody id="perDiemTableBody">
@@ -466,21 +520,81 @@
         </div>
     </div>
 
-    <!-- 4. TAX SUMMARY SECTION -->
+    <!-- 5. ANNUAL TAX FORMS SECTION -->
     <div id="tax-section" class="app-section">
-        <button class="back-btn" onclick="showMainMenu()">← Back to Dashboard</button>
+        <button class="back-btn no-print" onclick="switchSection('home-section')">← Back to Dashboard</button>
+
+        <div class="summary-card card-yellow">
+            <span>Gross Revenue</span>
+            <strong id="taxGross">$0.00</strong>
+        </div>
+        <div class="summary-card card-red">
+            <span>Total Deductions</span>
+            <strong id="taxTotalDed">$0.00</strong>
+        </div>
+        <div class="summary-card card-green">
+            <span>Net Payout / Income</span>
+            <strong id="taxNetIncome">$0.00</strong>
+        </div>
 
         <div class="card">
-            <h2>Annual Tax Summary & Estimates</h2>
-            <div style="font-size: 14px; line-height: 1.6;">
-                <p style="margin-bottom: 8px;"><strong>Gross Revenue:</strong> <span id="taxGross" style="float: right; color: var(--accent-yellow);">$0.00</span></p>
-                <p style="margin-bottom: 8px;"><strong>Total Settlement Deductions:</strong> <span id="taxSettlementDed" style="float: right; color: var(--accent-red);">$0.00</span></p>
-                <p style="margin-bottom: 8px;"><strong>Total Itemized Expenses:</strong> <span id="taxExpenses" style="float: right; color: var(--accent-red);">$0.00</span></p>
-                <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 12px 0;">
-                <p style="margin-bottom: 8px; font-size: 16px;"><strong>Estimated Net Business Income:</strong> <span id="taxNetIncome" style="float: right; color: var(--accent-green); font-weight: bold;">$0.00</span></p>
-                <p style="margin-bottom: 8px;"><strong>Total Per Diem Nights Logged:</strong> <span id="taxPerDiemNights" style="float: right; color: var(--text-main);">0 Nights</span></p>
+            <div class="card-title">
+                <span>Itemized Deductions Breakdown</span>
             </div>
-            <button onclick="window.print()" class="action-btn" style="margin-top: 20px; background: var(--bg-input); color: var(--text-main); border: 1px solid var(--border-color);">Print Tax Summary</button>
+            <div class="deductions-grid">
+                <div class="form-group" style="margin-bottom:0;">
+                    <label>Fuel:</label>
+                    <strong id="taxFuel" style="color: var(--accent-red); font-size: 15px;">$0.00</strong>
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                    <label>Insurance:</label>
+                    <strong id="taxIns" style="color: var(--accent-red); font-size: 15px;">$0.00</strong>
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                    <label>Plate:</label>
+                    <strong id="taxPlate" style="color: var(--accent-red); font-size: 15px;">$0.00</strong>
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                    <label>Escrow:</label>
+                    <strong id="taxEscrow" style="color: var(--accent-red); font-size: 15px;">$0.00</strong>
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                    <label>Toll:</label>
+                    <strong id="taxTolls" style="color: var(--accent-red); font-size: 15px;">$0.00</strong>
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                    <label>Other:</label>
+                    <strong id="taxOther" style="color: var(--accent-red); font-size: 15px;">$0.00</strong>
+                </div>
+            </div>
+
+            <div class="net-preview" style="margin-top: 14px;">
+                <span>TOTAL PER DIEM SLEEPER NIGHTS:</span>
+                <strong id="taxPerDiemNights" style="color: var(--accent-yellow);">0 Nights</strong>
+            </div>
+
+            <button onclick="window.print()" class="action-btn no-print" style="margin-top: 14px; background: var(--bg-input); color: var(--text-main); border: 1px solid var(--border-color);">🖨️ Print Tax Summary Form</button>
+        </div>
+
+        <div class="card">
+            <div class="card-title">
+                <span>2026 Itemized Spreadsheet Ledger</span>
+            </div>
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>DATE</th>
+                            <th>GROSS</th>
+                            <th>FUEL</th>
+                            <th>INSURANCE</th>
+                        </tr>
+                    </thead>
+                    <tbody id="taxLedgerTableBody">
+                        <!-- Populated via JS -->
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
 
@@ -488,9 +602,7 @@
         // State Management
         let appData = JSON.parse(localStorage.getItem('rigTrackerData')) || {
             settlements: [],
-            expenses: [],
-            perDiems: [],
-            escrowBalance: 0.00
+            perDiems: []
         };
 
         function saveData() {
@@ -498,7 +610,7 @@
             renderAll();
         }
 
-        // Navigation Switcher
+        // Section Switcher via Grid Cards
         function switchSection(sectionId) {
             document.querySelectorAll('.app-section').forEach(sec => {
                 sec.classList.remove('active');
@@ -507,78 +619,86 @@
             window.scrollTo(0, 0);
         }
 
-        function showMainMenu() {
-            document.querySelectorAll('.app-section').forEach(sec => {
-                sec.classList.remove('active');
-            });
-            document.getElementById('main-menu-section').classList.add('active');
-            window.scrollTo(0, 0);
+        // Live Net Calculation in Data Entry Form
+        function calculateLiveNet() {
+            const gross = parseFloat(document.getElementById('settleGross').value) || 0;
+            const fuel = parseFloat(document.getElementById('dedFuel').value) || 0;
+            const ins = parseFloat(document.getElementById('dedIns').value) || 0;
+            const plate = parseFloat(document.getElementById('dedPlate').value) || 0;
+            const escrow = parseFloat(document.getElementById('dedEscrow').value) || 0;
+            const toll = parseFloat(document.getElementById('dedToll').value) || 0;
+            const other = parseFloat(document.getElementById('dedOther').value) || 0;
+
+            const totalDed = fuel + ins + plate + escrow + toll + other;
+            const net = gross - totalDed;
+
+            const preview = document.getElementById('liveNetPreview');
+            preview.innerText = `$${net.toFixed(2)}`;
+            preview.style.color = net < 0 ? 'var(--accent-red)' : 'var(--accent-green)';
         }
 
-        // Settlements Logic
+        // Save / Update Settlement Entry
         function saveSettlement(e) {
             e.preventDefault();
             const editIdx = document.getElementById('editIndex').value;
             const entry = {
                 date: document.getElementById('settleDate').value,
-                id: document.getElementById('settleId').value,
                 gross: parseFloat(document.getElementById('settleGross').value) || 0,
-                deductions: parseFloat(document.getElementById('settleDed').value) || 0
+                fuel: parseFloat(document.getElementById('dedFuel').value) || 0,
+                ins: parseFloat(document.getElementById('dedIns').value) || 0,
+                plate: parseFloat(document.getElementById('dedPlate').value) || 0,
+                escrow: parseFloat(document.getElementById('dedEscrow').value) || 0,
+                toll: parseFloat(document.getElementById('dedToll').value) || 0,
+                other: parseFloat(document.getElementById('dedOther').value) || 0
             };
 
             if (editIdx === "") {
                 appData.settlements.push(entry);
             } else {
                 appData.settlements[parseInt(editIdx)] = entry;
-                document.getElementById('editIndex').value = "";
+                resetForm();
             }
 
             document.getElementById('settlementForm').reset();
+            calculateLiveNet();
             saveData();
+            
+            // Switch to Ledger view automatically after saving
+            switchSection('ledger-section');
         }
 
         function editSettlement(index) {
             const item = appData.settlements[index];
             document.getElementById('editIndex').value = index;
             document.getElementById('settleDate').value = item.date;
-            document.getElementById('settleId').value = item.id;
             document.getElementById('settleGross').value = item.gross;
-            document.getElementById('settleDed').value = item.deductions;
+            document.getElementById('dedFuel').value = item.fuel;
+            document.getElementById('dedIns').value = item.ins;
+            document.getElementById('dedPlate').value = item.plate;
+            document.getElementById('dedEscrow').value = item.escrow;
+            document.getElementById('dedToll').value = item.toll;
+            document.getElementById('dedOther').value = item.other;
+
+            document.getElementById('formTitle').innerText = `Edit Entry #${index + 1}`;
+            document.getElementById('resetEditBtn').style.display = 'inline';
+            document.getElementById('submitBtnText').innerText = 'Update Entry';
+
+            calculateLiveNet();
+            switchSection('entry-section');
+        }
+
+        function resetForm() {
+            document.getElementById('editIndex').value = '';
+            document.getElementById('settlementForm').reset();
+            document.getElementById('formTitle').innerText = 'Settlement Data Entry';
+            document.getElementById('resetEditBtn').style.display = 'none';
+            document.getElementById('submitBtnText').innerText = 'Save Entry';
+            calculateLiveNet();
         }
 
         function deleteSettlement(index) {
-            if(confirm("Delete this settlement entry?")) {
+            if(confirm("Delete this entry?")) {
                 appData.settlements.splice(index, 1);
-                saveData();
-            }
-        }
-
-        // Expenses & Escrow Logic
-        function updateEscrow() {
-            const val = parseFloat(document.getElementById('escrowInput').value);
-            if (!isNaN(val)) {
-                appData.escrowBalance = val;
-                document.getElementById('escrowInput').value = '';
-                saveData();
-            }
-        }
-
-        function saveExpense(e) {
-            e.preventDefault();
-            const entry = {
-                date: document.getElementById('expDate').value,
-                category: document.getElementById('expCategory').value,
-                amount: parseFloat(document.getElementById('expAmount').value) || 0,
-                notes: document.getElementById('expNotes').value
-            };
-            appData.expenses.push(entry);
-            document.getElementById('expenseForm').reset();
-            saveData();
-        }
-
-        function deleteExpense(index) {
-            if(confirm("Delete this expense entry?")) {
-                appData.expenses.splice(index, 1);
                 saveData();
             }
         }
@@ -587,8 +707,8 @@
         function savePerDiem(e) {
             e.preventDefault();
             const entry = {
-                date: document.getElementById('perDiemDate').value,
-                location: document.getElementById('perDiemLocation').value
+                date: document.getElementById('pdDate').value,
+                location: document.getElementById('pdLocation').value
             };
             appData.perDiems.push(entry);
             document.getElementById('perDiemForm').reset();
@@ -596,7 +716,7 @@
         }
 
         function deletePerDiem(index) {
-            if(confirm("Delete this per diem night entry?")) {
+            if(confirm("Delete this per diem entry?")) {
                 appData.perDiems.splice(index, 1);
                 saveData();
             }
@@ -629,50 +749,72 @@
             }
         }
 
-        // Render All UI Elements
+        // Render All UI Data & Summaries
         function renderAll() {
-            // Settlements Render
             let totalGross = 0;
-            let totalSettlementDed = 0;
-            let settleHtml = '';
-            
+            let sumFuel = 0, sumIns = 0, sumPlate = 0, sumEscrow = 0, sumToll = 0, sumOther = 0;
+            let ledgerHtml = '';
+            let taxLedgerHtml = '';
+
             appData.settlements.forEach((s, i) => {
-                const net = s.gross - s.deductions;
+                const totalDed = s.fuel + s.ins + s.plate + s.escrow + s.toll + s.other;
+                const net = s.gross - totalDed;
+
                 totalGross += s.gross;
-                totalSettlementDed += s.deductions;
-                settleHtml += `<tr>
+                sumFuel += s.fuel;
+                sumIns += s.ins;
+                sumPlate += s.plate;
+                sumEscrow += s.escrow;
+                sumToll += s.toll;
+                sumOther += s.other;
+
+                ledgerHtml += `<tr>
                     <td>${s.date}</td>
-                    <td>${s.id}</td>
-                    <td>$${s.gross.toFixed(2)}</td>
-                    <td style="color:var(--accent-green)">$${net.toFixed(2)}</td>
-                    <td>
-                        <button class="btn-sm btn-edit" onclick="editSettlement(${i}); switchSection('settlement-section');">Edit</button>
+                    <td style="color:var(--accent-yellow)">$${s.gross.toFixed(2)}</td>
+                    <td style="color:var(--accent-red)">$${s.fuel.toFixed(2)}</td>
+                    <td style="color:var(--accent-red)">$${s.ins.toFixed(2)}</td>
+                    <td style="color:var(--accent-red)">$${s.plate.toFixed(2)}</td>
+                    <td style="color:var(--accent-red)">$${s.escrow.toFixed(2)}</td>
+                    <td style="color:var(--accent-red)">$${s.toll.toFixed(2)}</td>
+                    <td style="color:var(--accent-red)">$${s.other.toFixed(2)}</td>
+                    <td style="color:var(--accent-green); font-weight:bold;">$${net.toFixed(2)}</td>
+                    <td class="no-print">
+                        <button class="btn-sm btn-edit" onclick="editSettlement(${i})">Edit</button>
                         <button class="btn-sm btn-del" onclick="deleteSettlement(${i})">Del</button>
                     </td>
                 </tr>`;
-            });
-            document.getElementById('settlementTableBody').innerHTML = settleHtml;
 
-            const totalNetPayout = totalGross - totalSettlementDed;
-            document.getElementById('ytdGross').innerText = `$${totalGross.toFixed(2)}`;
-            document.getElementById('ytdDeductions').innerText = `$${totalSettlementDed.toFixed(2)}`;
-            document.getElementById('ytdNet').innerText = `$${totalNetPayout.toFixed(2)}`;
-
-            // Expenses Render
-            let totalExpenses = 0;
-            let expHtml = '';
-            appData.expenses.forEach((ex, i) => {
-                totalExpenses += ex.amount;
-                expHtml += `<tr>
-                    <td>${ex.date}</td>
-                    <td>${ex.category}</td>
-                    <td>$${ex.amount.toFixed(2)}</td>
-                    <td>${ex.notes}</td>
-                    <td><button class="btn-sm btn-del" onclick="deleteExpense(${i})">Del</button></td>
+                taxLedgerHtml += `<tr>
+                    <td>${s.date}</td>
+                    <td style="color:var(--accent-yellow)">$${s.gross.toFixed(2)}</td>
+                    <td style="color:var(--accent-red)">$${s.fuel.toFixed(2)}</td>
+                    <td style="color:var(--accent-red)">$${s.ins.toFixed(2)}</td>
                 </tr>`;
             });
-            document.getElementById('expenseTableBody').innerHTML = expHtml;
-            document.getElementById('escrowBalanceDisplay').innerText = `$${(appData.escrowBalance || 0).toFixed(2)}`;
+
+            document.getElementById('ledgerTableBody').innerHTML = ledgerHtml;
+            document.getElementById('taxLedgerTableBody').innerHTML = taxLedgerHtml;
+            document.getElementById('entryCountBadge').innerText = `${appData.settlements.length} entries`;
+
+            const totalDeductions = sumFuel + sumIns + sumPlate + sumEscrow + sumToll + sumOther;
+            const totalNetPayout = totalGross - totalDeductions;
+
+            // Dashboard & Home Summary Cards
+            document.getElementById('homeGross').innerText = `$${totalGross.toFixed(2)}`;
+            document.getElementById('homeDeductions').innerText = `$${totalDeductions.toFixed(2)}`;
+            document.getElementById('homeNet').innerText = `$${totalNetPayout.toFixed(2)}`;
+
+            // Tax Form Summary Cards & Breakdown Boxes
+            document.getElementById('taxGross').innerText = `$${totalGross.toFixed(2)}`;
+            document.getElementById('taxTotalDed').innerText = `$${totalDeductions.toFixed(2)}`;
+            document.getElementById('taxNetIncome').innerText = `$${totalNetPayout.toFixed(2)}`;
+            document.getElementById('taxFuel').innerText = `$${sumFuel.toFixed(2)}`;
+            document.getElementById('taxIns').innerText = `$${sumIns.toFixed(2)}`;
+            document.getElementById('taxPlate').innerText = `$${sumPlate.toFixed(2)}`;
+            document.getElementById('taxEscrow').innerText = `$${sumEscrow.toFixed(2)}`;
+            document.getElementById('taxTolls').innerText = `$${sumToll.toFixed(2)}`;
+            document.getElementById('taxOther').innerText = `$${sumOther.toFixed(2)}`;
+            document.getElementById('taxPerDiemNights').innerText = `${appData.perDiems.length} Nights`;
 
             // Per Diem Render
             let pdHtml = '';
@@ -680,23 +822,16 @@
                 pdHtml += `<tr>
                     <td>${pd.date}</td>
                     <td>${pd.location}</td>
-                    <td><button class="btn-sm btn-del" onclick="deletePerDiem(${i})">Del</button></td>
+                    <td class="no-print"><button class="btn-sm btn-del" onclick="deletePerDiem(${i})">Del</button></td>
                 </tr>`;
             });
             document.getElementById('perDiemTableBody').innerHTML = pdHtml;
             document.getElementById('perDiemCountDisplay').innerText = `${appData.perDiems.length} Nights`;
-
-            // Tax Summary Render
-            document.getElementById('taxGross').innerText = `$${totalGross.toFixed(2)}`;
-            document.getElementById('taxSettlementDed').innerText = `$${totalSettlementDed.toFixed(2)}`;
-            document.getElementById('taxExpenses').innerText = `$${totalExpenses.toFixed(2)}`;
-            const finalNetIncome = totalGross - totalSettlementDed - totalExpenses;
-            document.getElementById('taxNetIncome').innerText = `$${finalNetIncome.toFixed(2)}`;
-            document.getElementById('taxPerDiemNights').innerText = `${appData.perDiems.length} Nights`;
         }
 
-        // Initial Load
+        // Initialize
         renderAll();
+        calculateLiveNet();
     </script>
 </body>
 </html>
