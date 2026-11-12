@@ -67,12 +67,12 @@
                 <p id="auth-error" class="text-red-400 text-xs text-center font-medium"></p>
 
                 <!-- Action Buttons -->
-                <button id="auth-action-btn" onclick="submitAuth()" class="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold py-3 px-4 rounded-lg transition-colors cursor-pointer">
+                <button type="button" id="auth-action-btn" onclick="submitAuth()" class="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold py-3 px-4 rounded-lg transition-colors cursor-pointer">
                     Sign In
                 </button>
 
                 <div class="text-center pt-2">
-                    <button onclick="toggleAuthMode()" id="auth-switch-btn" class="text-sm text-slate-400 hover:text-amber-400 underline cursor-pointer">
+                    <button type="button" onclick="toggleAuthMode()" id="auth-switch-btn" class="text-sm text-slate-400 hover:text-amber-400 underline cursor-pointer">
                         Need an account? Create one (Privacy Matters)
                     </button>
                 </div>
@@ -195,7 +195,7 @@
     <!-- JAVASCRIPT LOGIC & SUPABASE SYNC -->
     <script>
         // ==========================================
-        // SUPABASE CONFIGURATION (Wired to your project)
+        // SUPABASE CONFIGURATION
         // ==========================================
         const SUPABASE_URL = 'https://pxxikzzfrcncwufpzdfp.supabase.co';
         const SUPABASE_ANON_KEY = 'sb_publishable_7yQMjUtCtnHC6jgRF4ROLA_CmgsHaZo';
@@ -250,7 +250,6 @@
                 return;
             }
 
-            // Map username to a clean email handle for Supabase Auth backend compatibility
             const syntheticEmail = `${usernameInput.toLowerCase().replace(/[^a-z0-9]/g, '')}@rigtracker.local`;
 
             if (isSignUpMode) {
@@ -276,6 +275,12 @@
 
                 if (error) {
                     errorEl.innerText = error.message;
+                    return;
+                }
+                
+                if (data.user && !data.session) {
+                    alert("Account created successfully! You can now sign in.");
+                    toggleAuthMode();
                     return;
                 }
                 currentUser = data.user;
@@ -304,7 +309,6 @@
             document.getElementById('auth-overlay').style.display = 'flex';
         }
 
-        // Check active session on page load
         window.addEventListener('DOMContentLoaded', async () => {
             const { data: { session } } = await supabase.auth.getSession();
             if (session) {
@@ -319,9 +323,6 @@
             }
         });
 
-        // ==========================================
-        // CLOUD DATA SYNC & PERSISTENCE
-        // ==========================================
         async function loadUserDataFromCloud() {
             if (!currentUser) return;
 
@@ -334,18 +335,15 @@
             if (data && data.ledger_json) {
                 appData = data.ledger_json;
             } else {
-                // Initialize default state if first time
                 appData = { settlements: [], expenses: [], escrowBalance: 0, perDiemNights: 0 };
             }
         }
 
         let saveTimeout;
         function saveAppData() {
-            // Instant local backup
             localStorage.setItem('rigtracker_data', JSON.stringify(appData));
             renderDashboard();
 
-            // Auto-sync to cloud database in background
             if (!currentUser) return;
             clearTimeout(saveTimeout);
             saveTimeout = setTimeout(async () => {
@@ -359,9 +357,6 @@
             }, 1000);
         }
 
-        // ==========================================
-        // UI & NAVIGATION LOGIC
-        // ==========================================
         function switchTab(tabName) {
             const tabs = ['settlements', 'expenses', 'escrow', 'tax'];
             tabs.forEach(t => {
@@ -378,7 +373,6 @@
         }
 
         function renderDashboard() {
-            // Calculate Totals
             let totalGross = appData.settlements.reduce((sum, s) => sum + Number(s.gross || 0), 0);
             let totalExpenses = appData.expenses.reduce((sum, e) => sum + Number(e.amount || 0), 0);
             let netPayout = totalGross - totalExpenses;
@@ -388,11 +382,9 @@
             document.getElementById('metric-net').innerText = `$${netPayout.toFixed(2)}`;
             document.getElementById('escrow-balance-display').innerText = `$${Number(appData.escrowBalance || 0).toFixed(2)}`;
             
-            // Tax Per Diem
             document.getElementById('tax-perdiem-nights').innerText = `${appData.perDiemNights || 0} Nights`;
             document.getElementById('tax-perdiem-total').innerText = `$${((appData.perDiemNights || 0) * 69).toFixed(2)}`;
 
-            // Render Settlements List
             const sList = document.getElementById('settlements-list');
             if (appData.settlements.length === 0) {
                 sList.innerHTML = `<p class="text-slate-500 text-sm italic">No settlements recorded yet.</p>`;
@@ -408,7 +400,6 @@
                 `).join('');
             }
 
-            // Render Expenses List
             const eList = document.getElementById('expenses-list');
             if (appData.expenses.length === 0) {
                 eList.innerHTML = `<p class="text-slate-500 text-sm italic">No expenses recorded yet.</p>`;
@@ -425,7 +416,6 @@
             }
         }
 
-        // Quick interactive sample actions for testing
         function openAddSettlementModal() {
             let gross = prompt("Enter Gross Settlement Amount ($):");
             if (!gross) return;
