@@ -6,8 +6,6 @@
     <title>RigTracker Pro - Professional Owner-Operator Ledger</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Supabase JS Client -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <!-- html2pdf.js for PDF exports -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <style>
@@ -332,21 +330,8 @@
 
     <!-- JavaScript Application Logic -->
     <script>
-        const SUPABASE_URL = 'https://pxxikzzfrcncwufpzdfp.supabase.co';
-        // Set to your actual public anon key if linking Supabase backend, otherwise leaves clean fallback mode
-        const SUPABASE_ANON_KEY = ''; 
-        let supabaseClient = null;
-
-        try {
-            if (window.supabase && SUPABASE_ANON_KEY && SUPABASE_ANON_KEY.length > 20) {
-                supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-            }
-        } catch (e) {
-            console.warn('Supabase initialization fallback active.');
-        }
-
         let isSignUpMode = false;
-        let currentUser = null;
+        let currentUser = JSON.parse(localStorage.getItem('rigtracker_current_user')) || null;
 
         let settlements = JSON.parse(localStorage.getItem('rigtracker_settlements')) || [
             { id: 1, date: '2026-09-25', gross: 4149.24, fuel: 1450.28, insurance: 94.75, plate: 0, escrow: 0, toll: 0, other: 0 },
@@ -361,13 +346,8 @@
         resetSettlementForm();
         document.getElementById('perDiemDate').valueAsDate = new Date();
 
-        if (supabaseClient) {
-            supabaseClient.auth.getSession().then(({ data: { session } }) => {
-                if (session && session.user) {
-                    currentUser = session.user;
-                    updateAuthUI(currentUser.email);
-                }
-            });
+        if (currentUser) {
+            updateAuthUI(currentUser.email);
         }
 
         function switchView(viewId) {
@@ -597,45 +577,29 @@
             btn.onclick = handleSignOut;
         }
 
-        async function handleSignOut() {
-            if (supabaseClient) {
-                await supabaseClient.auth.signOut();
-            }
+        function handleSignOut() {
             currentUser = null;
+            localStorage.removeItem('rigtracker_current_user');
             location.reload();
         }
 
-        async function handleAuthSubmit(e) {
+        function handleAuthSubmit(e) {
             e.preventDefault();
             const email = document.getElementById('authEmail').value;
             const password = document.getElementById('authPassword').value;
             const errDiv = document.getElementById('authErrorMsg');
             errDiv.classList.add('hidden');
 
-            if (!supabaseClient) {
-                currentUser = { email };
-                updateAuthUI(email);
-                closeAuthModal();
+            if (!email || password.length < 1) {
+                errDiv.textContent = 'Please enter a valid email and password.';
+                errDiv.classList.remove('hidden');
                 return;
             }
 
-            try {
-                let res;
-                if (isSignUpMode) {
-                    res = await supabaseClient.auth.signUp({ email, password });
-                } else {
-                    res = await supabaseClient.auth.signInWithPassword({ email, password });
-                }
-
-                if (res.error) throw res.error;
-
-                currentUser = res.data.user || (res.data.session ? res.data.session.user : null);
-                updateAuthUI(email);
-                closeAuthModal();
-            } catch (err) {
-                errDiv.textContent = err.message || 'Authentication failed.';
-                errDiv.classList.remove('hidden');
-            }
+            currentUser = { email };
+            localStorage.setItem('rigtracker_current_user', JSON.stringify(currentUser));
+            updateAuthUI(email);
+            closeAuthModal();
         }
 
         function downloadPDF() {
