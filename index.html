@@ -67,13 +67,13 @@
                 <p id="auth-error" class="text-red-400 text-xs text-center font-medium"></p>
 
                 <!-- Action Buttons -->
-                <button type="button" id="auth-action-btn" onclick="submitAuth()" class="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold py-3 px-4 rounded-lg transition-colors cursor-pointer">
+                <button type="button" id="auth-action-btn" onclick="submitAuth()" class="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold py-3 px-4 rounded-lg transition-colors cursor-pointer shadow">
                     Sign In
                 </button>
 
                 <div class="text-center pt-2">
                     <button type="button" onclick="toggleAuthMode()" id="auth-switch-btn" class="text-sm text-slate-400 hover:text-amber-400 underline cursor-pointer">
-                        Need an account? Create one (Privacy Matters)
+                        Need an account? Sign up (Privacy Matters)
                     </button>
                 </div>
             </div>
@@ -225,14 +225,14 @@
 
             if (isSignUpMode) {
                 subtitle.innerText = "Create secure profile (Privacy First)";
-                actionBtn.innerText = "Create Account";
+                actionBtn.innerText = "Sign Up";
                 switchBtn.innerText = "Already have an account? Sign In";
                 optionalFields.classList.remove('hidden');
                 confirmBox.classList.remove('hidden');
             } else {
                 subtitle.innerText = "Secure, private owner-operator ledger";
                 actionBtn.innerText = "Sign In";
-                switchBtn.innerText = "Need an account? Create one (Privacy Matters)";
+                switchBtn.innerText = "Need an account? Sign up (Privacy Matters)";
                 optionalFields.classList.add('hidden');
                 confirmBox.classList.add('hidden');
             }
