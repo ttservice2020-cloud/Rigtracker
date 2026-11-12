@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -6,439 +5,441 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>RigTracker Pro</title>
 <!-- Supabase CDN -->
-<script src="https://www.google.com/url?q=https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2&source=gmail&ust=1794602486313000&sa=E"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root {
---bg-deep: #0a0a0a;
---bg-card: #141414;
---border-color: #262626;
---accent-gold: #d4af37;
---accent-gold-hover: #e6c55c;
---text-main: #f5f5f5;
---text-muted: #a3a3a3;
---green: #22c55e;
---red: #ef4444;
---yellow: #eab308;
+  --bg-deep: #0a0a0a;
+  --bg-card: #141414;
+  --border-color: #262626;
+  --accent-gold: #d4af37;
+  --accent-gold-hover: #e6c55c;
+  --text-main: #f5f5f5;
+  --text-muted: #a3a3a3;
+  --green: #22c55e;
+  --red: #ef4444;
+  --yellow: #eab308;
 }
 
 * {
-box-sizing: border-box;
-margin: 0;
-padding: 0;
-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
-background-color: var(--bg-deep);
-color: var(--text-main);
-min-height: 100vh;
-display: flex;
-flex-direction: column;
+  background-color: var(--bg-deep);
+  color: var(--text-main);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
 
 header {
-background-color: var(--bg-card);
-border-bottom: 1px solid var(--border-color);
-padding: 1rem 1.5rem;
-display: flex;
-justify-content: space-between;
-align-items: center;
+  background-color: var(--bg-card);
+  border-bottom: 1px solid var(--border-color);
+  padding: 1rem 1.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .logo {
-font-size: 1.25rem;
-font-weight: 700;
-color: var(--accent-gold);
-letter-spacing: 0.05em;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--accent-gold);
+  letter-spacing: 0.05em;
 }
 
 .auth-status {
-font-size: 0.875rem;
-color: var(--text-muted);
-display: flex;
-gap: 1rem;
-align-items: center;
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  display: flex;
+  gap: 1rem;
+  align-items: center;
 }
 
 .auth-status button {
-background: none;
-border: 1px solid var(--border-color);
-color: var(--text-main);
-padding: 0.25rem 0.75rem;
-border-radius: 4px;
-cursor: pointer;
+  background: none;
+  border: 1px solid var(--border-color);
+  color: var(--text-main);
+  padding: 0.25rem 0.75rem;
+  border-radius: 4px;
+  cursor: pointer;
 }
 
 .auth-status button:hover {
-border-color: var(--accent-gold);
-color: var(--accent-gold);
+  border-color: var(--accent-gold);
+  color: var(--accent-gold);
 }
 
 main {
-flex: 1;
-padding: 1.5rem;
-max-width: 1200px;
-width: 100%;
-margin: 0 auto;
+  flex: 1;
+  padding: 1.5rem;
+  max-width: 1200px;
+  width: 100%;
+  margin: 0 auto;
 }
 
 /* Auth Screen */
 .auth-container {
-max-width: 400px;
-margin: 4rem auto;
-background: var(--bg-card);
-border: 1px solid var(--border-color);
-padding: 2rem;
-border-radius: 8px;
+  max-width: 400px;
+  margin: 4rem auto;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  padding: 2rem;
+  border-radius: 8px;
 }
 
 .auth-container h2 {
-color: var(--accent-gold);
-margin-bottom: 1.5rem;
-font-size: 1.5rem;
+  color: var(--accent-gold);
+  margin-bottom: 1.5rem;
+  font-size: 1.5rem;
 }
 
 .form-group {
-margin-bottom: 1rem;
+  margin-bottom: 1rem;
 }
 
 .form-group label {
-display: block;
-font-size: 0.875rem;
-color: var(--text-muted);
-margin-bottom: 0.5rem;
+  display: block;
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
 }
 
 .form-group input {
-width: 100%;
-padding: 0.75rem;
-background: var(--bg-deep);
-border: 1px solid var(--border-color);
-color: var(--text-main);
-border-radius: 4px;
+  width: 100%;
+  padding: 0.75rem;
+  background: var(--bg-deep);
+  border: 1px solid var(--border-color);
+  color: var(--text-main);
+  border-radius: 4px;
+  font-size: 1rem;
 }
 
 .form-group input:focus {
-outline: none;
-border-color: var(--accent-gold);
+  outline: none;
+  border-color: var(--accent-gold);
 }
 
 .btn-primary {
-width: 100%;
-padding: 0.75rem;
-background-color: var(--accent-gold);
-color: var(--bg-deep);
-border: none;
-font-weight: 600;
-border-radius: 4px;
-cursor: pointer;
-margin-top: 1rem;
+  width: 100%;
+  padding: 0.75rem;
+  background-color: var(--accent-gold);
+  color: var(--bg-deep);
+  border: none;
+  font-weight: 600;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-top: 1rem;
 }
 
 .btn-primary:hover {
-background-color: var(--accent-gold-hover);
+  background-color: var(--accent-gold-hover);
 }
 
 .auth-switch {
-text-align: center;
-margin-top: 1rem;
-font-size: 0.875rem;
-color: var(--text-muted);
+  text-align: center;
+  margin-top: 1rem;
+  font-size: 0.875rem;
+  color: var(--text-muted);
 }
 
 .auth-switch span {
-color: var(--accent-gold);
-cursor: pointer;
-text-decoration: underline;
+  color: var(--accent-gold);
+  cursor: pointer;
+  text-decoration: underline;
 }
 
 /* Dashboard Grid */
 .dashboard-grid {
-display: grid;
-grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-gap: 1.5rem;
-margin-bottom: 2rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 2rem;
 }
 
 .card {
-background: var(--bg-card);
-border: 1px solid var(--border-color);
-padding: 1.5rem;
-border-radius: 8px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  padding: 1.5rem;
+  border-radius: 8px;
 }
 
 .card h3 {
-font-size: 0.875rem;
-color: var(--text-muted);
-text-transform: uppercase;
-letter-spacing: 0.05em;
-margin-bottom: 0.5rem;
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.5rem;
 }
 
 .card .value {
-font-size: 1.75rem;
-font-weight: 700;
+  font-size: 1.75rem;
+  font-weight: 700;
 }
 
 .value.gross { color: var(--yellow); }
 .value.deductions { color: var(--red); }
-.https://www.google.com/url?q=http://value.net&source=gmail&ust=1794602486313000&sa=E { color: var(--green); }
+.value.net { color: var(--green); }
 
 /* Navigation Tabs */
 .nav-tabs {
-display: flex;
-gap: 0.5rem;
-border-bottom: 1px solid var(--border-color);
-margin-bottom: 1.5rem;
-flex-wrap: wrap;
+  display: flex;
+  gap: 0.5rem;
+  border-bottom: 1px solid var(--border-color);
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
 }
 
 .nav-tab {
-background: none;
-border: none;
-color: var(--text-muted);
-padding: 0.75rem 1.25rem;
-font-size: 1rem;
-cursor: pointer;
-border-bottom: 2px solid transparent;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  padding: 0.75rem 1.25rem;
+  font-size: 1rem;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
 }
 
 .nav-tab.active {
-color: var(--accent-gold);
-border-bottom-color: var(--accent-gold);
+  color: var(--accent-gold);
+  border-bottom-color: var(--accent-gold);
 }
 
 .tab-content {
-display: none;
+  display: none;
 }
 
 .tab-content.active {
-display: block;
+  display: block;
 }
 
 /* Tables & Forms */
 table {
-width: 100%;
-border-collapse: collapse;
-background: var(--bg-card);
-border: 1px solid var(--border-color);
-border-radius: 8px;
-overflow: hidden;
-margin-top: 1rem;
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  overflow: hidden;
+  margin-top: 1rem;
 }
 
 th, td {
-padding: 0.75rem 1rem;
-text-align: left;
-border-bottom: 1px solid var(--border-color);
-font-size: 0.875rem;
+  padding: 0.75rem 1rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border-color);
+  font-size: 0.875rem;
 }
 
 th {
-background-color: #1a1a1a;
-color: var(--accent-gold);
-font-weight: 600;
+  background-color: #1a1a1a;
+  color: var(--accent-gold);
+  font-weight: 600;
 }
 
 tr:hover {
-background-color: rgba(212, 175, 55, 0.02);
+  background-color: rgba(212, 175, 55, 0.02);
 }
 
 .btn-action {
-background: none;
-border: 1px solid var(--border-color);
-color: var(--text-main);
-padding: 0.5rem 1rem;
-border-radius: 4px;
-cursor: pointer;
-font-weight: 600;
+  background: none;
+  border: 1px solid var(--border-color);
+  color: var(--text-main);
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 600;
 }
 
 .btn-action:hover {
-border-color: var(--accent-gold);
-color: var(--accent-gold);
+  border-color: var(--accent-gold);
+  color: var(--accent-gold);
 }
 
 .deduction-grid {
-display: grid;
-grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-gap: 1rem;
-margin-top: 1rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
 }
 
 .hidden { display: none !important; }
 
 @media print {
-body { background: white; color: black; }
-header, .nav-tabs, .auth-container, button { display: none !important; }
-.tab-content { display: block !important; }
-.card { border: 1px solid #ccc; background: white; color: black; }
+  body { background: white; color: black; }
+  header, .nav-tabs, .auth-container, button { display: none !important; }
+  .tab-content { display: block !important; }
+  .card { border: 1px solid #ccc; background: white; color: black; }
 }
 </style>
 </head>
 <body>
 
 <header>
-<div class="logo">RIGTRACKER PRO</div>
-<div class="auth-status" id="authStatusContainer">
-<span id="userEmailDisplay"></span>
-<button id="signOutBtn" class="hidden" onclick="handleSignOut()">Sign Out</button>
-</div>
+  <div class="logo">RIGTRACKER PRO</div>
+  <div class="auth-status" id="authStatusContainer">
+    <span id="userEmailDisplay"></span>
+    <button id="signOutBtn" class="hidden" onclick="handleSignOut()">Sign Out</button>
+  </div>
 </header>
 
 <main>
-<!-- Auth Screen -->
-<div id="authScreen" class="auth-container">
-<h2 id="authTitle">Sign In</h2>
-<form id="authForm" onsubmit="handleAuthSubmit(event)">
-<div class="form-group">
-<label>Email Address</label>
-<input type="email" id="authEmail" required>
-</div>
-<div class="form-group">
-<label>Password</label>
-<input type="password" id="authPassword" required>
-</div>
-<button type="submit" class="btn-primary" id="authSubmitBtn">Sign In</button>
-</form>
-<div class="auth-switch">
-<p id="authSwitchText">Don't have an account? <span onclick="toggleAuthMode()">Sign Up</span></p>
-</div>
-</div>
+  <!-- Auth Screen -->
+  <div id="authScreen" class="auth-container">
+    <h2 id="authTitle">Sign In</h2>
+    <form id="authForm" onsubmit="handleAuthSubmit(event)">
+      <div class="form-group">
+        <label>Email Address</label>
+        <input type="email" id="authEmail" autocapitalize="none" required>
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <input type="password" id="authPassword" required>
+      </div>
+      <button type="submit" class="btn-primary" id="authSubmitBtn">Sign In</button>
+    </form>
+    <div class="auth-switch">
+      <p id="authSwitchText">Don't have an account? <span onclick="toggleAuthMode()">Sign Up</span></p>
+    </div>
+  </div>
 
-<!-- Main App Interface -->
-<div id="appScreen" class="hidden">
-<div class="dashboard-grid">
-<div class="card">
-<h3>YTD Gross</h3>
-<div class="value gross" id="ytdGross">$0.00</div>
-</div>
-<div class="card">
-<h3>Total Deductions</h3>
-<div class="value deductions" id="ytdDeductions">$0.00</div>
-</div>
-<div class="card">
-<h3>Net Payout</h3>
-<div class="value net" id="ytdNet">$0.00</div>
-</div>
-<div class="card">
-<h3>Per Diem Nights</h3>
-<div class="value" id="ytdPerDiem" style="color: var(--text-main);">0</div>
-</div>
-</div>
+  <!-- Main App Interface -->
+  <div id="appScreen" class="hidden">
+    <div class="dashboard-grid">
+      <div class="card">
+        <h3>YTD Gross</h3>
+        <div class="value gross" id="ytdGross">$0.00</div>
+      </div>
+      <div class="card">
+        <h3>Total Deductions</h3>
+        <div class="value deductions" id="ytdDeductions">$0.00</div>
+      </div>
+      <div class="card">
+        <h3>Net Payout</h3>
+        <div class="value net" id="ytdNet">$0.00</div>
+      </div>
+      <div class="card">
+        <h3>Per Diem Nights</h3>
+        <div class="value" id="ytdPerDiem" style="color: var(--text-main);">0</div>
+      </div>
+    </div>
 
-<div class="nav-tabs">
-<button class="nav-tab active" onclick="switchTab('settlements')">Settlement Entry</button>
-<button class="nav-tab" onclick="switchTab('spreadsheet')">Spreadsheet</button>
-<button class="nav-tab" onclick="switchTab('perdiem')">Per Diem Log</button>
-<button class="nav-tab" onclick="switchTab('tax')">Tax Summary</button>
-</div>
+    <div class="nav-tabs">
+      <button class="nav-tab active" onclick="switchTab('settlements')">Settlement Entry</button>
+      <button class="nav-tab" onclick="switchTab('spreadsheet')">Spreadsheet</button>
+      <button class="nav-tab" onclick="switchTab('perdiem')">Per Diem Log</button>
+      <button class="nav-tab" onclick="switchTab('tax')">Tax Summary</button>
+    </div>
 
-<!-- Settlement Entry Tab -->
-<div id="settlementsTab" class="tab-content active">
-<div class="card">
-<h3 style="margin-bottom: 1rem; color: var(--accent-gold);">New Settlement Entry</h3>
-<form id="settlementForm" onsubmit="saveSettlement(event)">
-<div class="dashboard-grid" style="margin-bottom: 1rem;">
-<div class="form-group">
-<label>Date</label>
-<input type="date" id="settleDate" required>
-</div>
-<div class="form-group">
-<label>Settlement # / Load ID</label>
-<input type="text" id="settleNumber" placeholder="e.g. LTI-94820">
-</div>
-<div class="form-group">
-<label>Gross Amount ($)</label>
-<input type="number" step="0.01" id="settleGross" placeholder="0.00" oninput="calculateNet()" required>
-</div>
-</div>
+    <!-- Settlement Entry Tab -->
+    <div id="settlementsTab" class="tab-content active">
+      <div class="card">
+        <h3 style="margin-bottom: 1rem; color: var(--accent-gold);">New Settlement Entry</h3>
+        <form id="settlementForm" onsubmit="saveSettlement(event)">
+          <div class="dashboard-grid" style="margin-bottom: 1rem;">
+            <div class="form-group">
+              <label>Date</label>
+              <input type="date" id="settleDate" required>
+            </div>
+            <div class="form-group">
+              <label>Settlement # / Load ID</label>
+              <input type="text" id="settleNumber" placeholder="e.g. LTI-94820">
+            </div>
+            <div class="form-group">
+              <label>Gross Amount ($)</label>
+              <input type="number" step="0.01" id="settleGross" placeholder="0.00" oninput="calculateNet()" required>
+            </div>
+          </div>
 
-<h4 style="margin-bottom: 0.75rem; font-size: 0.95rem; color: var(--text-muted);">Itemized Deductions</h4>
-<div class="deduction-grid">
-<div class="form-group"><label>Fuel</label><input type="number" step="0.01" class="deduction-input" placeholder="0.00" oninput="calculateNet()"></div>
-<div class="form-group"><label>Insurance</label><input type="number" step="0.01" class="deduction-input" placeholder="0.00" oninput="calculateNet()"></div>
-<div class="form-group"><label>Plate / Permits</label><input type="number" step="0.01" class="deduction-input" placeholder="0.00" oninput="calculateNet()"></div>
-<div class="form-group"><label>Maintenance Escrow</label><input type="number" step="0.01" class="deduction-input" placeholder="0.00" oninput="calculateNet()"></div>
-<div class="form-group"><label>Tolls & Scales</label><input type="number" step="0.01" class="deduction-input" placeholder="0.00" oninput="calculateNet()"></div>
-<div class="form-group"><label>Other Deductions</label><input type="number" step="0.01" class="deduction-input" placeholder="0.00" oninput="calculateNet()"></div>
-</div>
+          <h4 style="margin-bottom: 0.75rem; font-size: 0.95rem; color: var(--text-muted);">Itemized Deductions</h4>
+          <div class="deduction-grid">
+            <div class="form-group"><label>Fuel</label><input type="number" step="0.01" class="deduction-input" placeholder="0.00" oninput="calculateNet()"></div>
+            <div class="form-group"><label>Insurance</label><input type="number" step="0.01" class="deduction-input" placeholder="0.00" oninput="calculateNet()"></div>
+            <div class="form-group"><label>Plate / Permits</label><input type="number" step="0.01" class="deduction-input" placeholder="0.00" oninput="calculateNet()"></div>
+            <div class="form-group"><label>Maintenance Escrow</label><input type="number" step="0.01" class="deduction-input" placeholder="0.00" oninput="calculateNet()"></div>
+            <div class="form-group"><label>Tolls & Scales</label><input type="number" step="0.01" class="deduction-input" placeholder="0.00" oninput="calculateNet()"></div>
+            <div class="form-group"><label>Other Deductions</label><input type="number" step="0.01" class="deduction-input" placeholder="0.00" oninput="calculateNet()"></div>
+          </div>
 
-<div style="margin-top: 1.5rem; display: flex; justify-content: space-between; align-items: center; background: var(--bg-deep); padding: 1rem; border-radius: 6px; border: 1px solid var(--border-color);">
-<div>
-<span style="color: var(--text-muted); font-size: 0.875rem;">Calculated Net Payout:</span>
-<div id="previewNet" style="font-size: 1.5rem; font-weight: 700; color: var(--green);">$0.00</div>
-</div>
-<button type="submit" class="btn-action" style="background: var(--accent-gold); color: var(--bg-deep);">Save Settlement</button>
-</div>
-</form>
-</div>
-</div>
+          <div style="margin-top: 1.5rem; display: flex; justify-content: space-between; align-items: center; background: var(--bg-deep); padding: 1rem; border-radius: 6px; border: 1px solid var(--border-color);">
+            <div>
+              <span style="color: var(--text-muted); font-size: 0.875rem;">Calculated Net Payout:</span>
+              <div id="previewNet" style="font-size: 1.5rem; font-weight: 700; color: var(--green);">$0.00</div>
+            </div>
+            <button type="submit" class="btn-action" style="background: var(--accent-gold); color: var(--bg-deep);">Save Settlement</button>
+          </div>
+        </form>
+      </div>
+    </div>
 
-<!-- Spreadsheet Tab -->
-<div id="spreadsheetTab" class="tab-content">
-<div class="card">
-<h3 style="margin-bottom: 1rem; color: var(--accent-gold);">Settlement Ledger Records</h3>
-<table>
-<thead>
-<tr>
-<th>Date</th>
-<th>Settlement #</th>
-<th>Gross</th>
-<th>Deductions</th>
-<th>Net Payout</th>
-</tr>
-</thead>
-<tbody id="spreadsheetBody">
-<tr><td colspan="5" style="text-align: center; color: var(--text-muted);">No records found.</td></tr>
-</tbody>
-</table>
-</div>
-</div>
+    <!-- Spreadsheet Tab -->
+    <div id="spreadsheetTab" class="tab-content">
+      <div class="card">
+        <h3 style="margin-bottom: 1rem; color: var(--accent-gold);">Settlement Ledger Records</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Settlement #</th>
+              <th>Gross</th>
+              <th>Deductions</th>
+              <th>Net Payout</th>
+            </tr>
+          </thead>
+          <tbody id="spreadsheetBody">
+            <tr><td colspan="5" style="text-align: center; color: var(--text-muted);">No records found.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
 
-<!-- Per Diem Tab -->
-<div id="perdiemTab" class="tab-content">
-<div class="card">
-<h3 style="margin-bottom: 1rem; color: var(--accent-gold);">Per Diem & Sleeper Berth Log</h3>
-<form onsubmit="savePerDiem(event)">
-<div class="dashboard-grid" style="margin-bottom: 1rem;">
-<div class="form-group"><label>Date</label><input type="date" id="pdDate" required></div>
-<div class="form-group"><label>Location / City, State</label><input type="text" id="pdLocation" placeholder="e.g. Nashville, TN" required></div>
-</div>
-<button type="submit" class="btn-action" style="background: var(--accent-gold); color: var(--bg-deep);">Log Per Diem Night</button>
-</form>
-<table style="margin-top: 1.5rem;">
-<thead>
-<tr><th>Date</th><th>Location</th><th>Action</th></tr>
-</thead>
-<tbody id="perDiemBody">
-<tr><td colspan="3" style="text-align: center; color: var(--text-muted);">No per diem nights logged.</td></tr>
-</tbody>
-</table>
-</div>
-</div>
+    <!-- Per Diem Tab -->
+    <div id="perdiemTab" class="tab-content">
+      <div class="card">
+        <h3 style="margin-bottom: 1rem; color: var(--accent-gold);">Per Diem & Sleeper Berth Log</h3>
+        <form onsubmit="savePerDiem(event)">
+          <div class="dashboard-grid" style="margin-bottom: 1rem;">
+            <div class="form-group"><label>Date</label><input type="date" id="pdDate" required></div>
+            <div class="form-group"><label>Location / City, State</label><input type="text" id="pdLocation" placeholder="e.g. Nashville, TN" required></div>
+          </div>
+          <button type="submit" class="btn-action" style="background: var(--accent-gold); color: var(--bg-deep);">Log Per Diem Night</button>
+        </form>
+        <table style="margin-top: 1.5rem;">
+          <thead>
+            <tr><th>Date</th><th>Location</th><th>Action</th></tr>
+          </thead>
+          <tbody id="perDiemBody">
+            <tr><td colspan="3" style="text-align: center; color: var(--text-muted);">No per diem nights logged.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
 
-<!-- Tax Summary Tab -->
-<div id="taxTab" class="tab-content">
-<div class="card">
-<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-<h3 style="color: var(--accent-gold);">Annual Operational Summary & Tax Packet</h3>
-<button class="btn-action" onclick="window.print()">Print / Export PDF</button>
-</div>
-<p style="color: var(--text-muted); font-size: 0.875rem; margin-bottom: 1.5rem;">Operational bookkeeping summaries and itemized ledger totals for tax preparation.</p>
-<div class="dashboard-grid">
-<div class="card"><h3>Total Gross Earnings</h3><div class="value gross" id="taxGross">$0.00</div></div>
-<div class="card"><h3>Total Itemized Deductions</h3><div class="value deductions" id="taxDeductions">$0.00</div></div>
-<div class="card"><h3>Net Operational Total</h3><div class="value net" id="taxNet">$0.00</div></div>
-</div>
-</div>
-</div>
-</div>
+    <!-- Tax Summary Tab -->
+    <div id="taxTab" class="tab-content">
+      <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+          <h3 style="color: var(--accent-gold);">Annual Operational Summary & Tax Packet</h3>
+          <button class="btn-action" onclick="window.print()">Print / Export PDF</button>
+        </div>
+        <p style="color: var(--text-muted); font-size: 0.875rem; margin-bottom: 1.5rem;">Operational bookkeeping summaries and itemized ledger totals for tax preparation.</p>
+        <div class="dashboard-grid">
+          <div class="card"><h3>Total Gross Earnings</h3><div class="value gross" id="taxGross">$0.00</div></div>
+          <div class="card"><h3>Total Itemized Deductions</h3><div class="value deductions" id="taxDeductions">$0.00</div></div>
+          <div class="card"><h3>Net Operational Total</h3><div class="value net" id="taxNet">$0.00</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
 </main>
 
 <script>
-const SUPABASE_URL = 'https://www.google.com/url?q=https://your-project.supabase.co&source=gmail&ust=1794602486313000&sa=E';
-const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+const SUPABASE_URL = 'https://pxxikzzfrcncwufpzdfp.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB4eGlrenpmcmNuY3d1ZnB6ZGZwIiwicm9sZS...'; // Replace with your valid anon key if needed
 
 let isSignUp = false;
 let supabaseClient = null;
@@ -446,166 +447,170 @@ let localSettlements = [];
 let localPerDiem = [];
 
 try {
-if (window.supabase) {
-supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-}
+  if (window.supabase) {
+    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  }
 } catch (e) {
-console.error("Supabase init error:", e);
+  console.error("Supabase init error:", e);
 }
 
 function toggleAuthMode() {
-isSignUp = !isSignUp;
-document.getElementById('authTitle').innerText = isSignUp ? 'Create Account' : 'Sign In';
-document.getElementById('authSubmitBtn').innerText = isSignUp ? 'Sign Up' : 'Sign In';
-document.getElementById('authSwitchText').innerHTML = isSignUp ?
-'Already have an account? <span onclick="toggleAuthMode()">Sign In</span>' :
-'Don\'t have an account? <span onclick="toggleAuthMode()">Sign Up</span>';
+  isSignUp = !isSignUp;
+  document.getElementById('authTitle').innerText = isSignUp ? 'Create Account' : 'Sign In';
+  document.getElementById('authSubmitBtn').innerText = isSignUp ? 'Sign Up' : 'Sign In';
+  document.getElementById('authSwitchText').innerHTML = isSignUp ?
+    'Already have an account? <span onclick="toggleAuthMode()">Sign In</span>' :
+    'Don\'t have an account? <span onclick="toggleAuthMode()">Sign Up</span>';
 }
 
 async function handleAuthSubmit(e) {
-e.preventDefault();
-const email = document.getElementById('authEmail').value;
-const password = document.getElementById('authPassword').value;
+  e.preventDefault();
+  const email = document.getElementById('authEmail').value.trim();
+  const password = document.getElementById('authPassword').value;
 
-if (!supabaseClient) {
-alert("Supabase client not initialized.");
-return;
-}
+  if (!supabaseClient) {
+    alert("Supabase client not initialized.");
+    return;
+  }
 
-if (isSignUp) {
-const { error } = await supabaseClient.auth.signUp({ email, password });
-if (error) alert(error.message);
-else alert('Check your email for the confirmation link!');
-} else {
-const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
-if (error) alert(error.message);
-else checkAuthSession();
-}
+  if (isSignUp) {
+    const { error } = await supabaseClient.auth.signUp({ email, password });
+    if (error) alert(error.message);
+    else alert('Check your email for the confirmation link!');
+  } else {
+    const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+    if (error) alert(error.message);
+    else checkAuthSession();
+  }
 }
 
 async function checkAuthSession() {
-if (!supabaseClient) return;
-const { data: { session } } = await supabaseClient.auth.getSession();
-if (session) {
-document.getElementById('authScreen').classList.add('hidden');
-document.getElementById('appScreen').classList.remove('hidden');
-document.getElementById('userEmailDisplay').innerText = session.user.email;
-document.getElementById('signOutBtn').classList.remove('hidden');
-loadUserData();
-} else {
-document.getElementById('authScreen').classList.remove('hidden');
-document.getElementById('appScreen').classList.add('hidden');
-document.getElementById('signOutBtn').classList.add('hidden');
-}
+  if (!supabaseClient) return;
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (session) {
+      document.getElementById('authScreen').classList.add('hidden');
+      document.getElementById('appScreen').classList.remove('hidden');
+      document.getElementById('userEmailDisplay').innerText = session.user.email;
+      document.getElementById('signOutBtn').classList.remove('hidden');
+      loadUserData();
+    } else {
+      document.getElementById('authScreen').classList.remove('hidden');
+      document.getElementById('appScreen').classList.add('hidden');
+      document.getElementById('signOutBtn').classList.add('hidden');
+    }
+  } catch (err) {
+    console.error("Auth session check error:", err);
+  }
 }
 
 async function handleSignOut() {
-if (!supabaseClient) return;
-await supabaseClient.auth.signOut();
-checkAuthSession();
+  if (!supabaseClient) return;
+  await supabaseClient.auth.signOut();
+  checkAuthSession();
 }
 
 function switchTab(tabName) {
-document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
-document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
 
-if (tabName === 'settlements') {
-document.querySelector('[onclick="switchTab(\'settlements\')"]').classList.add('active');
-document.getElementById('settlementsTab').classList.add('active');
-} else if (tabName === 'spreadsheet') {
-document.querySelector('[onclick="switchTab(\'spreadsheet\')"]').classList.add('active');
-document.getElementById('spreadsheetTab').classList.add('active');
-} else if (tabName === 'perdiem') {
-document.querySelector('[onclick="switchTab(\'perdiem\')"]').classList.add('active');
-document.getElementById('perdiemTab').classList.add('active');
-} else if (tabName === 'tax') {
-document.querySelector('[onclick="switchTab(\'tax\')"]').classList.add('active');
-document.getElementById('taxTab').classList.add('active');
-}
+  if (tabName === 'settlements') {
+    document.querySelector('[onclick="switchTab(\'settlements\')"]').classList.add('active');
+    document.getElementById('settlementsTab').classList.add('active');
+  } else if (tabName === 'spreadsheet') {
+    document.querySelector('[onclick="switchTab(\'spreadsheet\')"]').classList.add('active');
+    document.getElementById('spreadsheetTab').classList.add('active');
+  } else if (tabName === 'perdiem') {
+    document.querySelector('[onclick="switchTab(\'perdiem\')"]').classList.add('active');
+    document.getElementById('perdiemTab').classList.add('active');
+  } else if (tabName === 'tax') {
+    document.querySelector('[onclick="switchTab(\'tax\')"]').classList.add('active');
+    document.getElementById('taxTab').classList.add('active');
+  }
 }
 
 function calculateNet() {
-const gross = parseFloat(document.getElementById('settleGross').value) || 0;
-const deductionInputs = document.querySelectorAll('.deduction-input');
-let totalDed = 0;
-deductionInputs.forEach(input => {
-totalDed += parseFloat(input.value) || 0;
-});
-const net = gross - totalDed;
-document.getElementById('previewNet').innerText = '$' + net.toFixed(2);
+  const gross = parseFloat(document.getElementById('settleGross').value) || 0;
+  const deductionInputs = document.querySelectorAll('.deduction-input');
+  let totalDed = 0;
+  deductionInputs.forEach(input => {
+    totalDed += parseFloat(input.value) || 0;
+  });
+  const net = gross - totalDed;
+  document.getElementById('previewNet').innerText = '$' + net.toFixed(2);
 }
 
 function saveSettlement(e) {
-e.preventDefault();
-const date = document.getElementById('settleDate').value;
-const number = document.getElementById('settleNumber').value;
-const gross = parseFloat(document.getElementById('settleGross').value) || 0;
-const deductionInputs = document.querySelectorAll('.deduction-input');
-let totalDed = 0;
-deductionInputs.forEach(input => { totalDed += parseFloat(input.value) || 0; });
-const net = gross - totalDed;
+  e.preventDefault();
+  const date = document.getElementById('settleDate').value;
+  const number = document.getElementById('settleNumber').value;
+  const gross = parseFloat(document.getElementById('settleGross').value) || 0;
+  const deductionInputs = document.querySelectorAll('.deduction-input');
+  let totalDed = 0;
+  deductionInputs.forEach(input => { totalDed += parseFloat(input.value) || 0; });
+  const net = gross - totalDed;
 
-localSettlements.push({ date, number, gross, deductions: totalDed, net });
-document.getElementById('settlementForm').reset();
-document.getElementById('previewNet').innerText = '$0.00';
-updateDashboard();
-switchTab('spreadsheet');
+  localSettlements.push({ date, number, gross, deductions: totalDed, net });
+  document.getElementById('settlementForm').reset();
+  document.getElementById('previewNet').innerText = '$0.00';
+  updateDashboard();
+  switchTab('spreadsheet');
 }
 
 function savePerDiem(e) {
-e.preventDefault();
-const date = document.getElementById('pdDate').value;
-const location = document.getElementById('pdLocation').value;
-localPerDiem.push({ date, location });
-document.getElementById('pdDate').value = '';
-document.getElementById('pdLocation').value = '';
-updateDashboard();
+  e.preventDefault();
+  const date = document.getElementById('pdDate').value;
+  const location = document.getElementById('pdLocation').value;
+  localPerDiem.push({ date, location });
+  document.getElementById('pdDate').value = '';
+  document.getElementById('pdLocation').value = '';
+  updateDashboard();
 }
 
 function updateDashboard() {
-let totalGross = 0;
-let totalDed = 0;
-let totalNet = 0;
+  let totalGross = 0;
+  let totalDed = 0;
+  let totalNet = 0;
 
-let sheetHtml = '';
-if (localSettlements.length === 0) {
-sheetHtml = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted);">No records found.</td></tr>';
-} else {
-localSettlements.forEach((s, index) => {
-totalGross += s.gross;
-totalDed += s.deductions;
-totalNet += https://www.google.com/url?q=http://s.net&source=gmail&ust=1794602486314000&sa=E;
-sheetHtml += `<tr><td>${s.date}</td><td>${s.number || 'N/A'}</td><td>$${s.gross.toFixed(2)}</td><td>$${s.deductions.toFixed(2)}</td><td>$${s.net.toFixed(2)}</td></tr>`;
-});
-}
-document.getElementById('spreadsheetBody').innerHTML = sheetHtml;
+  let sheetHtml = '';
+  if (localSettlements.length === 0) {
+    sheetHtml = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted);">No records found.</td></tr>';
+  } else {
+    localSettlements.forEach((s, index) => {
+      totalGross += s.gross;
+      totalDed += s.deductions;
+      totalNet += s.net;
+      sheetHtml += `<tr><td>${s.date}</td><td>${s.number || 'N/A'}</td><td>$${s.gross.toFixed(2)}</td><td>$${s.deductions.toFixed(2)}</td><td>$${s.net.toFixed(2)}</td></tr>`;
+    });
+  }
+  document.getElementById('spreadsheetBody').innerHTML = sheetHtml;
 
-let pdHtml = '';
-if (localPerDiem.length === 0) {
-pdHtml = '<tr><td colspan="3" style="text-align: center; color: var(--text-muted);">No per diem nights logged.</td></tr>';
-} else {
-localPerDiem.forEach((pd, index) => {
-pdHtml += `<tr><td>${pd.date}</td><td>${pd.location}</td><td><button class="btn-action" style="padding: 0.2rem 0.5rem;" onclick="localPerDiem.splice(${index},1);updateDashboard()">Delete</button></td></tr>`;
-});
-}
-document.getElementById('perDiemBody').innerHTML = pdHtml;
+  let pdHtml = '';
+  if (localPerDiem.length === 0) {
+    pdHtml = '<tr><td colspan="3" style="text-align: center; color: var(--text-muted);">No per diem nights logged.</td></tr>';
+  } else {
+    localPerDiem.forEach((pd, index) => {
+      pdHtml += `<tr><td>${pd.date}</td><td>${pd.location}</td><td><button class="btn-action" style="padding: 0.2rem 0.5rem;" onclick="localPerDiem.splice(${index},1);updateDashboard()">Delete</button></td></tr>`;
+    });
+  }
+  document.getElementById('perDiemBody').innerHTML = pdHtml;
 
-document.getElementById('ytdGross').innerText = '$' + totalGross.toFixed(2);
-document.getElementById('ytdDeductions').innerText = '$' + totalDed.toFixed(2);
-document.getElementById('ytdNet').innerText = '$' + totalNet.toFixed(2);
-document.getElementById('ytdPerDiem').innerText = localPerDiem.length;
+  document.getElementById('ytdGross').innerText = '$' + totalGross.toFixed(2);
+  document.getElementById('ytdDeductions').innerText = '$' + totalDed.toFixed(2);
+  document.getElementById('ytdNet').innerText = '$' + totalNet.toFixed(2);
+  document.getElementById('ytdPerDiem').innerText = localPerDiem.length;
 
-document.getElementById('taxGross').innerText = '$' + totalGross.toFixed(2);
-document.getElementById('taxDeductions').innerText = '$' + totalDed.toFixed(2);
-document.getElementById('taxNet').innerText = '$' + totalNet.toFixed(2);
+  document.getElementById('taxGross').innerText = '$' + totalGross.toFixed(2);
+  document.getElementById('taxDeductions').innerText = '$' + totalDed.toFixed(2);
+  document.getElementById('taxNet').innerText = '$' + totalNet.toFixed(2);
 }
 
 function loadUserData() {
-updateDashboard();
+  updateDashboard();
 }
 
 window.addEventListener('DOMContentLoaded', () => {
-checkAuthSession();
+  checkAuthSession();
 });
 </script>
 </body>
