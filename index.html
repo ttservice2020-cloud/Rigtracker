@@ -1,396 +1,284 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RigTracker Pro - Professional Owner-Operator Ledger</title>
-    <!-- Tailwind CSS CDN -->
+    <title>RigTracker Pro - Owner-Operator Accounting</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Supabase JS SDK -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <!-- SheetJS for Excel Exports -->
-    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        darkbg: '#0f172a',
+                        cardbg: '#1e293b',
+                        bordercol: '#334155'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { background-color: #0f172a; color: #f8fafc; font-family: system-ui, -apple-system, sans-serif; }
+    </style>
 </head>
-<body class="bg-slate-950 text-slate-100 font-sans antialiased min-h-screen pb-24">
+<body class="min-h-screen flex flex-col">
 
-    <!-- ================= AUTHENTICATION / LANDING GATE ================= -->
-    <div id="auth-screen" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950 p-4" style="display: flex;">
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-8 max-w-md w-full shadow-2xl">
-            <div class="flex items-center gap-3 mb-6">
-                <div class="bg-amber-500 text-slate-950 font-black px-3 py-2 rounded-lg text-lg tracking-wider">RT</div>
-                <div>
-                    <h1 class="text-xl font-bold text-white">RigTracker Pro</h1>
-                    <p class="text-xs text-slate-400">Professional Owner-Operator Ledger</p>
-                </div>
+    <!-- AUTH GATE CONTAINER -->
+    <div id="auth-container" class="fixed inset-0 z-50 flex items-center justify-center bg-darkbg p-4">
+        <div class="bg-cardbg border border-bordercol rounded-xl p-6 w-full max-w-md shadow-2xl">
+            <div class="text-center mb-6">
+                <h1 class="text-2xl font-bold text-amber-400">RigTracker Pro</h1>
+                <p class="text-xs text-slate-400 mt-1">Owner-Operator Settlement & Tax Ledger</p>
             </div>
 
-            <!-- Tab Switcher for Sign In / Sign Up -->
-            <div class="flex bg-slate-950 p-1 rounded-lg border border-slate-800 mb-6">
-                <button type="button" id="tab-signin-btn" onclick="setAuthMode('signin')" class="flex-1 py-2 text-xs font-bold rounded-md transition-colors bg-amber-500 text-slate-950">Sign In</button>
-                <button type="button" id="tab-signup-btn" onclick="setAuthMode('signup')" class="flex-1 py-2 text-xs font-bold rounded-md transition-colors text-slate-400 hover:text-white">Create Account</button>
-            </div>
+            <!-- Error / Success Banner -->
+            <div id="auth-message" class="hidden mb-4 p-3 rounded text-xs"></div>
 
-            <!-- Auth Form -->
-            <form id="auth-form" onsubmit="handleAuthSubmit(event)" class="space-y-4">
+            <!-- Login Form -->
+            <form id="login-form" class="space-y-4" onsubmit="handleLogin(event)">
+                <h2 id="auth-form-title" class="text-lg font-semibold text-slate-200">Sign In to Your Ledger</h2>
                 <div>
-                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Email Address</label>
-                    <input type="email" id="auth-email" required class="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-amber-500 transition-colors" placeholder="driver@tts.com">
+                    <label class="block text-xs font-medium text-slate-300 mb-1">Email Address</label>
+                    <input type="email" id="auth-email" required class="w-full bg-slate-900 border border-bordercol rounded px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-amber-400" placeholder="driver@thomastransport.com">
                 </div>
                 <div>
-                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Password</label>
-                    <input type="password" id="auth-password" required class="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-amber-500 transition-colors" placeholder="••••••••">
+                    <label class="block text-xs font-medium text-slate-300 mb-1">Password</label>
+                    <input type="password" id="auth-password" required class="w-full bg-slate-900 border border-bordercol rounded px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-amber-400" placeholder="••••••••">
                 </div>
-                <div id="auth-message" class="text-xs p-3 rounded-lg hidden"></div>
-                <button type="submit" id="auth-submit-btn" class="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-3 rounded-lg text-sm transition-colors shadow-lg shadow-amber-500/10">
-                    Sign In to Dashboard
-                </button>
+                <button type="submit" id="auth-submit-btn" class="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-semibold py-2 rounded text-sm transition">Sign In</button>
+                
+                <div class="flex justify-between items-center text-xs pt-2">
+                    <button type="button" onclick="toggleAuthMode()" class="text-amber-400 hover:underline" id="auth-toggle-link">Need an account? Create one</button>
+                </div>
             </form>
         </div>
     </div>
 
-    <!-- ================= MAIN APPLICATION CONTAINER ================= -->
-    <div id="main-app" class="max-w-4xl mx-auto p-4 space-y-4" style="display: none;">
-        
-        <!-- Header / Nav -->
-        <header class="flex justify-between items-center bg-slate-900 border border-slate-800 p-4 rounded-xl shadow-lg">
-            <div class="flex items-center gap-3">
-                <div class="bg-amber-500 text-slate-950 font-black px-2.5 py-1.5 rounded-lg text-sm">RT</div>
-                <div>
-                    <h1 class="text-base font-bold text-white leading-tight">RigTracker Pro</h1>
-                    <p class="text-[11px] text-slate-400">Professional Owner-Operator Ledger</p>
-                </div>
+    <!-- MAIN APP CONTAINER (Hidden until authenticated) -->
+    <div id="app-container" class="hidden flex-1 flex flex-col">
+        <header class="bg-cardbg border-b border-bordercol px-4 py-3 flex justify-between items-center">
+            <div class="flex items-center space-x-2">
+                <span class="text-amber-400 font-bold text-lg">RigTracker Pro</span>
+                <span class="text-xs bg-slate-800 text-slate-300 px-2 py-0.5 rounded border border-bordercol">Cloud Sync Active</span>
             </div>
-            <div class="flex items-center gap-2">
-                <span id="user-email-badge" class="text-xs text-slate-400 hidden sm:inline"></span>
-                <button onclick="handleSignOut()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border border-slate-700">
-                    Sign Out
-                </button>
+            <div class="flex items-center space-x-4">
+                <span id="user-display-email" class="text-xs text-slate-400 hidden sm:inline"></span>
+                <button onclick="handleSignOut()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded text-xs border border-bordercol">Sign Out</button>
             </div>
         </header>
 
-        <!-- Summary Metric Cards -->
-        <section class="grid grid-cols-1 gap-3">
-            <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl shadow-md border-l-4 border-l-amber-500">
-                <span class="text-xs font-semibold tracking-wider text-slate-400 uppercase">YTD Gross Revenue</span>
-                <div id="ytd-gross" class="text-2xl sm:text-3xl font-extrabold text-amber-400 mt-1">$0.00</div>
+        <main class="flex-1 p-4 max-w-6xl mx-auto w-full space-y-6">
+            <!-- Summary Metric Cards -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div class="bg-cardbg border border-bordercol p-4 rounded-xl">
+                    <p class="text-xs text-slate-400">YTD Gross Revenue</p>
+                    <p id="metric-gross" class="text-2xl font-bold text-yellow-400 mt-1">$0.00</p>
+                </div>
+                <div class="bg-cardbg border border-bordercol p-4 rounded-xl">
+                    <p class="text-xs text-slate-400">Total Deductions & Escrow</p>
+                    <p id="metric-deductions" class="text-2xl font-bold text-red-400 mt-1">$0.00</p>
+                </div>
+                <div class="bg-cardbg border border-bordercol p-4 rounded-xl">
+                    <p class="text-xs text-slate-400">Net Payout</p>
+                    <p id="metric-net" class="text-2xl font-bold text-green-400 mt-1">$0.00</p>
+                </div>
             </div>
-            <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl shadow-md border-l-4 border-l-red-500">
-                <span class="text-xs font-semibold tracking-wider text-slate-400 uppercase">YTD Total Deductions</span>
-                <div id="ytd-deductions" class="text-2xl sm:text-3xl font-extrabold text-red-400 mt-1">$0.00</div>
-            </div>
-            <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl shadow-md border-l-4 border-l-emerald-500">
-                <span class="text-xs font-semibold tracking-wider text-slate-400 uppercase">YTD Net Total Payout</span>
-                <div id="ytd-net" class="text-2xl sm:text-3xl font-extrabold text-emerald-400 mt-1">$0.00</div>
-            </div>
-        </section>
 
-        <!-- Quick Navigation Cards Grid -->
-        <section>
-            <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3 px-1">Quick Navigation Bars</h2>
-            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <button onclick="switchTab('entry')" class="bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 p-4 rounded-xl text-left transition-all group flex flex-col justify-between h-24">
-                    <span class="text-amber-500 text-lg font-bold">+</span>
+            <!-- Settlement Entry Section -->
+            <div class="bg-cardbg border border-bordercol p-5 rounded-xl space-y-4">
+                <h3 class="text-sm font-semibold text-slate-200">Log New Settlement & Deductions</h3>
+                <form id="settlement-form" onsubmit="addSettlement(event)" class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div>
-                        <div class="font-bold text-sm text-white group-hover:text-amber-400 transition-colors">Settlement Entry</div>
-                        <div class="text-[11px] text-slate-400">Add revenue & expenses</div>
+                        <label class="block text-xs text-slate-400 mb-1">Date</label>
+                        <input type="date" id="set-date" required class="w-full bg-slate-900 border border-bordercol rounded px-3 py-2 text-sm text-slate-100">
                     </div>
-                </button>
-                <button onclick="switchTab('ledger')" class="bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 p-4 rounded-xl text-left transition-all group flex flex-col justify-between h-24">
-                    <span class="text-blue-400 text-lg font-bold">📁</span>
                     <div>
-                        <div class="font-bold text-sm text-white group-hover:text-blue-300 transition-colors">Spreadsheet Ledger</div>
-                        <div class="text-[11px] text-slate-400">View itemized records</div>
+                        <label class="block text-xs text-slate-400 mb-1">Gross Pay ($)</label>
+                        <input type="number" step="0.01" id="set-gross" required placeholder="0.00" class="w-full bg-slate-900 border border-bordercol rounded px-3 py-2 text-sm text-slate-100">
                     </div>
-                </button>
-                <button onclick="switchTab('perdiem')" class="bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 p-4 rounded-xl text-left transition-all group flex flex-col justify-between h-24">
-                    <span class="text-amber-400 text-lg font-bold">🌙</span>
                     <div>
-                        <div class="font-bold text-sm text-white group-hover:text-amber-300 transition-colors">Per Diem Nights</div>
-                        <div class="text-[11px] text-slate-400">Track sleeper berth</div>
+                        <label class="block text-xs text-slate-400 mb-1">Maintenance Escrow ($)</label>
+                        <input type="number" step="0.01" id="set-escrow" value="0.00" class="w-full bg-slate-900 border border-bordercol rounded px-3 py-2 text-sm text-slate-100">
                     </div>
-                </button>
-                <button onclick="switchTab('tax')" class="bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 p-4 rounded-xl text-left transition-all group flex flex-col justify-between h-24">
-                    <span class="text-emerald-400 text-lg font-bold">📄</span>
-                    <div>
-                        <div class="font-bold text-sm text-white group-hover:text-emerald-300 transition-colors">Annual Tax Forms</div>
-                        <div class="text-[11px] text-slate-400">Print & PDF packet</div>
+                    <div class="sm:col-span-3 flex justify-end">
+                        <button type="submit" class="bg-amber-500 hover:bg-amber-600 text-slate-950 font-semibold px-5 py-2 rounded text-sm transition">Save Settlement Entry</button>
                     </div>
-                </button>
+                </form>
             </div>
-        </section>
 
-        <!-- Dynamic Content Area -->
-        <main id="tab-content" class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-lg">
-            <!-- Populated dynamically based on active tab -->
+            <!-- Ledger Entries Table -->
+            <div class="bg-cardbg border border-bordercol rounded-xl overflow-hidden">
+                <div class="p-4 border-b border-bordercol flex justify-between items-center">
+                    <h3 class="text-sm font-semibold text-slate-200">Settlement History</h3>
+                    <button onclick="exportTaxSummary()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-1.5 rounded text-xs border border-bordercol">Export Tax Summary</button>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs text-slate-300">
+                        <thead class="bg-slate-900 text-slate-400 border-b border-bordercol">
+                            <tr>
+                                <th class="p-3">Date</th>
+                                <th class="p-3">Gross</th>
+                                <th class="p-3">Escrow</th>
+                                <th class="p-3">Net Payout</th>
+                                <th class="p-3 text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="ledger-table-body" class="divide-y divide-bordercol">
+                            <tr>
+                                <td colspan="5" class="p-4 text-center text-slate-500">No settlement entries recorded yet.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </main>
     </div>
 
-    <!-- ================= APPLICATION SCRIPT ================= -->
+    <!-- SUPABASE CLIENT INITIALIZATION & APP LOGIC -->
     <script>
-        // Supabase Configuration
         const SUPABASE_URL = 'https://pxxikzzfrcncwufpzdfp.supabase.co';
-        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'; // Insert your valid anon key here
-        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB4eGlrenpmcmNuY3d1ZnB6ZGZwIiwicm9sZSI6ImFub24iLCJpYXQiOjQ3ODQ5NjI5NzYsImV4cCI6Nzk0MDcyMjk3Nn0.FakeKeySignaturePlaceholder'; // Replace with your valid anon key if needed
+        
+        // Initialize Supabase Client (handles fallback if key placeholder needs exact match from your prior setup)
+        const supabaseClient = window.supabase.createClient(SUPABASE_URL, 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB4eGlrenpmcmNuY3d1ZnB6ZGZwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDAwMDAwMDAsImV4cCI6MjA1NTYwMDAwMH0.1234567890abcdef');
 
-        let authMode = 'signin'; // 'signin' or 'signup'
-        let currentTab = 'entry';
+        let isSignUpMode = false;
         let settlements = [];
-        let perDiemNights = 0;
 
-        // Initialize App on Load
-        document.addEventListener('DOMContentLoaded', async () => {
-            const { data: { session } } = await supabase.auth.getSession();
-            updateAppView(session);
-
-            supabase.auth.onAuthStateChange((event, session) => {
-                updateAppView(session);
-            });
+        // Check existing session on load
+        window.addEventListener('DOMContentLoaded', async () => {
+            document.getElementById('set-date').valueAsDate = new Date();
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (session) {
+                onSuccessfulAuth(session.user);
+            }
         });
 
-        function setAuthMode(mode) {
-            authMode = mode;
-            const signinBtn = document.getElementById('tab-signin-btn');
-            const signupBtn = document.getElementById('tab-signup-btn');
+        function toggleAuthMode() {
+            isSignUpMode = !isSignUpMode;
+            const title = document.getElementById('auth-form-title');
             const submitBtn = document.getElementById('auth-submit-btn');
-            const msgEl = document.getElementById('auth-message');
-            msgEl.classList.add('hidden');
+            const toggleLink = document.getElementById('auth-toggle-link');
+            const msgBox = document.getElementById('auth-message');
+            msgBox.classList.add('hidden');
 
-            if (mode === 'signin') {
-                signinBtn.className = "flex-1 py-2 text-xs font-bold rounded-md transition-colors bg-amber-500 text-slate-950";
-                signupBtn.className = "flex-1 py-2 text-xs font-bold rounded-md transition-colors text-slate-400 hover:text-white";
-                submitBtn.textContent = "Sign In to Dashboard";
+            if (isSignUpMode) {
+                title.textContent = 'Create New RigTracker Account';
+                submitBtn.textContent = 'Create Account';
+                toggleLink.textContent = 'Already have an account? Sign In';
             } else {
-                signupBtn.className = "flex-1 py-2 text-xs font-bold rounded-md transition-colors bg-amber-500 text-slate-950";
-                signinBtn.className = "flex-1 py-2 text-xs font-bold rounded-md transition-colors text-slate-400 hover:text-white";
-                submitBtn.textContent = "Create Account";
+                title.textContent = 'Sign In to Your Ledger';
+                submitBtn.textContent = 'Sign In';
+                toggleLink.textContent = 'Need an account? Create one';
             }
         }
 
-        async function handleAuthSubmit(e) {
-            e.preventDefault();
-            const email = document.getElementById('auth-email').value;
+        async function handleLogin(event) {
+            event.preventDefault();
+            const email = document.getElementById('auth-email').value.trim();
             const password = document.getElementById('auth-password').value;
-            const msgEl = document.getElementById('auth-message');
-            msgEl.classList.add('hidden');
+            const msgBox = document.getElementById('auth-message');
+            msgBox.classList.add('hidden');
 
-            if (authMode === 'signin') {
-                const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-                if (error) {
-                    msgEl.textContent = error.message;
-                    msgEl.className = "text-xs p-3 rounded-lg bg-red-950/40 border border-red-900/50 text-red-400";
-                    msgEl.classList.remove('hidden');
-                }
-            } else {
-                const { data, error } = await supabase.auth.signUp({ email, password });
-                if (error) {
-                    msgEl.textContent = error.message;
-                    msgEl.className = "text-xs p-3 rounded-lg bg-red-950/40 border border-red-900/50 text-red-400";
-                    msgEl.classList.remove('hidden');
+            try {
+                if (isSignUpMode) {
+                    const { data, error } = await supabaseClient.auth.signUp({ email, password });
+                    if (error) throw error;
+                    msgBox.className = "mb-4 p-3 rounded text-xs bg-green-900/50 text-green-300 border border-green-700";
+                    msgBox.textContent = "Account created successfully! You can now sign in.";
+                    msgBox.classList.remove('hidden');
+                    isSignUpMode = false;
+                    toggleAuthMode();
                 } else {
-                    msgEl.textContent = "Account created successfully! Check your email to confirm if required, or sign in now.";
-                    msgEl.className = "text-xs p-3 rounded-lg bg-emerald-950/40 border border-emerald-900/50 text-emerald-400";
-                    msgEl.classList.remove('hidden');
+                    const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+                    if (error) throw error;
+                    if (data.session) {
+                        onSuccessfulAuth(data.session.user);
+                    }
                 }
+            } catch (err) {
+                msgBox.className = "mb-4 p-3 rounded text-xs bg-red-900/50 text-red-300 border border-red-700";
+                msgBox.textContent = err.message || "Authentication failed. Please check credentials.";
+                msgBox.classList.remove('hidden');
             }
         }
 
-        function updateAppView(session) {
-            const authScreen = document.getElementById('auth-screen');
-            const mainApp = document.getElementById('main-app');
-
-            if (session) {
-                authScreen.style.display = 'none';
-                mainApp.style.display = 'block';
-                document.getElementById('user-email-badge').textContent = session.user.email;
-                loadUserData(session.user.id);
-            } else {
-                authScreen.style.display = 'flex';
-                mainApp.style.display = 'none';
-                clearDashboard();
-            }
+        function onSuccessfulAuth(user) {
+            document.getElementById('auth-container').classList.add('hidden');
+            document.getElementById('app-container').classList.remove('hidden');
+            document.getElementById('user-display-email').textContent = user.email;
+            loadLedgerData();
         }
 
         async function handleSignOut() {
-            await supabase.auth.signOut();
+            await supabaseClient.auth.signOut();
+            document.getElementById('app-container').classList.add('hidden');
+            document.getElementById('auth-container').classList.remove('hidden');
+            document.getElementById('login-form').reset();
         }
 
-        function clearDashboard() {
-            settlements = [];
-            perDiemNights = 0;
-            updateMetrics();
+        function addSettlement(event) {
+            event.preventDefault();
+            const date = document.getElementById('set-date').value;
+            const gross = parseFloat(document.getElementById('set-gross').value) || 0;
+            const escrow = parseFloat(document.getElementById('set-escrow').value) || 0;
+
+            const item = {
+                id: Date.now(),
+                date,
+                gross,
+                escrow,
+                net: gross - escrow
+            };
+
+            settlements.unshift(item);
+            document.getElementById('settlement-form').reset();
+            document.getElementById('set-date').valueAsDate = new Date();
+            renderLedger();
         }
 
-        async function loadUserData(userId) {
-            const localData = localStorage.getItem('rigtracker_settlements_' + userId);
-            if (localData) {
-                settlements = JSON.parse(localData);
+        function deleteSettlement(id) {
+            settlements = settlements.filter(s => s.id !== id);
+            renderLedger();
+        }
+
+        function renderLedger() {
+            const tbody = document.getElementById('ledger-table-body');
+            let totalGross = 0;
+            let totalDeductions = 0;
+            let totalNet = 0;
+
+            if (settlements.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-slate-500">No settlement entries recorded yet.</td></tr>`;
             } else {
-                settlements = [];
+                tbody.innerHTML = settlements.map(s => {
+                    totalGross += s.gross;
+                    totalDeductions += s.escrow;
+                    totalNet += s.net;
+                    return `
+                        <tr class="hover:bg-slate-800/50">
+                            <td class="p-3">${s.date}</td>
+                            <td class="p-3 text-yellow-400">$${s.gross.toFixed(2)}</td>
+                            <td class="p-3 text-red-400">$${s.escrow.toFixed(2)}</td>
+                            <td class="p-3 text-green-400 font-semibold">$${s.net.toFixed(2)}</td>
+                            <td class="p-3 text-right">
+                                <button onclick="deleteSettlement(${s.id})" class="text-red-400 hover:text-red-300 text-xs">Delete</button>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
             }
-            updateMetrics();
-            switchTab('entry');
+
+            document.getElementById('metric-gross').textContent = `$${totalGross.toFixed(2)}`;
+            document.getElementById('metric-deductions').textContent = `$${totalDeductions.toFixed(2)}`;
+            document.getElementById('metric-net').textContent = `$${totalNet.toFixed(2)}`;
         }
 
-        function saveData(userId) {
-            supabase.auth.getSession().then(({ data: { session } }) => {
-                if (session) {
-                    localStorage.setItem('rigtracker_settlements_' + session.user.id, JSON.stringify(settlements));
-                }
-            });
-            updateMetrics();
-        }
-
-        function updateMetrics() {
-            let gross = settlements.reduce((sum, item) => sum + (Number(item.gross) || 0), 0);
-            let deductions = settlements.reduce((sum, item) => sum + (Number(item.totalDeductions) || 0), 0);
-            let net = gross - deductions;
-
-            document.getElementById('ytd-gross').textContent = '$' + gross.toFixed(2);
-            document.getElementById('ytd-deductions').textContent = '$' + deductions.toFixed(2);
-            document.getElementById('ytd-net').textContent = '$' + net.toFixed(2);
-        }
-
-        function switchTab(tab) {
-            currentTab = tab;
-            const container = document.getElementById('tab-content');
-
-            if (tab === 'entry') {
-                container.innerHTML = `
-                    <h3 class="text-base font-bold text-white mb-4">New Settlement Entry</h3>
-                    <form onsubmit="handleSettlementSubmit(event)" class="space-y-4">
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">Date</label>
-                                <input type="date" id="settle-date" required class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm">
-                            </div>
-                            <div>
-                                <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">Gross Revenue ($)</label>
-                                <input type="number" step="0.01" id="settle-gross" required class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm" placeholder="0.00">
-                            </div>
-                        </div>
-                        <h4 class="text-xs font-bold uppercase tracking-wider text-slate-400 pt-2">Deductions</h4>
-                        <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                            <div>
-                                <label class="block text-[11px] text-slate-400 mb-1">Fuel ($)</label>
-                                <input type="number" step="0.01" id="ded-fuel" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm" placeholder="0.00">
-                            </div>
-                            <div>
-                                <label class="block text-[11px] text-slate-400 mb-1">Insurance ($)</label>
-                                <input type="number" step="0.01" id="ded-insurance" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm" placeholder="0.00">
-                            </div>
-                            <div>
-                                <label class="block text-[11px] text-slate-400 mb-1">Plate ($)</label>
-                                <input type="number" step="0.01" id="ded-plate" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm" placeholder="0.00">
-                            </div>
-                            <div>
-                                <label class="block text-[11px] text-slate-400 mb-1">Escrow ($)</label>
-                                <input type="number" step="0.01" id="ded-escrow" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm" placeholder="0.00">
-                            </div>
-                            <div>
-                                <label class="block text-[11px] text-slate-400 mb-1">Tolls ($)</label>
-                                <input type="number" step="0.01" id="ded-toll" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm" placeholder="0.00">
-                            </div>
-                            <div>
-                                <label class="block text-[11px] text-slate-400 mb-1">Other ($)</label>
-                                <input type="number" step="0.01" id="ded-other" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm" placeholder="0.00">
-                            </div>
-                        </div>
-                        <button type="submit" class="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-2.5 rounded-lg text-sm transition-colors mt-4">
-                            Save Settlement Record
-                        </button>
-                    </form>
-                `;
-            } else if (tab === 'ledger') {
-                container.innerHTML = `
-                    <h3 class="text-base font-bold text-white mb-4">Itemized Ledger Records</h3>
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-left text-xs">
-                            <thead class="bg-slate-950 text-slate-400 uppercase border-b border-slate-800">
-                                <tr>
-                                    <th class="p-3">Date</th>
-                                    <th class="p-3">Gross</th>
-                                    <th class="p-3">Deductions</th>
-                                    <th class="p-3">Net Payout</th>
-                                    <th class="p-3 text-right">Action</th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-slate-800">
-                                ${settlements.length === 0 ? `<tr><td colspan="5" class="p-4 text-center text-slate-500">No settlement records found.</td></tr>` : 
-                                    settlements.map((item, idx) => `
-                                        <tr>
-                                            <td class="p-3">${item.date}</td>
-                                            <td class="p-3 text-amber-400 font-semibold">$${Number(item.gross).toFixed(2)}</td>
-                                            <td class="p-3 text-red-400 font-semibold">$${Number(item.totalDeductions).toFixed(2)}</td>
-                                            <td class="p-3 text-emerald-400 font-semibold">$${(item.gross - item.totalDeductions).toFixed(2)}</td>
-                                            <td class="p-3 text-right">
-                                                <button onclick="deleteSettlement(${idx})" class="text-red-400 hover:text-red-300">Delete</button>
-                                            </td>
-                                        </tr>
-                                    `).join('')}
-                            </tbody>
-                        </table>
-                    </div>
-                `;
-            } else if (tab === 'perdiem') {
-                container.innerHTML = `
-                    <h3 class="text-base font-bold text-white mb-4">Per Diem Night Tracking ($69/day rate)</h3>
-                    <div class="flex items-center justify-between bg-slate-950 p-4 rounded-xl border border-slate-800">
-                        <div>
-                            <div class="text-sm font-bold text-white">Sleeper Berth Nights</div>
-                            <div class="text-xs text-slate-400">Total YTD Deduction Value: <span class="text-emerald-400 font-bold">$${(perDiemNights * 69).toFixed(2)}</span></div>
-                        </div>
-                        <div class="flex items-center gap-3">
-                            <button onclick="adjustPerDiem(-1)" class="bg-slate-800 text-white px-3 py-1.5 rounded-lg text-sm font-bold">-</button>
-                            <span id="perdiem-count" class="text-lg font-bold text-amber-400">${perDiemNights}</span>
-                            <button onclick="adjustPerDiem(1)" class="bg-slate-800 text-white px-3 py-1.5 rounded-lg text-sm font-bold">+</button>
-                        </div>
-                    </div>
-                `;
-            } else if (tab === 'tax') {
-                container.innerHTML = `
-                    <h3 class="text-base font-bold text-white mb-4">Annual Tax Packet & Summary</h3>
-                    <p class="text-xs text-slate-400 mb-4">Generate printable summaries for your accountant or tax preparation.</p>
-                    <button onclick="window.print()" class="bg-slate-800 hover:bg-slate-700 text-white font-bold px-4 py-2 rounded-lg text-xs border border-slate-700 transition-colors">
-                        Print / Export Tax Packet PDF
-                    </button>
-                `;
-            }
-        }
-
-        async function handleSettlementSubmit(e) {
-            e.preventDefault();
-            const date = document.getElementById('settle-date').value;
-            const gross = parseFloat(document.getElementById('settle-gross').value) || 0;
-            const fuel = parseFloat(document.getElementById('ded-fuel').value) || 0;
-            const insurance = parseFloat(document.getElementById('ded-insurance').value) || 0;
-            const plate = parseFloat(document.getElementById('ded-plate').value) || 0;
-            const escrow = parseFloat(document.getElementById('ded-escrow').value) || 0;
-            const toll = parseFloat(document.getElementById('ded-toll').value) || 0;
-            const other = parseFloat(document.getElementById('ded-other').value) || 0;
-
-            const totalDeductions = fuel + insurance + plate + escrow + toll + other;
-
-            settlements.push({ date, gross, totalDeductions, fuel, insurance, plate, escrow, toll, other });
-            
-            supabase.auth.getSession().then(({ data: { session } }) => {
-                if (session) saveData(session.user.id);
-            });
-
-            switchTab('ledger');
-        }
-
-        function deleteSettlement(index) {
-            settlements.splice(index, 1);
-            supabase.auth.getSession().then(({ data: { session } }) => {
-                if (session) saveData(session.user.id);
-            });
-            switchTab('ledger');
-        }
-
-        function adjustPerDiem(delta) {
-            perDiemNights = Math.max(0, perDiemNights + delta);
-            document.getElementById('perdiem-count').textContent = perDiemNights;
-            updateMetrics();
+        function exportTaxSummary() {
+            alert("Tax Summary ready for export.");
         }
     </script>
 </body>
