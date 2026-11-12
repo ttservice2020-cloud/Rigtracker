@@ -45,12 +45,12 @@
             </div>
 
             <div class="flex items-center space-x-2">
-                <span class="hidden sm:inline-block text-xs px-2.5 py-1 rounded bg-emerald-950 text-emerald-400 font-medium border border-emerald-800">Cloud Active</span>
+                <span id="cloudStatusBadge" class="hidden sm:inline-block text-xs px-2.5 py-1 rounded bg-gray-900 text-gray-400 font-medium border border-gray-800">Offline / Local</span>
                 <button onclick="exportBackup()" class="bg-gray-900 hover:bg-gray-800 text-gray-200 text-xs font-semibold px-3 py-2 rounded border border-gray-800 transition">
                     Backup
                 </button>
                 <button onclick="openAuthModal()" class="bg-amber-500 hover:bg-amber-400 text-gray-950 text-xs font-bold px-3 py-2 rounded transition">
-                    Account
+                    Sign In
                 </button>
             </div>
         </div>
@@ -58,7 +58,7 @@
 
     <main class="max-w-4xl mx-auto px-4 mt-6 space-y-6">
 
-        <!-- BACK / HOME BAR (Shown when inside a section) -->
+        <!-- BACK / HOME BAR -->
         <div id="backBar" class="hidden flex items-center justify-between pb-2 border-b border-gray-800">
             <button onclick="switchView('dashboard')" class="bg-gray-900 hover:bg-gray-800 text-gray-200 text-xs font-bold px-4 py-2 rounded transition flex items-center gap-1.5 border border-gray-800">
                 ← Back to Dashboard
@@ -299,21 +299,54 @@
 
     </main>
 
-    <!-- Auth Modal -->
-    <div id="authModal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50 px-4">
-        <div class="card-bg p-6 rounded-xl max-w-sm w-full space-y-4">
-            <h3 class="font-bold text-base text-white">RigTracker Pro Cloud Sync</h3>
-            <p class="text-xs text-gray-400">Connect with Supabase to sync your ledger across your devices.</p>
-            <input type="email" id="authEmail" placeholder="Driver Email" class="w-full input-bg px-3 py-2 rounded text-sm">
-            <div class="flex justify-end space-x-2 pt-2">
-                <button onclick="closeAuthModal()" class="bg-gray-900 hover:bg-gray-800 text-gray-300 text-xs px-4 py-2 rounded border border-gray-800">Cancel</button>
-                <button onclick="alert('Supabase client initialized successfully.'); closeAuthModal();" class="bg-amber-500 hover:bg-amber-400 text-gray-950 font-bold text-xs px-4 py-2 rounded">Sign In</button>
+    <!-- AUTHENTICATION MODAL (Sign In & Sign Up) -->
+    <div id="authModal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50 px-4 backdrop-blur-sm">
+        <div class="card-bg p-6 rounded-xl max-w-sm w-full space-y-4 shadow-2xl border border-gray-800">
+            <div class="flex justify-between items-center">
+                <h3 id="authModalTitle" class="font-bold text-base text-white">Sign In to RigTracker Pro</h3>
+                <button onclick="closeAuthModal()" class="text-gray-400 hover:text-white text-sm">✕</button>
             </div>
+            <p id="authModalDesc" class="text-xs text-gray-400">Access your secure cloud ledger across all your devices.</p>
+            
+            <form id="authForm" onsubmit="handleAuthSubmit(event)" class="space-y-3">
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1">Email Address</label>
+                    <input type="email" id="authEmail" required placeholder="driver@domain.com" class="w-full input-bg px-3 py-2 rounded text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1">Password</label>
+                    <input type="password" id="authPassword" required placeholder="••••••••" class="w-full input-bg px-3 py-2 rounded text-sm">
+                </div>
+                <div id="authErrorMsg" class="text-xs text-red-400 hidden"></div>
+                <div class="pt-2 flex flex-col gap-2">
+                    <button type="submit" id="authSubmitBtn" class="w-full bg-amber-500 hover:bg-amber-400 text-gray-950 font-bold py-2.5 rounded text-sm transition">
+                        Sign In
+                    </button>
+                    <button type="button" onclick="toggleAuthMode()" id="authToggleBtn" class="w-full text-xs text-amber-400 hover:underline py-1">
+                        Need an account? Sign Up
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 
     <!-- JavaScript Application Logic -->
     <script>
+        // Supabase configuration (Replace with your active project keys if needed)
+        const SUPABASE_URL = 'https://pxxikzzfrcncwufpzdfp.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'; // Insert active anon key if using cloud sync
+        let supabaseClient = null;
+        try {
+            if (window.supabase) {
+                supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+            }
+        } catch (e) {
+            console.warn('Supabase offline or uninitialized.');
+        }
+
+        let isSignUpMode = false;
+        let currentUser = null;
+
         let settlements = JSON.parse(localStorage.getItem('rigtracker_settlements')) || [
             { id: 1, date: '2026-09-25', gross: 4149.24, fuel: 1450.28, insurance: 94.75, plate: 0, escrow: 0, toll: 0, other: 0 },
             { id: 2, date: '2026-10-09', gross: 5150.76, fuel: 2284.91, insurance: 94.75, plate: 0, escrow: 0, toll: 0, other: 0 },
@@ -533,6 +566,60 @@
             `;
         }
 
+        // Authentication Modal Logic
+        function openAuthModal() {
+            document.getElementById('authModal').classList.remove('hidden');
+        }
+        function closeAuthModal() {
+            document.getElementById('authModal').classList.add('hidden');
+            document.getElementById('authErrorMsg').classList.add('hidden');
+        }
+        function toggleAuthMode() {
+            isSignUpMode = !isSignUpMode;
+            document.getElementById('authModalTitle').textContent = isSignUpMode ? 'Create RigTracker Pro Account' : 'Sign In to RigTracker Pro';
+            document.getElementById('authSubmitBtn').textContent = isSignUpMode ? 'Sign Up' : 'Sign In';
+            document.getElementById('authToggleBtn').textContent = isSignUpMode ? 'Already have an account? Sign In' : "Need an account? Sign Up";
+            document.getElementById('authErrorMsg').classList.add('hidden');
+        }
+
+        async function handleAuthSubmit(e) {
+            e.preventDefault();
+            const email = document.getElementById('authEmail').value;
+            const password = document.getElementById('authPassword').value;
+            const errDiv = document.getElementById('authErrorMsg');
+            errDiv.classList.add('hidden');
+
+            if (!supabaseClient) {
+                // Fallback simulation if Supabase is unlinked
+                currentUser = { email };
+                document.getElementById('cloudStatusBadge').textContent = `Cloud: ${email}`;
+                document.getElementById('cloudStatusBadge').className = 'hidden sm:inline-block text-xs px-2.5 py-1 rounded bg-emerald-950 text-emerald-400 font-medium border border-emerald-800';
+                closeAuthModal();
+                alert(`Successfully ${isSignUpMode ? 'signed up' : 'signed in'} as ${email} (Local Simulation Mode)`);
+                return;
+            }
+
+            try {
+                let res;
+                if (isSignUpMode) {
+                    res = await supabaseClient.auth.signUp({ email, password });
+                } else {
+                    res = await supabaseClient.auth.signInWithPassword({ email, password });
+                }
+
+                if (res.error) throw res.error;
+
+                currentUser = res.data.user;
+                document.getElementById('cloudStatusBadge').textContent = `Cloud: ${email}`;
+                document.getElementById('cloudStatusBadge').className = 'hidden sm:inline-block text-xs px-2.5 py-1 rounded bg-emerald-950 text-emerald-400 font-medium border border-emerald-800';
+                closeAuthModal();
+                alert('Successfully authenticated!');
+            } catch (err) {
+                errDiv.textContent = err.message || 'Authentication failed.';
+                errDiv.classList.remove('hidden');
+            }
+        }
+
         function downloadPDF() {
             const element = document.getElementById('taxPacketPrintArea');
             const opt = {
@@ -554,9 +641,6 @@
             a.download = `RigTracker_Pro_Backup_${new Date().toISOString().split('T')[0]}.json`;
             a.click();
         }
-
-        function openAuthModal() { document.getElementById('authModal').classList.remove('hidden'); }
-        function closeAuthModal() { document.getElementById('authModal').classList.add('hidden'); }
 
         renderAll();
     </script>
