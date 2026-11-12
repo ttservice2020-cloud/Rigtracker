@@ -24,7 +24,14 @@
                 </div>
             </div>
 
-            <form id="login-form" onsubmit="handleLogin(event)" class="space-y-4">
+            <!-- Tab Switcher for Sign In / Sign Up -->
+            <div class="flex bg-slate-950 p-1 rounded-lg border border-slate-800 mb-6">
+                <button type="button" id="tab-signin-btn" onclick="setAuthMode('signin')" class="flex-1 py-2 text-xs font-bold rounded-md transition-colors bg-amber-500 text-slate-950">Sign In</button>
+                <button type="button" id="tab-signup-btn" onclick="setAuthMode('signup')" class="flex-1 py-2 text-xs font-bold rounded-md transition-colors text-slate-400 hover:text-white">Create Account</button>
+            </div>
+
+            <!-- Auth Form -->
+            <form id="auth-form" onsubmit="handleAuthSubmit(event)" class="space-y-4">
                 <div>
                     <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Email Address</label>
                     <input type="email" id="auth-email" required class="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-amber-500 transition-colors" placeholder="driver@tts.com">
@@ -33,8 +40,8 @@
                     <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Password</label>
                     <input type="password" id="auth-password" required class="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-amber-500 transition-colors" placeholder="••••••••">
                 </div>
-                <div id="auth-error" class="text-red-400 text-xs bg-red-950/40 border border-red-900/50 p-3 rounded-lg hidden"></div>
-                <button type="submit" id="login-btn" class="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-3 rounded-lg text-sm transition-colors shadow-lg shadow-amber-500/10">
+                <div id="auth-message" class="text-xs p-3 rounded-lg hidden"></div>
+                <button type="submit" id="auth-submit-btn" class="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-3 rounded-lg text-sm transition-colors shadow-lg shadow-amber-500/10">
                     Sign In to Dashboard
                 </button>
             </form>
@@ -125,6 +132,7 @@
         const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'; // Insert your valid anon key here
         const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+        let authMode = 'signin'; // 'signin' or 'signup'
         let currentTab = 'entry';
         let settlements = [];
         let perDiemNights = 0;
@@ -138,6 +146,53 @@
                 updateAppView(session);
             });
         });
+
+        function setAuthMode(mode) {
+            authMode = mode;
+            const signinBtn = document.getElementById('tab-signin-btn');
+            const signupBtn = document.getElementById('tab-signup-btn');
+            const submitBtn = document.getElementById('auth-submit-btn');
+            const msgEl = document.getElementById('auth-message');
+            msgEl.classList.add('hidden');
+
+            if (mode === 'signin') {
+                signinBtn.className = "flex-1 py-2 text-xs font-bold rounded-md transition-colors bg-amber-500 text-slate-950";
+                signupBtn.className = "flex-1 py-2 text-xs font-bold rounded-md transition-colors text-slate-400 hover:text-white";
+                submitBtn.textContent = "Sign In to Dashboard";
+            } else {
+                signupBtn.className = "flex-1 py-2 text-xs font-bold rounded-md transition-colors bg-amber-500 text-slate-950";
+                signinBtn.className = "flex-1 py-2 text-xs font-bold rounded-md transition-colors text-slate-400 hover:text-white";
+                submitBtn.textContent = "Create Account";
+            }
+        }
+
+        async function handleAuthSubmit(e) {
+            e.preventDefault();
+            const email = document.getElementById('auth-email').value;
+            const password = document.getElementById('auth-password').value;
+            const msgEl = document.getElementById('auth-message');
+            msgEl.classList.add('hidden');
+
+            if (authMode === 'signin') {
+                const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+                if (error) {
+                    msgEl.textContent = error.message;
+                    msgEl.className = "text-xs p-3 rounded-lg bg-red-950/40 border border-red-900/50 text-red-400";
+                    msgEl.classList.remove('hidden');
+                }
+            } else {
+                const { data, error } = await supabase.auth.signUp({ email, password });
+                if (error) {
+                    msgEl.textContent = error.message;
+                    msgEl.className = "text-xs p-3 rounded-lg bg-red-950/40 border border-red-900/50 text-red-400";
+                    msgEl.classList.remove('hidden');
+                } else {
+                    msgEl.textContent = "Account created successfully! Check your email to confirm if required, or sign in now.";
+                    msgEl.className = "text-xs p-3 rounded-lg bg-emerald-950/40 border border-emerald-900/50 text-emerald-400";
+                    msgEl.classList.remove('hidden');
+                }
+            }
+        }
 
         function updateAppView(session) {
             const authScreen = document.getElementById('auth-screen');
@@ -155,21 +210,6 @@
             }
         }
 
-        async function handleLogin(e) {
-            e.preventDefault();
-            const email = document.getElementById('auth-email').value;
-            const password = document.getElementById('auth-password').value;
-            const errorEl = document.getElementById('auth-error');
-            errorEl.classList.add('hidden');
-
-            const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-
-            if (error) {
-                errorEl.textContent = error.message;
-                errorEl.classList.remove('hidden');
-            }
-        }
-
         async function handleSignOut() {
             await supabase.auth.signOut();
         }
@@ -181,7 +221,6 @@
         }
 
         async function loadUserData(userId) {
-            // Load settlements and per diem from Supabase or localStorage fallback
             const localData = localStorage.getItem('rigtracker_settlements_' + userId);
             if (localData) {
                 settlements = JSON.parse(localData);
