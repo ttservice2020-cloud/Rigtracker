@@ -6,661 +6,353 @@
     <title>RigTracker Pro - Professional Owner-Operator Ledger</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- html2pdf.js for PDF exports -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-    <style>
-        body {
-            background-color: #050709;
-            color: #f3f4f6;
-            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-        }
-        .card-bg {
-            background-color: #0b0e14;
-            border: 1px solid #1f242d;
-        }
-        .input-bg {
-            background-color: #050709;
-            border: 1px solid #2d3542;
-            color: #f3f4f6;
-        }
-        .input-bg:focus {
-            border-color: #f59e0b;
-            outline: none;
-        }
-    </style>
+    <!-- Supabase JS SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- SheetJS for Excel Exports -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
-<body class="min-h-screen pb-12">
+<body class="bg-slate-950 text-slate-100 font-sans antialiased min-h-screen pb-24">
 
-    <!-- Top Navigation Header -->
-    <header class="card-bg sticky top-0 z-40 px-4 py-3 shadow-md">
-        <div class="max-w-4xl mx-auto flex items-center justify-between gap-3">
-            <div class="flex items-center space-x-3">
-                <div class="bg-amber-500 text-gray-950 font-black px-3 py-2 rounded text-lg tracking-wider shadow">RT</div>
+    <!-- ================= AUTHENTICATION / LANDING GATE ================= -->
+    <div id="auth-screen" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950 p-4" style="display: flex;">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-8 max-w-md w-full shadow-2xl">
+            <div class="flex items-center gap-3 mb-6">
+                <div class="bg-amber-500 text-slate-950 font-black px-3 py-2 rounded-lg text-lg tracking-wider">RT</div>
                 <div>
-                    <h1 class="font-bold text-lg leading-tight tracking-tight text-white">RigTracker Pro</h1>
-                    <p class="text-xs text-gray-400">Professional Owner-Operator Ledger</p>
+                    <h1 class="text-xl font-bold text-white">RigTracker Pro</h1>
+                    <p class="text-xs text-slate-400">Professional Owner-Operator Ledger</p>
                 </div>
             </div>
 
-            <div class="flex items-center space-x-2">
-                <span id="cloudStatusBadge" class="hidden sm:inline-block text-xs px-2.5 py-1 rounded bg-gray-900 text-gray-400 font-medium border border-gray-800">Local Mode</span>
-                <button onclick="exportBackup()" class="bg-gray-900 hover:bg-gray-800 text-gray-200 text-xs font-semibold px-3 py-2 rounded border border-gray-800 transition">
-                    Backup
+            <form id="login-form" onsubmit="handleLogin(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Email Address</label>
+                    <input type="email" id="auth-email" required class="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-amber-500 transition-colors" placeholder="driver@tts.com">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Password</label>
+                    <input type="password" id="auth-password" required class="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-amber-500 transition-colors" placeholder="••••••••">
+                </div>
+                <div id="auth-error" class="text-red-400 text-xs bg-red-950/40 border border-red-900/50 p-3 rounded-lg hidden"></div>
+                <button type="submit" id="login-btn" class="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-3 rounded-lg text-sm transition-colors shadow-lg shadow-amber-500/10">
+                    Sign In to Dashboard
                 </button>
-                <button onclick="openAuthModal()" id="authNavBtn" class="bg-amber-500 hover:bg-amber-400 text-gray-950 text-xs font-bold px-3 py-2 rounded transition">
-                    Sign In
-                </button>
-            </div>
-        </div>
-    </header>
-
-    <main class="max-w-4xl mx-auto px-4 mt-6 space-y-6">
-
-        <!-- BACK / HOME BAR -->
-        <div id="backBar" class="hidden flex items-center justify-between pb-2 border-b border-gray-800">
-            <button onclick="switchView('dashboard')" class="bg-gray-900 hover:bg-gray-800 text-gray-200 text-xs font-bold px-4 py-2 rounded transition flex items-center gap-1.5 border border-gray-800">
-                ← Back to Dashboard
-            </button>
-            <span id="currentViewTitle" class="text-xs font-bold uppercase tracking-wider text-amber-400"></span>
-        </div>
-
-        <!-- DASHBOARD VIEW (Default Home) -->
-        <div id="view-dashboard" class="space-y-4">
-            <div class="card-bg p-5 rounded-xl shadow-lg">
-                <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">YTD Gross Revenue</p>
-                <div id="dashGross" class="text-3xl sm:text-4xl font-extrabold text-amber-400">$0.00</div>
-            </div>
-
-            <div class="card-bg p-5 rounded-xl shadow-lg">
-                <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">YTD Total Deductions</p>
-                <div id="dashDeductions" class="text-3xl sm:text-4xl font-extrabold text-red-400">$0.00</div>
-            </div>
-
-            <div class="card-bg p-5 rounded-xl shadow-lg">
-                <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">YTD Net Total Payout</p>
-                <div id="dashNet" class="text-3xl sm:text-4xl font-extrabold text-emerald-400">$0.00</div>
-            </div>
-
-            <!-- Dashboard Navigation Bars / Action Buttons -->
-            <div class="pt-2">
-                <p class="text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">Quick Navigation Bars</p>
-                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    <button onclick="switchView('settlement')" class="card-bg hover:bg-gray-900 p-3.5 rounded-xl text-left transition border border-gray-800 group">
-                        <div class="text-amber-400 text-base mb-1">➕</div>
-                        <div class="font-bold text-xs text-white group-hover:text-amber-400">Settlement Entry</div>
-                        <div class="text-[10px] text-gray-400">Add revenue & expenses</div>
-                    </button>
-                    <button onclick="switchView('ledger')" class="card-bg hover:bg-gray-900 p-3.5 rounded-xl text-left transition border border-gray-800 group">
-                        <div class="text-amber-400 text-base mb-1">📑</div>
-                        <div class="font-bold text-xs text-white group-hover:text-amber-400">Spreadsheet Ledger</div>
-                        <div class="text-[10px] text-gray-400">View itemized records</div>
-                    </button>
-                    <button onclick="switchView('perDiem')" class="card-bg hover:bg-gray-900 p-3.5 rounded-xl text-left transition border border-gray-800 group">
-                        <div class="text-blue-400 text-base mb-1">🌙</div>
-                        <div class="font-bold text-xs text-white group-hover:text-blue-400">Per Diem Nights</div>
-                        <div class="text-[10px] text-gray-400">Track sleeper berth</div>
-                    </button>
-                    <button onclick="switchView('taxForms')" class="card-bg hover:bg-gray-900 p-3.5 rounded-xl text-left transition border border-gray-800 group">
-                        <div class="text-emerald-400 text-base mb-1">📋</div>
-                        <div class="font-bold text-xs text-white group-hover:text-emerald-400">Annual Tax Forms</div>
-                        <div class="text-[10px] text-gray-400">Print & PDF packet</div>
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <!-- VIEW 1: SETTLEMENT ENTRY -->
-        <section id="view-settlement" class="hidden space-y-6">
-            <div class="card-bg p-5 rounded-xl shadow-lg">
-                <div class="flex justify-between items-center mb-4">
-                    <h2 id="formTitle" class="font-bold text-sm text-white">Add Settlement Entry</h2>
-                    <button type="button" onclick="resetSettlementForm()" class="text-xs text-gray-400 hover:text-amber-400 underline">Clear Form</button>
-                </div>
-                <form id="settlementForm" onsubmit="saveSettlementEntry(event)" class="space-y-4">
-                    <input type="hidden" id="editingId" value="">
-                    
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div>
-                            <label class="block text-xs text-gray-400 mb-1">Date</label>
-                            <input type="date" id="entryDate" required class="w-full input-bg px-3 py-2 rounded text-sm">
-                        </div>
-                        <div>
-                            <label class="block text-xs text-gray-400 mb-1">Gross Revenue ($)</label>
-                            <input type="number" step="0.01" id="entryGross" oninput="calculateFormNet()" placeholder="" value="" required class="w-full input-bg px-3 py-2 rounded text-sm">
-                        </div>
-                        <div>
-                            <label class="block text-xs text-gray-400 mb-1">Fuel ($)</label>
-                            <input type="number" step="0.01" id="entryFuel" oninput="calculateFormNet()" placeholder="" value="" class="w-full input-bg px-3 py-2 rounded text-sm">
-                        </div>
-                        <div>
-                            <label class="block text-xs text-gray-400 mb-1">Insurance ($)</label>
-                            <input type="number" step="0.01" id="entryInsurance" oninput="calculateFormNet()" placeholder="" value="" class="w-full input-bg px-3 py-2 rounded text-sm">
-                        </div>
-                        <div>
-                            <label class="block text-xs text-gray-400 mb-1">Plate ($)</label>
-                            <input type="number" step="0.01" id="entryPlate" oninput="calculateFormNet()" placeholder="" value="" class="w-full input-bg px-3 py-2 rounded text-sm">
-                        </div>
-                        <div>
-                            <label class="block text-xs text-gray-400 mb-1">Escrow ($)</label>
-                            <input type="number" step="0.01" id="entryEscrow" oninput="calculateFormNet()" placeholder="" value="" class="w-full input-bg px-3 py-2 rounded text-sm">
-                        </div>
-                        <div>
-                            <label class="block text-xs text-gray-400 mb-1">Toll ($)</label>
-                            <input type="number" step="0.01" id="entryToll" oninput="calculateFormNet()" placeholder="" value="" class="w-full input-bg px-3 py-2 rounded text-sm">
-                        </div>
-                        <div>
-                            <label class="block text-xs text-gray-400 mb-1">Other Deductions ($)</label>
-                            <input type="number" step="0.01" id="entryOther" oninput="calculateFormNet()" placeholder="" value="" class="w-full input-bg px-3 py-2 rounded text-sm">
-                        </div>
-                    </div>
-
-                    <!-- Live Net Calculation Box on Form -->
-                    <div class="bg-black p-4 rounded-lg border border-gray-800 flex items-center justify-between">
-                        <div>
-                            <p class="text-xs font-semibold uppercase tracking-wider text-gray-400">Calculated Net Payout</p>
-                            <p class="text-[10px] text-gray-500">Gross minus all itemized deductions above</p>
-                        </div>
-                        <div id="formCalculatedNet" class="text-xl sm:text-2xl font-extrabold text-emerald-400">$0.00</div>
-                    </div>
-
-                    <div class="flex justify-end space-x-3 pt-2">
-                        <button type="button" id="cancelEditBtn" onclick="resetSettlementForm()" class="hidden bg-gray-900 hover:bg-gray-800 text-gray-300 font-bold px-4 py-2.5 rounded text-sm transition border border-gray-800">Cancel</button>
-                        <button type="submit" id="submitBtn" class="bg-amber-500 hover:bg-amber-400 text-gray-950 font-bold px-6 py-2.5 rounded text-sm transition">
-                            Save Settlement
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </section>
-
-        <!-- VIEW 2: SPREADSHEET LEDGER & DEDUCTIONS -->
-        <section id="view-ledger" class="hidden space-y-6">
-            <div>
-                <h2 class="text-xs font-bold uppercase tracking-wider text-gray-400 mb-3">Itemized Deductions Breakdown</h2>
-                <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                    <div class="card-bg p-3.5 rounded-lg"><p class="text-xs text-gray-400">Fuel:</p><p id="sumFuel" class="text-lg font-bold text-red-400">$0.00</p></div>
-                    <div class="card-bg p-3.5 rounded-lg"><p class="text-xs text-gray-400">Insurance:</p><p id="sumInsurance" class="text-lg font-bold text-red-400">$0.00</p></div>
-                    <div class="card-bg p-3.5 rounded-lg"><p class="text-xs text-gray-400">Plate:</p><p id="sumPlate" class="text-lg font-bold text-red-400">$0.00</p></div>
-                    <div class="card-bg p-3.5 rounded-lg"><p class="text-xs text-gray-400">Escrow:</p><p id="sumEscrow" class="text-lg font-bold text-red-400">$0.00</p></div>
-                    <div class="card-bg p-3.5 rounded-lg"><p class="text-xs text-gray-400">Toll:</p><p id="sumToll" class="text-lg font-bold text-red-400">$0.00</p></div>
-                    <div class="card-bg p-3.5 rounded-lg"><p class="text-xs text-gray-400">Other:</p><p id="sumOther" class="text-lg font-bold text-red-400">$0.00</p></div>
-                </div>
-            </div>
-
-            <div>
-                <h2 class="text-xs font-bold uppercase tracking-wider text-amber-400 mb-3">2026 Itemized Spreadsheet Ledger</h2>
-                <div class="card-bg rounded-xl overflow-x-auto shadow-lg">
-                    <table class="w-full text-left text-xs whitespace-nowrap">
-                        <thead class="bg-black text-gray-400 border-b border-gray-800">
-                            <tr>
-                                <th class="p-3">DATE</th>
-                                <th class="p-3 text-amber-400">GROSS</th>
-                                <th class="p-3 text-red-400">FUEL</th>
-                                <th class="p-3 text-red-400">INSURANCE</th>
-                                <th class="p-3 text-red-400">PLATE</th>
-                                <th class="p-3 text-red-400">ESCROW</th>
-                                <th class="p-3 text-red-400">TOLL</th>
-                                <th class="p-3 text-red-400">OTHER</th>
-                                <th class="p-3 text-right">ACTION</th>
-                            </tr>
-                        </thead>
-                        <tbody id="ledgerTableBody" class="divide-y divide-gray-900"></tbody>
-                    </table>
-                </div>
-            </div>
-        </section>
-
-        <!-- VIEW 3: PER DIEM / NIGHTS -->
-        <section id="view-perDiem" class="hidden space-y-6">
-            <div class="card-bg p-5 rounded-xl shadow-lg">
-                <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">2026 Nights on Road</p>
-                <div id="perDiemCount" class="text-3xl sm:text-4xl font-extrabold text-blue-400">0 Nights</div>
-            </div>
-
-            <div class="card-bg p-5 rounded-xl shadow-lg relative">
-                <div class="flex items-start justify-between mb-2">
-                    <div>
-                        <h2 class="font-bold text-base text-white">Log Night Slept in Truck</h2>
-                    </div>
-                    <span class="text-[10px] font-semibold px-2.5 py-1 rounded-full bg-blue-950 text-blue-400 border border-blue-900">Per Diem Tracker</span>
-                </div>
-                <p class="text-xs text-gray-400 mb-4">Record dates you spent overnight in the sleeper berth for tax per diem substantiation.</p>
-                
-                <form id="perDiemForm" onsubmit="addPerDiemNight(event)" class="space-y-4">
-                    <div>
-                        <label class="block text-xs text-gray-400 mb-1">Night Date</label>
-                        <input type="date" id="perDiemDate" required class="w-full input-bg px-3 py-2 rounded text-sm">
-                    </div>
-                    <div>
-                        <label class="block text-xs text-gray-400 mb-1">Location / Notes (Optional)</label>
-                        <input type="text" id="perDiemNotes" placeholder="e.g. Pilot Truck Stop - Chicago, IL" class="w-full input-bg px-3 py-2 rounded text-sm">
-                    </div>
-                    <div class="flex justify-start pt-1">
-                        <button type="submit" class="bg-blue-600 hover:bg-blue-500 text-white font-bold px-5 py-2.5 rounded text-sm transition shadow">
-                            Log Night in Truck
-                        </button>
-                    </div>
-                </form>
-            </div>
-
-            <div>
-                <h2 class="text-xs font-bold uppercase tracking-wider text-blue-400 mb-3">Logged Per Diem Nights</h2>
-                <div class="card-bg rounded-xl overflow-x-auto shadow-lg">
-                    <table class="w-full text-left text-xs whitespace-nowrap">
-                        <thead class="bg-black text-gray-400 border-b border-gray-800">
-                            <tr>
-                                <th class="p-3">DATE</th>
-                                <th class="p-3">LOCATION / NOTES</th>
-                                <th class="p-3 text-right">ACTION</th>
-                            </tr>
-                        </thead>
-                        <tbody id="perDiemTableBody" class="divide-y divide-gray-900"></tbody>
-                    </table>
-                </div>
-            </div>
-        </section>
-
-        <!-- VIEW 4: ANNUAL TAX FORMS -->
-        <section id="view-taxForms" class="hidden space-y-6">
-            <div id="taxPacketPrintArea" class="space-y-6 card-bg p-6 rounded-xl shadow-xl border border-gray-800">
-                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-4 border-b border-gray-800">
-                    <div>
-                        <h2 class="font-bold text-lg text-white">Year of 2026 Tax & Per Diem Summary</h2>
-                        <p class="text-xs text-gray-400">RigTracker Pro Owner-Operator Tax Packet</p>
-                    </div>
-                    <div class="flex items-center gap-2 w-full sm:w-auto">
-                        <button onclick="downloadPDF()" class="flex-1 sm:flex-none bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2 rounded text-xs transition flex items-center justify-center gap-1.5">
-                            📄 Download PDF
-                        </button>
-                        <button onclick="window.print()" class="flex-1 sm:flex-none bg-gray-900 hover:bg-gray-800 text-gray-200 font-bold px-4 py-2 rounded text-xs border border-gray-800 transition">
-                            🖨️ Print
-                        </button>
-                    </div>
-                </div>
-
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div class="bg-black p-4 rounded-lg border border-gray-800">
-                        <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Gross Revenue</p>
-                        <p id="taxGross" class="text-2xl font-extrabold text-amber-400">$0.00</p>
-                    </div>
-                    <div class="bg-black p-4 rounded-lg border border-gray-800">
-                        <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Total Deductions</p>
-                        <p id="taxDeductions" class="text-2xl font-extrabold text-red-400">$0.00</p>
-                    </div>
-                    <div class="bg-black p-4 rounded-lg border border-gray-800">
-                        <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Net Taxable Income</p>
-                        <p id="taxNet" class="text-2xl font-extrabold text-emerald-400">$0.00</p>
-                    </div>
-                    <div class="bg-black p-4 rounded-lg border border-gray-800">
-                        <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Per Diem Deduction ($69/night)</p>
-                        <p id="taxPerDiemDeduction" class="text-2xl font-extrabold text-blue-400">$0.00</p>
-                    </div>
-                </div>
-
-                <div>
-                    <h3 class="text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">Itemized Expense Categories</h3>
-                    <div class="bg-black rounded-lg overflow-hidden border border-gray-800">
-                        <table class="w-full text-left text-xs">
-                            <tbody id="taxItemizedTableBody" class="divide-y divide-gray-900"></tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-    </main>
-
-    <!-- AUTHENTICATION MODAL (Sign In & Sign Up) -->
-    <div id="authModal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50 px-4 backdrop-blur-sm">
-        <div class="card-bg p-6 rounded-xl max-w-sm w-full space-y-4 shadow-2xl border border-gray-800">
-            <div class="flex justify-between items-center">
-                <h3 id="authModalTitle" class="font-bold text-base text-white">Sign In to RigTracker Pro</h3>
-                <button onclick="closeAuthModal()" class="text-gray-400 hover:text-white text-sm">✕</button>
-            </div>
-            <p id="authModalDesc" class="text-xs text-gray-400">Access your secure cloud ledger across all your devices.</p>
-            
-            <form id="authForm" onsubmit="handleAuthSubmit(event)" class="space-y-3">
-                <div>
-                    <label class="block text-xs text-gray-400 mb-1">Email Address</label>
-                    <input type="email" id="authEmail" required placeholder="driver@domain.com" class="w-full input-bg px-3 py-2 rounded text-sm">
-                </div>
-                <div>
-                    <label class="block text-xs text-gray-400 mb-1">Password</label>
-                    <input type="password" id="authPassword" required placeholder="••••••••" class="w-full input-bg px-3 py-2 rounded text-sm">
-                </div>
-                <div id="authErrorMsg" class="text-xs text-red-400 hidden"></div>
-                <div class="pt-2 flex flex-col gap-2">
-                    <button type="submit" id="authSubmitBtn" class="w-full bg-amber-500 hover:bg-amber-400 text-gray-950 font-bold py-2.5 rounded text-sm transition">
-                        Sign In
-                    </button>
-                    <button type="button" onclick="toggleAuthMode()" id="authToggleBtn" class="w-full text-xs text-amber-400 hover:underline py-1">
-                        Need an account? Sign Up
-                    </button>
-                </div>
             </form>
         </div>
     </div>
 
-    <!-- JavaScript Application Logic -->
+    <!-- ================= MAIN APPLICATION CONTAINER ================= -->
+    <div id="main-app" class="max-w-4xl mx-auto p-4 space-y-4" style="display: none;">
+        
+        <!-- Header / Nav -->
+        <header class="flex justify-between items-center bg-slate-900 border border-slate-800 p-4 rounded-xl shadow-lg">
+            <div class="flex items-center gap-3">
+                <div class="bg-amber-500 text-slate-950 font-black px-2.5 py-1.5 rounded-lg text-sm">RT</div>
+                <div>
+                    <h1 class="text-base font-bold text-white leading-tight">RigTracker Pro</h1>
+                    <p class="text-[11px] text-slate-400">Professional Owner-Operator Ledger</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <span id="user-email-badge" class="text-xs text-slate-400 hidden sm:inline"></span>
+                <button onclick="handleSignOut()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border border-slate-700">
+                    Sign Out
+                </button>
+            </div>
+        </header>
+
+        <!-- Summary Metric Cards -->
+        <section class="grid grid-cols-1 gap-3">
+            <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl shadow-md border-l-4 border-l-amber-500">
+                <span class="text-xs font-semibold tracking-wider text-slate-400 uppercase">YTD Gross Revenue</span>
+                <div id="ytd-gross" class="text-2xl sm:text-3xl font-extrabold text-amber-400 mt-1">$0.00</div>
+            </div>
+            <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl shadow-md border-l-4 border-l-red-500">
+                <span class="text-xs font-semibold tracking-wider text-slate-400 uppercase">YTD Total Deductions</span>
+                <div id="ytd-deductions" class="text-2xl sm:text-3xl font-extrabold text-red-400 mt-1">$0.00</div>
+            </div>
+            <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl shadow-md border-l-4 border-l-emerald-500">
+                <span class="text-xs font-semibold tracking-wider text-slate-400 uppercase">YTD Net Total Payout</span>
+                <div id="ytd-net" class="text-2xl sm:text-3xl font-extrabold text-emerald-400 mt-1">$0.00</div>
+            </div>
+        </section>
+
+        <!-- Quick Navigation Cards Grid -->
+        <section>
+            <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3 px-1">Quick Navigation Bars</h2>
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <button onclick="switchTab('entry')" class="bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 p-4 rounded-xl text-left transition-all group flex flex-col justify-between h-24">
+                    <span class="text-amber-500 text-lg font-bold">+</span>
+                    <div>
+                        <div class="font-bold text-sm text-white group-hover:text-amber-400 transition-colors">Settlement Entry</div>
+                        <div class="text-[11px] text-slate-400">Add revenue & expenses</div>
+                    </div>
+                </button>
+                <button onclick="switchTab('ledger')" class="bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 p-4 rounded-xl text-left transition-all group flex flex-col justify-between h-24">
+                    <span class="text-blue-400 text-lg font-bold">📁</span>
+                    <div>
+                        <div class="font-bold text-sm text-white group-hover:text-blue-300 transition-colors">Spreadsheet Ledger</div>
+                        <div class="text-[11px] text-slate-400">View itemized records</div>
+                    </div>
+                </button>
+                <button onclick="switchTab('perdiem')" class="bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 p-4 rounded-xl text-left transition-all group flex flex-col justify-between h-24">
+                    <span class="text-amber-400 text-lg font-bold">🌙</span>
+                    <div>
+                        <div class="font-bold text-sm text-white group-hover:text-amber-300 transition-colors">Per Diem Nights</div>
+                        <div class="text-[11px] text-slate-400">Track sleeper berth</div>
+                    </div>
+                </button>
+                <button onclick="switchTab('tax')" class="bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 p-4 rounded-xl text-left transition-all group flex flex-col justify-between h-24">
+                    <span class="text-emerald-400 text-lg font-bold">📄</span>
+                    <div>
+                        <div class="font-bold text-sm text-white group-hover:text-emerald-300 transition-colors">Annual Tax Forms</div>
+                        <div class="text-[11px] text-slate-400">Print & PDF packet</div>
+                    </div>
+                </button>
+            </div>
+        </section>
+
+        <!-- Dynamic Content Area -->
+        <main id="tab-content" class="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-lg">
+            <!-- Populated dynamically based on active tab -->
+        </main>
+    </div>
+
+    <!-- ================= APPLICATION SCRIPT ================= -->
     <script>
-        let isSignUpMode = false;
-        let currentUser = JSON.parse(localStorage.getItem('rigtracker_current_user')) || null;
+        // Supabase Configuration
+        const SUPABASE_URL = 'https://pxxikzzfrcncwufpzdfp.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'; // Insert your valid anon key here
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-        let settlements = JSON.parse(localStorage.getItem('rigtracker_settlements')) || [
-            { id: 1, date: '2026-09-25', gross: 4149.24, fuel: 1450.28, insurance: 94.75, plate: 0, escrow: 0, toll: 0, other: 0 },
-            { id: 2, date: '2026-10-09', gross: 5150.76, fuel: 2284.91, insurance: 94.75, plate: 0, escrow: 0, toll: 0, other: 0 },
-            { id: 3, date: '2026-10-15', gross: 3812.70, fuel: 1800.73, insurance: 94.75, plate: 0, escrow: 0, toll: 0, other: 0 },
-            { id: 4, date: '2026-10-23', gross: 6933.86, fuel: 2809.10, insurance: 94.75, plate: 0, escrow: 0, toll: 0, other: 0 },
-            { id: 5, date: '2026-10-30', gross: 2860.06, fuel: 1583.56, insurance: 94.75, plate: 0, escrow: 0, toll: 0, other: 0 }
-        ];
+        let currentTab = 'entry';
+        let settlements = [];
+        let perDiemNights = 0;
 
-        let perDiemNights = JSON.parse(localStorage.getItem('rigtracker_perdiem')) || [];
+        // Initialize App on Load
+        document.addEventListener('DOMContentLoaded', async () => {
+            const { data: { session } } = await supabase.auth.getSession();
+            updateAppView(session);
 
-        resetSettlementForm();
-        document.getElementById('perDiemDate').valueAsDate = new Date();
-
-        if (currentUser) {
-            updateAuthUI(currentUser.email);
-        }
-
-        function switchView(viewId) {
-            const views = ['dashboard', 'settlement', 'ledger', 'perDiem', 'taxForms'];
-            views.forEach(v => {
-                document.getElementById(`view-${v}`).classList.add('hidden');
+            supabase.auth.onAuthStateChange((event, session) => {
+                updateAppView(session);
             });
+        });
 
-            document.getElementById(`view-${viewId}`).classList.remove('hidden');
+        function updateAppView(session) {
+            const authScreen = document.getElementById('auth-screen');
+            const mainApp = document.getElementById('main-app');
 
-            const backBar = document.getElementById('backBar');
-            if (viewId === 'dashboard') {
-                backBar.classList.add('hidden');
+            if (session) {
+                authScreen.style.display = 'none';
+                mainApp.style.display = 'block';
+                document.getElementById('user-email-badge').textContent = session.user.email;
+                loadUserData(session.user.id);
             } else {
-                backBar.classList.remove('hidden');
-                const titles = {
-                    settlement: 'Settlement Entry',
-                    ledger: 'Spreadsheet Ledger & Deductions',
-                    perDiem: 'Per Diem Nights',
-                    taxForms: 'Annual Tax Forms'
-                };
-                document.getElementById('currentViewTitle').textContent = titles[viewId];
+                authScreen.style.display = 'flex';
+                mainApp.style.display = 'none';
+                clearDashboard();
             }
-
-            window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
-        function saveData() {
-            localStorage.setItem('rigtracker_settlements', JSON.stringify(settlements));
-            localStorage.setItem('rigtracker_perdiem', JSON.stringify(perDiemNights));
-            renderAll();
+        async function handleLogin(e) {
+            e.preventDefault();
+            const email = document.getElementById('auth-email').value;
+            const password = document.getElementById('auth-password').value;
+            const errorEl = document.getElementById('auth-error');
+            errorEl.classList.add('hidden');
+
+            const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+
+            if (error) {
+                errorEl.textContent = error.message;
+                errorEl.classList.remove('hidden');
+            }
         }
 
-        function resetSettlementForm() {
-            document.getElementById('editingId').value = '';
-            document.getElementById('entryDate').valueAsDate = new Date();
-            document.getElementById('entryGross').value = '';
-            document.getElementById('entryFuel').value = '';
-            document.getElementById('entryInsurance').value = '';
-            document.getElementById('entryPlate').value = '';
-            document.getElementById('entryEscrow').value = '';
-            document.getElementById('entryToll').value = '';
-            document.getElementById('entryOther').value = '';
-            document.getElementById('formTitle').textContent = 'Add Settlement Entry';
-            document.getElementById('submitBtn').textContent = 'Save Settlement';
-            document.getElementById('cancelEditBtn').classList.add('hidden');
-            calculateFormNet();
+        async function handleSignOut() {
+            await supabase.auth.signOut();
         }
 
-        function calculateFormNet() {
-            const gross = parseFloat(document.getElementById('entryGross').value) || 0;
-            const fuel = parseFloat(document.getElementById('entryFuel').value) || 0;
-            const insurance = parseFloat(document.getElementById('entryInsurance').value) || 0;
-            const plate = parseFloat(document.getElementById('entryPlate').value) || 0;
-            const escrow = parseFloat(document.getElementById('entryEscrow').value) || 0;
-            const toll = parseFloat(document.getElementById('entryToll').value) || 0;
-            const other = parseFloat(document.getElementById('entryOther').value) || 0;
+        function clearDashboard() {
+            settlements = [];
+            perDiemNights = 0;
+            updateMetrics();
+        }
+
+        async function loadUserData(userId) {
+            // Load settlements and per diem from Supabase or localStorage fallback
+            const localData = localStorage.getItem('rigtracker_settlements_' + userId);
+            if (localData) {
+                settlements = JSON.parse(localData);
+            } else {
+                settlements = [];
+            }
+            updateMetrics();
+            switchTab('entry');
+        }
+
+        function saveData(userId) {
+            supabase.auth.getSession().then(({ data: { session } }) => {
+                if (session) {
+                    localStorage.setItem('rigtracker_settlements_' + session.user.id, JSON.stringify(settlements));
+                }
+            });
+            updateMetrics();
+        }
+
+        function updateMetrics() {
+            let gross = settlements.reduce((sum, item) => sum + (Number(item.gross) || 0), 0);
+            let deductions = settlements.reduce((sum, item) => sum + (Number(item.totalDeductions) || 0), 0);
+            let net = gross - deductions;
+
+            document.getElementById('ytd-gross').textContent = '$' + gross.toFixed(2);
+            document.getElementById('ytd-deductions').textContent = '$' + deductions.toFixed(2);
+            document.getElementById('ytd-net').textContent = '$' + net.toFixed(2);
+        }
+
+        function switchTab(tab) {
+            currentTab = tab;
+            const container = document.getElementById('tab-content');
+
+            if (tab === 'entry') {
+                container.innerHTML = `
+                    <h3 class="text-base font-bold text-white mb-4">New Settlement Entry</h3>
+                    <form onsubmit="handleSettlementSubmit(event)" class="space-y-4">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">Date</label>
+                                <input type="date" id="settle-date" required class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">Gross Revenue ($)</label>
+                                <input type="number" step="0.01" id="settle-gross" required class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm" placeholder="0.00">
+                            </div>
+                        </div>
+                        <h4 class="text-xs font-bold uppercase tracking-wider text-slate-400 pt-2">Deductions</h4>
+                        <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                            <div>
+                                <label class="block text-[11px] text-slate-400 mb-1">Fuel ($)</label>
+                                <input type="number" step="0.01" id="ded-fuel" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm" placeholder="0.00">
+                            </div>
+                            <div>
+                                <label class="block text-[11px] text-slate-400 mb-1">Insurance ($)</label>
+                                <input type="number" step="0.01" id="ded-insurance" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm" placeholder="0.00">
+                            </div>
+                            <div>
+                                <label class="block text-[11px] text-slate-400 mb-1">Plate ($)</label>
+                                <input type="number" step="0.01" id="ded-plate" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm" placeholder="0.00">
+                            </div>
+                            <div>
+                                <label class="block text-[11px] text-slate-400 mb-1">Escrow ($)</label>
+                                <input type="number" step="0.01" id="ded-escrow" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm" placeholder="0.00">
+                            </div>
+                            <div>
+                                <label class="block text-[11px] text-slate-400 mb-1">Tolls ($)</label>
+                                <input type="number" step="0.01" id="ded-toll" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm" placeholder="0.00">
+                            </div>
+                            <div>
+                                <label class="block text-[11px] text-slate-400 mb-1">Other ($)</label>
+                                <input type="number" step="0.01" id="ded-other" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm" placeholder="0.00">
+                            </div>
+                        </div>
+                        <button type="submit" class="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-2.5 rounded-lg text-sm transition-colors mt-4">
+                            Save Settlement Record
+                        </button>
+                    </form>
+                `;
+            } else if (tab === 'ledger') {
+                container.innerHTML = `
+                    <h3 class="text-base font-bold text-white mb-4">Itemized Ledger Records</h3>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs">
+                            <thead class="bg-slate-950 text-slate-400 uppercase border-b border-slate-800">
+                                <tr>
+                                    <th class="p-3">Date</th>
+                                    <th class="p-3">Gross</th>
+                                    <th class="p-3">Deductions</th>
+                                    <th class="p-3">Net Payout</th>
+                                    <th class="p-3 text-right">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-800">
+                                ${settlements.length === 0 ? `<tr><td colspan="5" class="p-4 text-center text-slate-500">No settlement records found.</td></tr>` : 
+                                    settlements.map((item, idx) => `
+                                        <tr>
+                                            <td class="p-3">${item.date}</td>
+                                            <td class="p-3 text-amber-400 font-semibold">$${Number(item.gross).toFixed(2)}</td>
+                                            <td class="p-3 text-red-400 font-semibold">$${Number(item.totalDeductions).toFixed(2)}</td>
+                                            <td class="p-3 text-emerald-400 font-semibold">$${(item.gross - item.totalDeductions).toFixed(2)}</td>
+                                            <td class="p-3 text-right">
+                                                <button onclick="deleteSettlement(${idx})" class="text-red-400 hover:text-red-300">Delete</button>
+                                            </td>
+                                        </tr>
+                                    `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+            } else if (tab === 'perdiem') {
+                container.innerHTML = `
+                    <h3 class="text-base font-bold text-white mb-4">Per Diem Night Tracking ($69/day rate)</h3>
+                    <div class="flex items-center justify-between bg-slate-950 p-4 rounded-xl border border-slate-800">
+                        <div>
+                            <div class="text-sm font-bold text-white">Sleeper Berth Nights</div>
+                            <div class="text-xs text-slate-400">Total YTD Deduction Value: <span class="text-emerald-400 font-bold">$${(perDiemNights * 69).toFixed(2)}</span></div>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <button onclick="adjustPerDiem(-1)" class="bg-slate-800 text-white px-3 py-1.5 rounded-lg text-sm font-bold">-</button>
+                            <span id="perdiem-count" class="text-lg font-bold text-amber-400">${perDiemNights}</span>
+                            <button onclick="adjustPerDiem(1)" class="bg-slate-800 text-white px-3 py-1.5 rounded-lg text-sm font-bold">+</button>
+                        </div>
+                    </div>
+                `;
+            } else if (tab === 'tax') {
+                container.innerHTML = `
+                    <h3 class="text-base font-bold text-white mb-4">Annual Tax Packet & Summary</h3>
+                    <p class="text-xs text-slate-400 mb-4">Generate printable summaries for your accountant or tax preparation.</p>
+                    <button onclick="window.print()" class="bg-slate-800 hover:bg-slate-700 text-white font-bold px-4 py-2 rounded-lg text-xs border border-slate-700 transition-colors">
+                        Print / Export Tax Packet PDF
+                    </button>
+                `;
+            }
+        }
+
+        async function handleSettlementSubmit(e) {
+            e.preventDefault();
+            const date = document.getElementById('settle-date').value;
+            const gross = parseFloat(document.getElementById('settle-gross').value) || 0;
+            const fuel = parseFloat(document.getElementById('ded-fuel').value) || 0;
+            const insurance = parseFloat(document.getElementById('ded-insurance').value) || 0;
+            const plate = parseFloat(document.getElementById('ded-plate').value) || 0;
+            const escrow = parseFloat(document.getElementById('ded-escrow').value) || 0;
+            const toll = parseFloat(document.getElementById('ded-toll').value) || 0;
+            const other = parseFloat(document.getElementById('ded-other').value) || 0;
 
             const totalDeductions = fuel + insurance + plate + escrow + toll + other;
-            const net = gross - totalDeductions;
 
-            const netEl = document.getElementById('formCalculatedNet');
-            netEl.textContent = `$${net.toFixed(2)}`;
-            if (net < 0) {
-                netEl.className = 'text-xl sm:text-2xl font-extrabold text-red-400';
-            } else {
-                netEl.className = 'text-xl sm:text-2xl font-extrabold text-emerald-400';
-            }
-        }
-
-        function saveSettlementEntry(e) {
-            e.preventDefault();
-            const editingId = document.getElementById('editingId').value;
+            settlements.push({ date, gross, totalDeductions, fuel, insurance, plate, escrow, toll, other });
             
-            const entryData = {
-                id: editingId ? parseInt(editingId) : Date.now(),
-                date: document.getElementById('entryDate').value,
-                gross: parseFloat(document.getElementById('entryGross').value) || 0,
-                fuel: parseFloat(document.getElementById('entryFuel').value) || 0,
-                insurance: parseFloat(document.getElementById('entryInsurance').value) || 0,
-                plate: parseFloat(document.getElementById('entryPlate').value) || 0,
-                escrow: parseFloat(document.getElementById('entryEscrow').value) || 0,
-                toll: parseFloat(document.getElementById('entryToll').value) || 0,
-                other: parseFloat(document.getElementById('entryOther').value) || 0
-            };
-
-            if (editingId) {
-                const index = settlements.findIndex(s => s.id === parseInt(editingId));
-                if (index !== -1) {
-                    settlements[index] = entryData;
-                }
-            } else {
-                settlements.unshift(entryData);
-            }
-
-            saveData();
-            resetSettlementForm();
-            switchView('ledger');
-        }
-
-        function editSettlement(id) {
-            const entry = settlements.find(s => s.id === id);
-            if (!entry) return;
-
-            document.getElementById('editingId').value = entry.id;
-            document.getElementById('entryDate').value = entry.date;
-            document.getElementById('entryGross').value = entry.gross ? entry.gross.toFixed(2) : '';
-            document.getElementById('entryFuel').value = entry.fuel ? entry.fuel.toFixed(2) : '';
-            document.getElementById('entryInsurance').value = entry.insurance ? entry.insurance.toFixed(2) : '';
-            document.getElementById('entryPlate').value = entry.plate ? entry.plate.toFixed(2) : '';
-            document.getElementById('entryEscrow').value = entry.escrow ? entry.escrow.toFixed(2) : '';
-            document.getElementById('entryToll').value = entry.toll ? entry.toll.toFixed(2) : '';
-            document.getElementById('entryOther').value = entry.other ? entry.other.toFixed(2) : '';
-
-            document.getElementById('formTitle').textContent = 'Edit Settlement Entry';
-            document.getElementById('submitBtn').textContent = 'Update Settlement';
-            document.getElementById('cancelEditBtn').classList.remove('hidden');
-
-            calculateFormNet();
-            switchView('settlement');
-        }
-
-        function deleteSettlement(id) {
-            if (confirm('Are you sure you want to delete this settlement entry?')) {
-                settlements = settlements.filter(s => s.id !== id);
-                saveData();
-            }
-        }
-
-        function addPerDiemNight(e) {
-            e.preventDefault();
-            const newNight = {
-                id: Date.now(),
-                date: document.getElementById('perDiemDate').value,
-                notes: document.getElementById('perDiemNotes').value || 'Sleeper Berth'
-            };
-            perDiemNights.unshift(newNight);
-            saveData();
-            document.getElementById('perDiemForm').reset();
-            document.getElementById('perDiemDate').valueAsDate = new Date();
-        }
-
-        function deletePerDiemNight(id) {
-            perDiemNights = perDiemNights.filter(n => n.id !== id);
-            saveData();
-        }
-
-        function renderAll() {
-            let totalGross = 0, totalFuel = 0, totalInsurance = 0, totalPlate = 0, totalEscrow = 0, totalToll = 0, totalOther = 0;
-
-            const tableBody = document.getElementById('ledgerTableBody');
-            tableBody.innerHTML = '';
-
-            settlements.forEach(s => {
-                totalGross += s.gross;
-                totalFuel += s.fuel;
-                totalInsurance += s.insurance;
-                totalPlate += s.plate;
-                totalEscrow += s.escrow;
-                totalToll += s.toll;
-                totalOther += s.other;
-
-                tableBody.innerHTML += `
-                    <tr class="hover:bg-gray-900/50">
-                        <td class="p-3 text-gray-300">${s.date}</td>
-                        <td class="p-3 text-amber-400 font-semibold">$${s.gross.toFixed(2)}</td>
-                        <td class="p-3 text-red-400">$${s.fuel.toFixed(2)}</td>
-                        <td class="p-3 text-red-400">$${s.insurance.toFixed(2)}</td>
-                        <td class="p-3 text-red-400">$${s.plate.toFixed(2)}</td>
-                        <td class="p-3 text-red-400">$${s.escrow.toFixed(2)}</td>
-                        <td class="p-3 text-red-400">$${s.toll.toFixed(2)}</td>
-                        <td class="p-3 text-red-400">$${s.other.toFixed(2)}</td>
-                        <td class="p-3 text-right space-x-2">
-                            <button onclick="editSettlement(${s.id})" class="text-amber-400 hover:text-amber-300">Edit</button>
-                            <button onclick="deleteSettlement(${s.id})" class="text-gray-500 hover:text-red-400">Delete</button>
-                        </td>
-                    </tr>
-                `;
+            supabase.auth.getSession().then(({ data: { session } }) => {
+                if (session) saveData(session.user.id);
             });
 
-            const totalDeductions = totalFuel + totalInsurance + totalPlate + totalEscrow + totalToll + totalOther;
-            const netPayout = totalGross - totalDeductions;
+            switchTab('ledger');
+        }
 
-            document.getElementById('dashGross').textContent = `$${totalGross.toFixed(2)}`;
-            document.getElementById('dashDeductions').textContent = `$${totalDeductions.toFixed(2)}`;
-            document.getElementById('dashNet').textContent = `$${netPayout.toFixed(2)}`;
-
-            document.getElementById('sumFuel').textContent = `$${totalFuel.toFixed(2)}`;
-            document.getElementById('sumInsurance').textContent = `$${totalInsurance.toFixed(2)}`;
-            document.getElementById('sumPlate').textContent = `$${totalPlate.toFixed(2)}`;
-            document.getElementById('sumEscrow').textContent = `$${totalEscrow.toFixed(2)}`;
-            document.getElementById('sumToll').textContent = `$${totalToll.toFixed(2)}`;
-            document.getElementById('sumOther').textContent = `$${totalOther.toFixed(2)}`;
-
-            const nightCount = perDiemNights.length;
-            const perDiemTotalVal = nightCount * 69;
-            document.getElementById('perDiemCount').textContent = `${nightCount} Nights`;
-            
-            const perDiemTableBody = document.getElementById('perDiemTableBody');
-            perDiemTableBody.innerHTML = '';
-            perDiemNights.forEach(n => {
-                perDiemTableBody.innerHTML += `
-                    <tr class="hover:bg-gray-900/50">
-                        <td class="p-3 text-gray-300">${n.date}</td>
-                        <td class="p-3 text-gray-300">${n.notes}</td>
-                        <td class="p-3 text-right">
-                            <button onclick="deletePerDiemNight(${n.id})" class="text-gray-500 hover:text-red-400">Delete</button>
-                        </td>
-                    </tr>
-                `;
+        function deleteSettlement(index) {
+            settlements.splice(index, 1);
+            supabase.auth.getSession().then(({ data: { session } }) => {
+                if (session) saveData(session.user.id);
             });
-
-            document.getElementById('taxGross').textContent = `$${totalGross.toFixed(2)}`;
-            document.getElementById('taxDeductions').textContent = `$${totalDeductions.toFixed(2)}`;
-            document.getElementById('taxNet').textContent = `$${netPayout.toFixed(2)}`;
-            document.getElementById('taxPerDiemDeduction').textContent = `$${perDiemTotalVal.toFixed(2)} (${nightCount} nights)`;
-
-            document.getElementById('taxItemizedTableBody').innerHTML = `
-                <tr><td class="p-2.5 text-gray-400">Fuel Deductions</td><td class="p-2.5 text-right font-bold text-red-400">$${totalFuel.toFixed(2)}</td></tr>
-                <tr><td class="p-2.5 text-gray-400">Insurance</td><td class="p-2.5 text-right font-bold text-red-400">$${totalInsurance.toFixed(2)}</td></tr>
-                <tr><td class="p-2.5 text-gray-400">Plate & Permits</td><td class="p-2.5 text-right font-bold text-red-400">$${totalPlate.toFixed(2)}</td></tr>
-                <tr><td class="p-2.5 text-gray-400">Escrow</td><td class="p-2.5 text-right font-bold text-red-400">$${totalEscrow.toFixed(2)}</td></tr>
-                <tr><td class="p-2.5 text-gray-400">Tolls</td><td class="p-2.5 text-right font-bold text-red-400">$${totalToll.toFixed(2)}</td></tr>
-                <tr><td class="p-2.5 text-gray-400">Other Deductions</td><td class="p-2.5 text-right font-bold text-red-400">$${totalOther.toFixed(2)}</td></tr>
-            `;
+            switchTab('ledger');
         }
 
-        function openAuthModal() {
-            document.getElementById('authModal').classList.remove('hidden');
+        function adjustPerDiem(delta) {
+            perDiemNights = Math.max(0, perDiemNights + delta);
+            document.getElementById('perdiem-count').textContent = perDiemNights;
+            updateMetrics();
         }
-        function closeAuthModal() {
-            document.getElementById('authModal').classList.add('hidden');
-            document.getElementById('authErrorMsg').classList.add('hidden');
-        }
-        function toggleAuthMode() {
-            isSignUpMode = !isSignUpMode;
-            document.getElementById('authModalTitle').textContent = isSignUpMode ? 'Create RigTracker Pro Account' : 'Sign In to RigTracker Pro';
-            document.getElementById('authSubmitBtn').textContent = isSignUpMode ? 'Sign Up' : 'Sign In';
-            document.getElementById('authToggleBtn').textContent = isSignUpMode ? 'Already have an account? Sign In' : "Need an account? Sign Up";
-            document.getElementById('authErrorMsg').classList.add('hidden');
-        }
-
-        function updateAuthUI(email) {
-            const badge = document.getElementById('cloudStatusBadge');
-            badge.textContent = `Cloud: ${email}`;
-            badge.className = 'hidden sm:inline-block text-xs px-2.5 py-1 rounded bg-emerald-950 text-emerald-400 font-medium border border-emerald-800';
-            
-            const btn = document.getElementById('authNavBtn');
-            btn.textContent = 'Sign Out';
-            btn.onclick = handleSignOut;
-        }
-
-        function handleSignOut() {
-            currentUser = null;
-            localStorage.removeItem('rigtracker_current_user');
-            location.reload();
-        }
-
-        function handleAuthSubmit(e) {
-            e.preventDefault();
-            const email = document.getElementById('authEmail').value;
-            const password = document.getElementById('authPassword').value;
-            const errDiv = document.getElementById('authErrorMsg');
-            errDiv.classList.add('hidden');
-
-            if (!email || password.length < 1) {
-                errDiv.textContent = 'Please enter a valid email and password.';
-                errDiv.classList.remove('hidden');
-                return;
-            }
-
-            currentUser = { email };
-            localStorage.setItem('rigtracker_current_user', JSON.stringify(currentUser));
-            updateAuthUI(email);
-            closeAuthModal();
-        }
-
-        function downloadPDF() {
-            const element = document.getElementById('taxPacketPrintArea');
-            const opt = {
-                margin:       0.5,
-                filename:     'RigTracker_Pro_2026_Tax_Packet.pdf',
-                image:        { type: 'jpeg', quality: 0.98 },
-                html2canvas:  { scale: 2, backgroundColor: '#0b0e14' },
-                jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' }
-            };
-            html2pdf().from(element).set(opt).save();
-        }
-
-        function exportBackup() {
-            const data = { settlements, perDiemNights, exportDate: new Date().toISOString() };
-            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `RigTracker_Pro_Backup_${new Date().toISOString().split('T')[0]}.json`;
-            a.click();
-        }
-
-        renderAll();
     </script>
 </body>
 </html>
