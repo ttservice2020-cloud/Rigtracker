@@ -71,7 +71,7 @@
                     Sign In
                 </button>
 
-                <!-- Separate Sign Up Mode Switch Button -->
+                <!-- Mode Switch Button -->
                 <div>
                     <button type="button" id="auth-switch-btn" onclick="toggleAuthMode()" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold py-3 px-4 rounded-lg transition-colors cursor-pointer shadow">
                         Sign Up
@@ -196,11 +196,17 @@
     <!-- JAVASCRIPT LOGIC & SUPABASE SYNC -->
     <script>
         // ==========================================
-        // SUPABASE CONFIGURATION
+        // SUPABASE CONFIGURATION (Valid Working Keys)
         // ==========================================
         const SUPABASE_URL = 'https://pxxikzzfrcncwufpzdfp.supabase.co';
         const SUPABASE_ANON_KEY = 'sb_publishable_7yQMjUtCtnHC6jgRF4ROLA_CmgsHaZo';
-        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        
+        let supabaseClient = null;
+        try {
+            supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        } catch (err) {
+            console.error("Supabase failed to initialize:", err);
+        }
 
         let currentUser = null;
         let isSignUpMode = false;
@@ -241,10 +247,16 @@
         }
 
         async function submitAuth() {
-            const usernameInput = document.getElementById('auth-username').value.trim();
-            const password = document.getElementById('auth-password').value;
             const errorEl = document.getElementById('auth-error');
             errorEl.innerText = '';
+
+            if (!supabaseClient) {
+                errorEl.innerText = "Database connection error. Please refresh.";
+                return;
+            }
+
+            const usernameInput = document.getElementById('auth-username').value.trim();
+            const password = document.getElementById('auth-password').value;
 
             if (!usernameInput || !password) {
                 errorEl.innerText = "Username and password are required.";
@@ -272,7 +284,7 @@
                     dob: document.getElementById('auth-dob').value
                 };
 
-                const { data, error } = await supabase.auth.signUp({
+                const { data, error } = await supabaseClient.auth.signUp({
                     email: emailInput,
                     password: password,
                     options: { data: metadata }
@@ -292,7 +304,7 @@
                     loginEmail = `${usernameInput.toLowerCase().replace(/[^a-z0-9]/g, '')}@rigtracker.local`;
                 }
 
-                const { data, error } = await supabase.auth.signInWithPassword({
+                const { data, error } = await supabaseClient.auth.signInWithPassword({
                     email: loginEmail,
                     password: password
                 });
@@ -311,13 +323,16 @@
         }
 
         async function handleLogout() {
-            await supabase.auth.signOut();
+            if (supabaseClient) {
+                await supabaseClient.auth.signOut();
+            }
             currentUser = null;
             document.getElementById('auth-overlay').style.display = 'flex';
         }
 
         window.addEventListener('DOMContentLoaded', async () => {
-            const { data: { session } } = await supabase.auth.getSession();
+            if (!supabaseClient) return;
+            const { data: { session } } = await supabaseClient.auth.getSession();
             if (session) {
                 currentUser = session.user;
                 document.getElementById('auth-overlay').style.display = 'none';
@@ -331,9 +346,9 @@
         });
 
         async function loadUserDataFromCloud() {
-            if (!currentUser) return;
+            if (!currentUser || !supabaseClient) return;
 
-            const { data, error } = await supabase
+            const { data, error } = await supabaseClient
                 .from('driver_ledgers')
                 .select('ledger_json')
                 .eq('user_id', currentUser.id)
@@ -351,10 +366,10 @@
             localStorage.setItem('rigtracker_data', JSON.stringify(appData));
             renderDashboard();
 
-            if (!currentUser) return;
+            if (!currentUser || !supabaseClient) return;
             clearTimeout(saveTimeout);
             saveTimeout = setTimeout(async () => {
-                await supabase
+                await supabaseClient
                     .from('driver_ledgers')
                     .upsert({ 
                         user_id: currentUser.id, 
