@@ -71,9 +71,10 @@
                     Sign In
                 </button>
 
-                <div class="text-center pt-2">
-                    <button type="button" onclick="toggleAuthMode()" id="auth-switch-btn" class="text-sm text-slate-400 hover:text-amber-400 underline cursor-pointer">
-                        Need an account? Sign up (Privacy Matters)
+                <!-- Matching Sign Up Bar -->
+                <div>
+                    <button type="button" id="auth-switch-btn" onclick="toggleAuthMode()" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold py-3 px-4 rounded-lg transition-colors cursor-pointer shadow">
+                        Sign Up
                     </button>
                 </div>
             </div>
@@ -225,14 +226,14 @@
 
             if (isSignUpMode) {
                 subtitle.innerText = "Create secure profile (Privacy First)";
-                actionBtn.innerText = "Sign Up";
-                switchBtn.innerText = "Already have an account? Sign In";
+                actionBtn.innerText = "Create Account";
+                switchBtn.innerText = "Back to Sign In";
                 optionalFields.classList.remove('hidden');
                 confirmBox.classList.remove('hidden');
             } else {
                 subtitle.innerText = "Secure, private owner-operator ledger";
                 actionBtn.innerText = "Sign In";
-                switchBtn.innerText = "Need an account? Sign up (Privacy Matters)";
+                switchBtn.innerText = "Sign Up";
                 optionalFields.classList.add('hidden');
                 confirmBox.classList.add('hidden');
             }
