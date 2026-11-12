@@ -12,17 +12,17 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <style>
         body {
-            background-color: #0d0f12;
+            background-color: #050709;
             color: #f3f4f6;
             font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
         }
         .card-bg {
-            background-color: #161a22;
-            border: 1px solid #21262d;
+            background-color: #0b0e14;
+            border: 1px solid #1f242d;
         }
         .input-bg {
-            background-color: #0d0f12;
-            border: 1px solid #30363d;
+            background-color: #050709;
+            border: 1px solid #2d3542;
             color: #f3f4f6;
         }
         .input-bg:focus {
@@ -31,7 +31,7 @@
         }
     </style>
 </head>
-<body class="min-h-screen pb-28">
+<body class="min-h-screen pb-12">
 
     <!-- Top Navigation Header -->
     <header class="card-bg sticky top-0 z-40 px-4 py-3 shadow-md">
@@ -46,7 +46,7 @@
 
             <div class="flex items-center space-x-2">
                 <span class="hidden sm:inline-block text-xs px-2.5 py-1 rounded bg-emerald-950 text-emerald-400 font-medium border border-emerald-800">Cloud Active</span>
-                <button onclick="exportBackup()" class="bg-gray-800 hover:bg-gray-700 text-gray-200 text-xs font-semibold px-3 py-2 rounded border border-gray-700 transition">
+                <button onclick="exportBackup()" class="bg-gray-900 hover:bg-gray-800 text-gray-200 text-xs font-semibold px-3 py-2 rounded border border-gray-800 transition">
                     Backup
                 </button>
                 <button onclick="openAuthModal()" class="bg-amber-500 hover:bg-amber-400 text-gray-950 text-xs font-bold px-3 py-2 rounded transition">
@@ -57,6 +57,14 @@
     </header>
 
     <main class="max-w-4xl mx-auto px-4 mt-6 space-y-6">
+
+        <!-- BACK / HOME BAR (Shown when inside a section) -->
+        <div id="backBar" class="hidden flex items-center justify-between pb-2 border-b border-gray-800">
+            <button onclick="switchView('dashboard')" class="bg-gray-900 hover:bg-gray-800 text-gray-200 text-xs font-bold px-4 py-2 rounded transition flex items-center gap-1.5 border border-gray-800">
+                ← Back to Dashboard
+            </button>
+            <span id="currentViewTitle" class="text-xs font-bold uppercase tracking-wider text-amber-400"></span>
+        </div>
 
         <!-- DASHBOARD VIEW (Default Home) -->
         <div id="view-dashboard" class="space-y-4">
@@ -73,6 +81,33 @@
             <div class="card-bg p-5 rounded-xl shadow-lg">
                 <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">YTD Net Total Payout</p>
                 <div id="dashNet" class="text-3xl sm:text-4xl font-extrabold text-emerald-400">$0.00</div>
+            </div>
+
+            <!-- Dashboard Navigation Bars / Action Buttons -->
+            <div class="pt-2">
+                <p class="text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">Quick Navigation Bars</p>
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <button onclick="switchView('settlement')" class="card-bg hover:bg-gray-900 p-3.5 rounded-xl text-left transition border border-gray-800 group">
+                        <div class="text-amber-400 text-base mb-1">➕</div>
+                        <div class="font-bold text-xs text-white group-hover:text-amber-400">Settlement Entry</div>
+                        <div class="text-[10px] text-gray-400">Add revenue & expenses</div>
+                    </button>
+                    <button onclick="switchView('ledger')" class="card-bg hover:bg-gray-900 p-3.5 rounded-xl text-left transition border border-gray-800 group">
+                        <div class="text-amber-400 text-base mb-1">📑</div>
+                        <div class="font-bold text-xs text-white group-hover:text-amber-400">Spreadsheet Ledger</div>
+                        <div class="text-[10px] text-gray-400">View itemized records</div>
+                    </button>
+                    <button onclick="switchView('perDiem')" class="card-bg hover:bg-gray-900 p-3.5 rounded-xl text-left transition border border-gray-800 group">
+                        <div class="text-blue-400 text-base mb-1">🌙</div>
+                        <div class="font-bold text-xs text-white group-hover:text-blue-400">Per Diem Nights</div>
+                        <div class="text-[10px] text-gray-400">Track sleeper berth</div>
+                    </button>
+                    <button onclick="switchView('taxForms')" class="card-bg hover:bg-gray-900 p-3.5 rounded-xl text-left transition border border-gray-800 group">
+                        <div class="text-emerald-400 text-base mb-1">📋</div>
+                        <div class="font-bold text-xs text-white group-hover:text-emerald-400">Annual Tax Forms</div>
+                        <div class="text-[10px] text-gray-400">Print & PDF packet</div>
+                    </button>
+                </div>
             </div>
         </div>
 
@@ -118,7 +153,7 @@
                         <input type="number" step="0.01" id="entryOther" placeholder="0.00" value="0.00" class="w-full input-bg px-3 py-2 rounded text-sm">
                     </div>
                     <div class="sm:col-span-2 flex justify-end space-x-3 mt-2">
-                        <button type="button" id="cancelEditBtn" onclick="resetSettlementForm()" class="hidden bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold px-4 py-2.5 rounded text-sm transition">Cancel</button>
+                        <button type="button" id="cancelEditBtn" onclick="resetSettlementForm()" class="hidden bg-gray-900 hover:bg-gray-800 text-gray-300 font-bold px-4 py-2.5 rounded text-sm transition border border-gray-800">Cancel</button>
                         <button type="submit" id="submitBtn" class="bg-amber-500 hover:bg-amber-400 text-gray-950 font-bold px-6 py-2.5 rounded text-sm transition">
                             Save Settlement
                         </button>
@@ -145,7 +180,7 @@
                 <h2 class="text-xs font-bold uppercase tracking-wider text-amber-400 mb-3">2026 Itemized Spreadsheet Ledger</h2>
                 <div class="card-bg rounded-xl overflow-x-auto shadow-lg">
                     <table class="w-full text-left text-xs whitespace-nowrap">
-                        <thead class="bg-gray-900 text-gray-400 border-b border-gray-800">
+                        <thead class="bg-black text-gray-400 border-b border-gray-800">
                             <tr>
                                 <th class="p-3">DATE</th>
                                 <th class="p-3 text-amber-400">GROSS</th>
@@ -158,7 +193,7 @@
                                 <th class="p-3 text-right">ACTION</th>
                             </tr>
                         </thead>
-                        <tbody id="ledgerTableBody" class="divide-y divide-gray-800"></tbody>
+                        <tbody id="ledgerTableBody" class="divide-y divide-gray-900"></tbody>
                     </table>
                 </div>
             </div>
@@ -176,7 +211,7 @@
                     <div>
                         <h2 class="font-bold text-base text-white">Log Night Slept in Truck</h2>
                     </div>
-                    <span class="text-[10px] font-semibold px-2.5 py-1 rounded-full bg-blue-950 text-blue-400 border border-blue-800">Per Diem Tracker</span>
+                    <span class="text-[10px] font-semibold px-2.5 py-1 rounded-full bg-blue-950 text-blue-400 border border-blue-900">Per Diem Tracker</span>
                 </div>
                 <p class="text-xs text-gray-400 mb-4">Record dates you spent overnight in the sleeper berth for tax per diem substantiation.</p>
                 
@@ -201,14 +236,14 @@
                 <h2 class="text-xs font-bold uppercase tracking-wider text-blue-400 mb-3">Logged Per Diem Nights</h2>
                 <div class="card-bg rounded-xl overflow-x-auto shadow-lg">
                     <table class="w-full text-left text-xs whitespace-nowrap">
-                        <thead class="bg-gray-900 text-gray-400 border-b border-gray-800">
+                        <thead class="bg-black text-gray-400 border-b border-gray-800">
                             <tr>
                                 <th class="p-3">DATE</th>
                                 <th class="p-3">LOCATION / NOTES</th>
                                 <th class="p-3 text-right">ACTION</th>
                             </tr>
                         </thead>
-                        <tbody id="perDiemTableBody" class="divide-y divide-gray-800"></tbody>
+                        <tbody id="perDiemTableBody" class="divide-y divide-gray-900"></tbody>
                     </table>
                 </div>
             </div>
@@ -226,26 +261,26 @@
                         <button onclick="downloadPDF()" class="flex-1 sm:flex-none bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2 rounded text-xs transition flex items-center justify-center gap-1.5">
                             📄 Download PDF
                         </button>
-                        <button onclick="window.print()" class="flex-1 sm:flex-none bg-gray-800 hover:bg-gray-700 text-gray-200 font-bold px-4 py-2 rounded text-xs border border-gray-700 transition">
+                        <button onclick="window.print()" class="flex-1 sm:flex-none bg-gray-900 hover:bg-gray-800 text-gray-200 font-bold px-4 py-2 rounded text-xs border border-gray-800 transition">
                             🖨️ Print
                         </button>
                     </div>
                 </div>
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div class="bg-gray-900 p-4 rounded-lg border border-gray-800">
+                    <div class="bg-black p-4 rounded-lg border border-gray-800">
                         <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Gross Revenue</p>
                         <p id="taxGross" class="text-2xl font-extrabold text-amber-400">$0.00</p>
                     </div>
-                    <div class="bg-gray-900 p-4 rounded-lg border border-gray-800">
+                    <div class="bg-black p-4 rounded-lg border border-gray-800">
                         <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Total Deductions</p>
                         <p id="taxDeductions" class="text-2xl font-extrabold text-red-400">$0.00</p>
                     </div>
-                    <div class="bg-gray-900 p-4 rounded-lg border border-gray-800">
+                    <div class="bg-black p-4 rounded-lg border border-gray-800">
                         <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Net Taxable Income</p>
                         <p id="taxNet" class="text-2xl font-extrabold text-emerald-400">$0.00</p>
                     </div>
-                    <div class="bg-gray-900 p-4 rounded-lg border border-gray-800">
+                    <div class="bg-black p-4 rounded-lg border border-gray-800">
                         <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Per Diem Deduction ($69/night)</p>
                         <p id="taxPerDiemDeduction" class="text-2xl font-extrabold text-blue-400">$0.00</p>
                     </div>
@@ -253,9 +288,9 @@
 
                 <div>
                     <h3 class="text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">Itemized Expense Categories</h3>
-                    <div class="bg-gray-900 rounded-lg overflow-hidden border border-gray-800">
+                    <div class="bg-black rounded-lg overflow-hidden border border-gray-800">
                         <table class="w-full text-left text-xs">
-                            <tbody id="taxItemizedTableBody" class="divide-y divide-gray-800"></tbody>
+                            <tbody id="taxItemizedTableBody" class="divide-y divide-gray-900"></tbody>
                         </table>
                     </div>
                 </div>
@@ -264,40 +299,14 @@
 
     </main>
 
-    <!-- FIXED BOTTOM NAVIGATION GRID DOCK -->
-    <nav class="fixed bottom-0 left-0 right-0 z-50 card-bg border-t border-gray-800 px-3 py-2.5 shadow-2xl backdrop-blur bg-opacity-95">
-        <div class="max-w-4xl mx-auto grid grid-cols-5 gap-2">
-            <button onclick="switchView('dashboard')" id="nav-dashboard" class="flex flex-col items-center justify-center p-2 rounded-lg bg-gray-900 text-amber-400 border border-gray-800 transition hover:bg-gray-800">
-                <span class="text-base">📊</span>
-                <span class="text-[10px] font-bold mt-0.5 tracking-tight">Dashboard</span>
-            </button>
-            <button onclick="switchView('settlement')" id="nav-settlement" class="flex flex-col items-center justify-center p-2 rounded-lg bg-gray-900 text-gray-400 border border-gray-800 transition hover:bg-gray-800">
-                <span class="text-base">➕</span>
-                <span class="text-[10px] font-bold mt-0.5 tracking-tight">Entry</span>
-            </button>
-            <button onclick="switchView('ledger')" id="nav-ledger" class="flex flex-col items-center justify-center p-2 rounded-lg bg-gray-900 text-gray-400 border border-gray-800 transition hover:bg-gray-800">
-                <span class="text-base">📑</span>
-                <span class="text-[10px] font-bold mt-0.5 tracking-tight">Ledger</span>
-            </button>
-            <button onclick="switchView('perDiem')" id="nav-perDiem" class="flex flex-col items-center justify-center p-2 rounded-lg bg-gray-900 text-gray-400 border border-gray-800 transition hover:bg-gray-800">
-                <span class="text-base">🌙</span>
-                <span class="text-[10px] font-bold mt-0.5 tracking-tight">Per Diem</span>
-            </button>
-            <button onclick="switchView('taxForms')" id="nav-taxForms" class="flex flex-col items-center justify-center p-2 rounded-lg bg-gray-900 text-gray-400 border border-gray-800 transition hover:bg-gray-800">
-                <span class="text-base">📋</span>
-                <span class="text-[10px] font-bold mt-0.5 tracking-tight">Tax Forms</span>
-            </button>
-        </div>
-    </nav>
-
     <!-- Auth Modal -->
-    <div id="authModal" class="hidden fixed inset-0 bg-black/70 flex items-center justify-center z-50 px-4">
+    <div id="authModal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50 px-4">
         <div class="card-bg p-6 rounded-xl max-w-sm w-full space-y-4">
             <h3 class="font-bold text-base text-white">RigTracker Pro Cloud Sync</h3>
             <p class="text-xs text-gray-400">Connect with Supabase to sync your ledger across your devices.</p>
             <input type="email" id="authEmail" placeholder="Driver Email" class="w-full input-bg px-3 py-2 rounded text-sm">
             <div class="flex justify-end space-x-2 pt-2">
-                <button onclick="closeAuthModal()" class="bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs px-4 py-2 rounded">Cancel</button>
+                <button onclick="closeAuthModal()" class="bg-gray-900 hover:bg-gray-800 text-gray-300 text-xs px-4 py-2 rounded border border-gray-800">Cancel</button>
                 <button onclick="alert('Supabase client initialized successfully.'); closeAuthModal();" class="bg-amber-500 hover:bg-amber-400 text-gray-950 font-bold text-xs px-4 py-2 rounded">Sign In</button>
             </div>
         </div>
@@ -322,15 +331,23 @@
             const views = ['dashboard', 'settlement', 'ledger', 'perDiem', 'taxForms'];
             views.forEach(v => {
                 document.getElementById(`view-${v}`).classList.add('hidden');
-                const navBtn = document.getElementById(`nav-${v}`);
-                navBtn.classList.remove('text-amber-400', 'border-amber-500', 'bg-gray-800');
-                navBtn.classList.add('text-gray-400', 'bg-gray-900');
             });
 
             document.getElementById(`view-${viewId}`).classList.remove('hidden');
-            const activeBtn = document.getElementById(`nav-${viewId}`);
-            activeBtn.classList.remove('text-gray-400', 'bg-gray-900');
-            activeBtn.classList.add('text-amber-400', 'border-amber-500', 'bg-gray-800');
+
+            const backBar = document.getElementById('backBar');
+            if (viewId === 'dashboard') {
+                backBar.classList.add('hidden');
+            } else {
+                backBar.classList.remove('hidden');
+                const titles = {
+                    settlement: 'Settlement Entry',
+                    ledger: 'Spreadsheet Ledger & Deductions',
+                    perDiem: 'Per Diem Nights',
+                    taxForms: 'Annual Tax Forms'
+                };
+                document.getElementById('currentViewTitle').textContent = titles[viewId];
+            }
 
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
@@ -448,7 +465,7 @@
                 totalOther += s.other;
 
                 tableBody.innerHTML += `
-                    <tr class="hover:bg-gray-800/50">
+                    <tr class="hover:bg-gray-900/50">
                         <td class="p-3 text-gray-300">${s.date}</td>
                         <td class="p-3 text-amber-400 font-semibold">$${s.gross.toFixed(2)}</td>
                         <td class="p-3 text-red-400">$${s.fuel.toFixed(2)}</td>
@@ -490,7 +507,7 @@
             perDiemTableBody.innerHTML = '';
             perDiemNights.forEach(n => {
                 perDiemTableBody.innerHTML += `
-                    <tr class="hover:bg-gray-800/50">
+                    <tr class="hover:bg-gray-900/50">
                         <td class="p-3 text-gray-300">${n.date}</td>
                         <td class="p-3 text-gray-300">${n.notes}</td>
                         <td class="p-3 text-right">
@@ -522,7 +539,7 @@
                 margin:       0.5,
                 filename:     'RigTracker_Pro_2026_Tax_Packet.pdf',
                 image:        { type: 'jpeg', quality: 0.98 },
-                html2canvas:  { scale: 2, backgroundColor: '#161a22' },
+                html2canvas:  { scale: 2, backgroundColor: '#0b0e14' },
                 jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' }
             };
             html2pdf().from(element).set(opt).save();
