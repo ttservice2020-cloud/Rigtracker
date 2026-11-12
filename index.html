@@ -49,7 +49,7 @@
                 <button onclick="exportBackup()" class="bg-gray-900 hover:bg-gray-800 text-gray-200 text-xs font-semibold px-3 py-2 rounded border border-gray-800 transition">
                     Backup
                 </button>
-                <button onclick="openAuthModal()" class="bg-amber-500 hover:bg-amber-400 text-gray-950 text-xs font-bold px-3 py-2 rounded transition">
+                <button onclick="openAuthModal()" id="authNavBtn" class="bg-amber-500 hover:bg-amber-400 text-gray-950 text-xs font-bold px-3 py-2 rounded transition">
                     Sign In
                 </button>
             </div>
@@ -332,16 +332,18 @@
 
     <!-- JavaScript Application Logic -->
     <script>
-        // Supabase configuration (Replace with your active project keys if needed)
+        // Supabase configuration using your project URL and correct public anon key initialization
         const SUPABASE_URL = 'https://pxxikzzfrcncwufpzdfp.supabase.co';
-        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'; // Insert active anon key if using cloud sync
+        // Note: Make sure to paste your exact Supabase project public anon key here if connecting to live database backend
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB4eGlrenpmcmNuY3d1ZnB6ZGZwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzA3NjkzMTYsImV4cCI6MjA0NjM0NTMxNn0...'; 
         let supabaseClient = null;
+
         try {
-            if (window.supabase) {
+            if (window.supabase && SUPABASE_ANON_KEY.length > 50) {
                 supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
             }
         } catch (e) {
-            console.warn('Supabase offline or uninitialized.');
+            console.warn('Supabase initialization warning:', e);
         }
 
         let isSignUpMode = false;
@@ -359,6 +361,16 @@
 
         resetSettlementForm();
         document.getElementById('perDiemDate').valueAsDate = new Date();
+
+        // Check active session on load if supabase connected
+        if (supabaseClient) {
+            supabaseClient.auth.getSession().then(({ data: { session } }) => {
+                if (session && session.user) {
+                    currentUser = session.user;
+                    updateAuthUI(currentUser.email);
+                }
+            });
+        }
 
         function switchView(viewId) {
             const views = ['dashboard', 'settlement', 'ledger', 'perDiem', 'taxForms'];
@@ -582,6 +594,24 @@
             document.getElementById('authErrorMsg').classList.add('hidden');
         }
 
+        function updateAuthUI(email) {
+            const badge = document.getElementById('cloudStatusBadge');
+            badge.textContent = `Cloud: ${email}`;
+            badge.className = 'hidden sm:inline-block text-xs px-2.5 py-1 rounded bg-emerald-950 text-emerald-400 font-medium border border-emerald-800';
+            
+            const btn = document.getElementById('authNavBtn');
+            btn.textContent = 'Sign Out';
+            btn.onclick = handleSignOut;
+        }
+
+        async function handleSignOut() {
+            if (supabaseClient) {
+                await supabaseClient.auth.signOut();
+            }
+            currentUser = null;
+            location.reload();
+        }
+
         async function handleAuthSubmit(e) {
             e.preventDefault();
             const email = document.getElementById('authEmail').value;
@@ -590,10 +620,8 @@
             errDiv.classList.add('hidden');
 
             if (!supabaseClient) {
-                // Fallback simulation if Supabase is unlinked
                 currentUser = { email };
-                document.getElementById('cloudStatusBadge').textContent = `Cloud: ${email}`;
-                document.getElementById('cloudStatusBadge').className = 'hidden sm:inline-block text-xs px-2.5 py-1 rounded bg-emerald-950 text-emerald-400 font-medium border border-emerald-800';
+                updateAuthUI(email);
                 closeAuthModal();
                 alert(`Successfully ${isSignUpMode ? 'signed up' : 'signed in'} as ${email} (Local Simulation Mode)`);
                 return;
@@ -609,11 +637,10 @@
 
                 if (res.error) throw res.error;
 
-                currentUser = res.data.user;
-                document.getElementById('cloudStatusBadge').textContent = `Cloud: ${email}`;
-                document.getElementById('cloudStatusBadge').className = 'hidden sm:inline-block text-xs px-2.5 py-1 rounded bg-emerald-950 text-emerald-400 font-medium border border-emerald-800';
+                currentUser = res.data.user || (res.data.session ? res.data.session.user : null);
+                updateAuthUI(email);
                 closeAuthModal();
-                alert('Successfully authenticated!');
+                alert(isSignUpMode ? 'Account created successfully! Check your email if verification is required.' : 'Signed in successfully!');
             } catch (err) {
                 errDiv.textContent = err.message || 'Authentication failed.';
                 errDiv.classList.remove('hidden');
