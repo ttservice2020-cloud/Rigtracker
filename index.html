@@ -1,1068 +1,675 @@
 <!DOCTYPE html>
-<html lang="en" class="h-full">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>RigTracker Pro</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RigTracker Pro - Professional Owner-Operator Ledger</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- FontAwesome for high-end icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Google Fonts: Inter -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        obsidian: '#0B0B0C',
-                        darkcard: '#141416',
-                        gold: '#D4AF37',
-                        goldhover: '#C5A028',
-                        goldmuted: '#AA8C2C',
-                        goldborder: 'rgba(212, 175, 55, 0.3)'
-                    },
-                    fontFamily: {
-                        sans: ['Inter', 'sans-serif'],
-                    }
-                }
-            }
-        }
-    </script>
+    <!-- Supabase JS Client -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- html2pdf.js for PDF exports -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <style>
         body {
-            font-family: 'Inter', sans-serif;
-            background-color: #0B0B0C;
-            color: #F3F4F6;
+            background-color: #050709;
+            color: #f3f4f6;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
         }
-        .glass-card {
-            background: rgba(20, 20, 22, 0.75);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            border: 1px solid rgba(212, 175, 55, 0.25);
+        .card-bg {
+            background-color: #0b0e14;
+            border: 1px solid #1f242d;
         }
-        .gold-gradient-text {
-            background: linear-gradient(135deg, #F3E5AB 0%, #D4AF37 50%, #AA8C2C 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+        .input-bg {
+            background-color: #050709;
+            border: 1px solid #2d3542;
+            color: #f3f4f6;
         }
-        .gold-gradient-btn {
-            background: linear-gradient(135deg, #E6C55C 0%, #D4AF37 50%, #B8972E 100%);
-        }
-        .gold-gradient-btn:hover {
-            background: linear-gradient(135deg, #F4D36E 0%, #E6C55C 50%, #C7A639 100%);
-        }
-        /* Custom scrollbar for horizontal spreadsheet tables */
-        ::-webkit-scrollbar {
-            height: 6px;
-            width: 6px;
-        }
-        ::-webkit-scrollbar-track {
-            background: #0B0B0C;
-        }
-        ::-webkit-scrollbar-thumb {
-            background: rgba(212, 175, 55, 0.3);
-            border-radius: 3px;
-        }
-        ::-webkit-scrollbar-thumb:hover {
-            background: #D4AF37;
-        }
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(6px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        .animate-fade {
-            animation: fadeIn 0.25s ease-out forwards;
+        .input-bg:focus {
+            border-color: #f59e0b;
+            outline: none;
         }
     </style>
 </head>
-<body class="h-full flex flex-col items-center justify-center bg-obsidian text-gray-100 overflow-x-hidden">
+<body class="min-h-screen pb-12">
 
-    <!-- Mobile Device Frame Container -->
-    <div class="w-full max-w-md h-full sm:h-[92vh] sm:max-h-[900px] sm:rounded-3xl sm:border-[8px] sm:border-[#262629] sm:shadow-2xl flex flex-col bg-obsidian relative overflow-hidden">
-        
-        <!-- Top Status / Header Notch Bar -->
-        <div class="bg-obsidian/90 border-b border-goldborder px-4 py-3 flex items-center justify-between z-20 shrink-0">
-            <button id="back-btn" onclick="app.goHome()" class="text-gold hover:text-white transition hidden items-center space-x-1 text-sm font-medium">
-                <i class="fa-solid fa-chevron-left"></i><span>Back</span>
+    <!-- Top Navigation Header -->
+    <header class="card-bg sticky top-0 z-40 px-4 py-3 shadow-md">
+        <div class="max-w-4xl mx-auto flex items-center justify-between gap-3">
+            <div class="flex items-center space-x-3">
+                <div class="bg-amber-500 text-gray-950 font-black px-3 py-2 rounded text-lg tracking-wider shadow">RT</div>
+                <div>
+                    <h1 class="font-bold text-lg leading-tight tracking-tight text-white">RigTracker Pro</h1>
+                    <p class="text-xs text-gray-400">Professional Owner-Operator Ledger</p>
+                </div>
+            </div>
+
+            <div class="flex items-center space-x-2">
+                <span id="cloudStatusBadge" class="hidden sm:inline-block text-xs px-2.5 py-1 rounded bg-gray-900 text-gray-400 font-medium border border-gray-800">Offline / Local</span>
+                <button onclick="exportBackup()" class="bg-gray-900 hover:bg-gray-800 text-gray-200 text-xs font-semibold px-3 py-2 rounded border border-gray-800 transition">
+                    Backup
+                </button>
+                <button onclick="openAuthModal()" id="authNavBtn" class="bg-amber-500 hover:bg-amber-400 text-gray-950 text-xs font-bold px-3 py-2 rounded transition">
+                    Sign In
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-4xl mx-auto px-4 mt-6 space-y-6">
+
+        <!-- BACK / HOME BAR -->
+        <div id="backBar" class="hidden flex items-center justify-between pb-2 border-b border-gray-800">
+            <button onclick="switchView('dashboard')" class="bg-gray-900 hover:bg-gray-800 text-gray-200 text-xs font-bold px-4 py-2 rounded transition flex items-center gap-1.5 border border-gray-800">
+                ← Back to Dashboard
             </button>
-            <div class="flex items-center space-x-2 mx-auto">
-                <i class="fa-solid fa-oil-well text-gold text-lg"></i>
-                <span class="font-bold tracking-wide gold-gradient-text text-base">RigTracker Pro</span>
-            </div>
-            <div id="user-avatar" class="hidden w-8 h-8 rounded-full bg-gold/20 border border-gold flex items-center justify-center text-gold text-xs font-bold">
-                OP
-            </div>
+            <span id="currentViewTitle" class="text-xs font-bold uppercase tracking-wider text-amber-400"></span>
         </div>
 
-        <!-- Main App Viewport Container -->
-        <div id="app-viewport" class="flex-1 overflow-y-auto p-4 space-y-4 relative">
-            <!-- Dynamic content injected here -->
-        </div>
+        <!-- DASHBOARD VIEW (Default Home) -->
+        <div id="view-dashboard" class="space-y-4">
+            <div class="card-bg p-5 rounded-xl shadow-lg">
+                <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">YTD Gross Revenue</p>
+                <div id="dashGross" class="text-3xl sm:text-4xl font-extrabold text-amber-400">$0.00</div>
+            </div>
 
-        <!-- Custom Notification Modal -->
-        <div id="notification-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
-            <div class="glass-card rounded-2xl p-6 w-full max-w-sm text-center space-y-4 shadow-2xl border border-gold/40 animate-fade">
-                <div id="modal-icon" class="w-12 h-12 rounded-full bg-gold/20 text-gold flex items-center justify-center mx-auto text-xl">
-                    <i class="fa-solid fa-circle-info"></i>
+            <div class="card-bg p-5 rounded-xl shadow-lg">
+                <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">YTD Total Deductions</p>
+                <div id="dashDeductions" class="text-3xl sm:text-4xl font-extrabold text-red-400">$0.00</div>
+            </div>
+
+            <div class="card-bg p-5 rounded-xl shadow-lg">
+                <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">YTD Net Total Payout</p>
+                <div id="dashNet" class="text-3xl sm:text-4xl font-extrabold text-emerald-400">$0.00</div>
+            </div>
+
+            <!-- Dashboard Navigation Bars / Action Buttons -->
+            <div class="pt-2">
+                <p class="text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">Quick Navigation Bars</p>
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <button onclick="switchView('settlement')" class="card-bg hover:bg-gray-900 p-3.5 rounded-xl text-left transition border border-gray-800 group">
+                        <div class="text-amber-400 text-base mb-1">➕</div>
+                        <div class="font-bold text-xs text-white group-hover:text-amber-400">Settlement Entry</div>
+                        <div class="text-[10px] text-gray-400">Add revenue & expenses</div>
+                    </button>
+                    <button onclick="switchView('ledger')" class="card-bg hover:bg-gray-900 p-3.5 rounded-xl text-left transition border border-gray-800 group">
+                        <div class="text-amber-400 text-base mb-1">📑</div>
+                        <div class="font-bold text-xs text-white group-hover:text-amber-400">Spreadsheet Ledger</div>
+                        <div class="text-[10px] text-gray-400">View itemized records</div>
+                    </button>
+                    <button onclick="switchView('perDiem')" class="card-bg hover:bg-gray-900 p-3.5 rounded-xl text-left transition border border-gray-800 group">
+                        <div class="text-blue-400 text-base mb-1">🌙</div>
+                        <div class="font-bold text-xs text-white group-hover:text-blue-400">Per Diem Nights</div>
+                        <div class="text-[10px] text-gray-400">Track sleeper berth</div>
+                    </button>
+                    <button onclick="switchView('taxForms')" class="card-bg hover:bg-gray-900 p-3.5 rounded-xl text-left transition border border-gray-800 group">
+                        <div class="text-emerald-400 text-base mb-1">📋</div>
+                        <div class="font-bold text-xs text-white group-hover:text-emerald-400">Annual Tax Forms</div>
+                        <div class="text-[10px] text-gray-400">Print & PDF packet</div>
+                    </button>
                 </div>
-                <h3 id="modal-title" class="text-lg font-bold text-white">Notice</h3>
-                <p id="modal-message" class="text-sm text-gray-300 leading-relaxed"></p>
-                <div id="modal-actions" class="flex space-x-3 pt-2">
-                    <button onclick="app.closeModal()" class="w-full py-2.5 rounded-xl gold-gradient-btn text-obsidian font-bold text-sm shadow-md transition">OK</button>
-                </div>
             </div>
         </div>
 
-        <!-- PDF Print Preview Modal -->
-        <div id="print-modal" class="fixed inset-0 bg-black/90 z-50 hidden flex flex-col p-4 overflow-y-auto">
-            <div class="flex justify-between items-center mb-4 pb-2 border-b border-goldborder">
-                <h2 id="print-modal-title" class="text-gold font-bold text-lg">Document Preview</h2>
-                <div class="space-x-2">
-                    <button onclick="window.print()" class="px-4 py-1.5 rounded-lg gold-gradient-btn text-obsidian text-xs font-bold"><i class="fa-solid fa-print mr-1"></i> Print / Save PDF</button>
-                    <button onclick="app.closePrintModal()" class="px-3 py-1.5 rounded-lg bg-gray-800 text-gray-300 text-xs font-semibold hover:bg-gray-700">Close</button>
+        <!-- VIEW 1: SETTLEMENT ENTRY -->
+        <section id="view-settlement" class="hidden space-y-6">
+            <div class="card-bg p-5 rounded-xl shadow-lg">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 id="formTitle" class="font-bold text-sm text-white">Add Settlement Entry</h2>
+                    <button type="button" onclick="resetSettlementForm()" class="text-xs text-gray-400 hover:text-amber-400 underline">Clear to Zero</button>
+                </div>
+                <form id="settlementForm" onsubmit="saveSettlementEntry(event)" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <input type="hidden" id="editingId" value="">
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">Date</label>
+                        <input type="date" id="entryDate" required class="w-full input-bg px-3 py-2 rounded text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">Gross Revenue ($)</label>
+                        <input type="number" step="0.01" id="entryGross" placeholder="0.00" value="0.00" required class="w-full input-bg px-3 py-2 rounded text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">Fuel ($)</label>
+                        <input type="number" step="0.01" id="entryFuel" placeholder="0.00" value="0.00" class="w-full input-bg px-3 py-2 rounded text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">Insurance ($)</label>
+                        <input type="number" step="0.01" id="entryInsurance" placeholder="0.00" value="0.00" class="w-full input-bg px-3 py-2 rounded text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">Plate ($)</label>
+                        <input type="number" step="0.01" id="entryPlate" placeholder="0.00" value="0.00" class="w-full input-bg px-3 py-2 rounded text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">Escrow ($)</label>
+                        <input type="number" step="0.01" id="entryEscrow" placeholder="0.00" value="0.00" class="w-full input-bg px-3 py-2 rounded text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">Toll ($)</label>
+                        <input type="number" step="0.01" id="entryToll" placeholder="0.00" value="0.00" class="w-full input-bg px-3 py-2 rounded text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">Other Deductions ($)</label>
+                        <input type="number" step="0.01" id="entryOther" placeholder="0.00" value="0.00" class="w-full input-bg px-3 py-2 rounded text-sm">
+                    </div>
+                    <div class="sm:col-span-2 flex justify-end space-x-3 mt-2">
+                        <button type="button" id="cancelEditBtn" onclick="resetSettlementForm()" class="hidden bg-gray-900 hover:bg-gray-800 text-gray-300 font-bold px-4 py-2.5 rounded text-sm transition border border-gray-800">Cancel</button>
+                        <button type="submit" id="submitBtn" class="bg-amber-500 hover:bg-amber-400 text-gray-950 font-bold px-6 py-2.5 rounded text-sm transition">
+                            Save Settlement
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </section>
+
+        <!-- VIEW 2: SPREADSHEET LEDGER & DEDUCTIONS -->
+        <section id="view-ledger" class="hidden space-y-6">
+            <div>
+                <h2 class="text-xs font-bold uppercase tracking-wider text-gray-400 mb-3">Itemized Deductions Breakdown</h2>
+                <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    <div class="card-bg p-3.5 rounded-lg"><p class="text-xs text-gray-400">Fuel:</p><p id="sumFuel" class="text-lg font-bold text-red-400">$0.00</p></div>
+                    <div class="card-bg p-3.5 rounded-lg"><p class="text-xs text-gray-400">Insurance:</p><p id="sumInsurance" class="text-lg font-bold text-red-400">$0.00</p></div>
+                    <div class="card-bg p-3.5 rounded-lg"><p class="text-xs text-gray-400">Plate:</p><p id="sumPlate" class="text-lg font-bold text-red-400">$0.00</p></div>
+                    <div class="card-bg p-3.5 rounded-lg"><p class="text-xs text-gray-400">Escrow:</p><p id="sumEscrow" class="text-lg font-bold text-red-400">$0.00</p></div>
+                    <div class="card-bg p-3.5 rounded-lg"><p class="text-xs text-gray-400">Toll:</p><p id="sumToll" class="text-lg font-bold text-red-400">$0.00</p></div>
+                    <div class="card-bg p-3.5 rounded-lg"><p class="text-xs text-gray-400">Other:</p><p id="sumOther" class="text-lg font-bold text-red-400">$0.00</p></div>
                 </div>
             </div>
-            <div id="print-modal-content" class="bg-white text-gray-900 p-6 rounded-xl flex-1 overflow-y-auto text-xs shadow-xl font-mono">
-                <!-- Printable document markup -->
-            </div>
-        </div>
 
+            <div>
+                <h2 class="text-xs font-bold uppercase tracking-wider text-amber-400 mb-3">2026 Itemized Spreadsheet Ledger</h2>
+                <div class="card-bg rounded-xl overflow-x-auto shadow-lg">
+                    <table class="w-full text-left text-xs whitespace-nowrap">
+                        <thead class="bg-black text-gray-400 border-b border-gray-800">
+                            <tr>
+                                <th class="p-3">DATE</th>
+                                <th class="p-3 text-amber-400">GROSS</th>
+                                <th class="p-3 text-red-400">FUEL</th>
+                                <th class="p-3 text-red-400">INSURANCE</th>
+                                <th class="p-3 text-red-400">PLATE</th>
+                                <th class="p-3 text-red-400">ESCROW</th>
+                                <th class="p-3 text-red-400">TOLL</th>
+                                <th class="p-3 text-red-400">OTHER</th>
+                                <th class="p-3 text-right">ACTION</th>
+                            </tr>
+                        </thead>
+                        <tbody id="ledgerTableBody" class="divide-y divide-gray-900"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- VIEW 3: PER DIEM / NIGHTS -->
+        <section id="view-perDiem" class="hidden space-y-6">
+            <div class="card-bg p-5 rounded-xl shadow-lg">
+                <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">2026 Nights on Road</p>
+                <div id="perDiemCount" class="text-3xl sm:text-4xl font-extrabold text-blue-400">0 Nights</div>
+            </div>
+
+            <div class="card-bg p-5 rounded-xl shadow-lg relative">
+                <div class="flex items-start justify-between mb-2">
+                    <div>
+                        <h2 class="font-bold text-base text-white">Log Night Slept in Truck</h2>
+                    </div>
+                    <span class="text-[10px] font-semibold px-2.5 py-1 rounded-full bg-blue-950 text-blue-400 border border-blue-900">Per Diem Tracker</span>
+                </div>
+                <p class="text-xs text-gray-400 mb-4">Record dates you spent overnight in the sleeper berth for tax per diem substantiation.</p>
+                
+                <form id="perDiemForm" onsubmit="addPerDiemNight(event)" class="space-y-4">
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">Night Date</label>
+                        <input type="date" id="perDiemDate" required class="w-full input-bg px-3 py-2 rounded text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">Location / Notes (Optional)</label>
+                        <input type="text" id="perDiemNotes" placeholder="e.g. Pilot Truck Stop - Chicago, IL" class="w-full input-bg px-3 py-2 rounded text-sm">
+                    </div>
+                    <div class="flex justify-start pt-1">
+                        <button type="submit" class="bg-blue-600 hover:bg-blue-500 text-white font-bold px-5 py-2.5 rounded text-sm transition shadow">
+                            Log Night in Truck
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <div>
+                <h2 class="text-xs font-bold uppercase tracking-wider text-blue-400 mb-3">Logged Per Diem Nights</h2>
+                <div class="card-bg rounded-xl overflow-x-auto shadow-lg">
+                    <table class="w-full text-left text-xs whitespace-nowrap">
+                        <thead class="bg-black text-gray-400 border-b border-gray-800">
+                            <tr>
+                                <th class="p-3">DATE</th>
+                                <th class="p-3">LOCATION / NOTES</th>
+                                <th class="p-3 text-right">ACTION</th>
+                            </tr>
+                        </thead>
+                        <tbody id="perDiemTableBody" class="divide-y divide-gray-900"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- VIEW 4: ANNUAL TAX FORMS -->
+        <section id="view-taxForms" class="hidden space-y-6">
+            <div id="taxPacketPrintArea" class="space-y-6 card-bg p-6 rounded-xl shadow-xl border border-gray-800">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-4 border-b border-gray-800">
+                    <div>
+                        <h2 class="font-bold text-lg text-white">Year of 2026 Tax & Per Diem Summary</h2>
+                        <p class="text-xs text-gray-400">RigTracker Pro Owner-Operator Tax Packet</p>
+                    </div>
+                    <div class="flex items-center gap-2 w-full sm:w-auto">
+                        <button onclick="downloadPDF()" class="flex-1 sm:flex-none bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2 rounded text-xs transition flex items-center justify-center gap-1.5">
+                            📄 Download PDF
+                        </button>
+                        <button onclick="window.print()" class="flex-1 sm:flex-none bg-gray-900 hover:bg-gray-800 text-gray-200 font-bold px-4 py-2 rounded text-xs border border-gray-800 transition">
+                            🖨️ Print
+                        </button>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div class="bg-black p-4 rounded-lg border border-gray-800">
+                        <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Gross Revenue</p>
+                        <p id="taxGross" class="text-2xl font-extrabold text-amber-400">$0.00</p>
+                    </div>
+                    <div class="bg-black p-4 rounded-lg border border-gray-800">
+                        <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Total Deductions</p>
+                        <p id="taxDeductions" class="text-2xl font-extrabold text-red-400">$0.00</p>
+                    </div>
+                    <div class="bg-black p-4 rounded-lg border border-gray-800">
+                        <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Net Taxable Income</p>
+                        <p id="taxNet" class="text-2xl font-extrabold text-emerald-400">$0.00</p>
+                    </div>
+                    <div class="bg-black p-4 rounded-lg border border-gray-800">
+                        <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Per Diem Deduction ($69/night)</p>
+                        <p id="taxPerDiemDeduction" class="text-2xl font-extrabold text-blue-400">$0.00</p>
+                    </div>
+                </div>
+
+                <div>
+                    <h3 class="text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">Itemized Expense Categories</h3>
+                    <div class="bg-black rounded-lg overflow-hidden border border-gray-800">
+                        <table class="w-full text-left text-xs">
+                            <tbody id="taxItemizedTableBody" class="divide-y divide-gray-900"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- AUTHENTICATION MODAL (Sign In & Sign Up) -->
+    <div id="authModal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50 px-4 backdrop-blur-sm">
+        <div class="card-bg p-6 rounded-xl max-w-sm w-full space-y-4 shadow-2xl border border-gray-800">
+            <div class="flex justify-between items-center">
+                <h3 id="authModalTitle" class="font-bold text-base text-white">Sign In to RigTracker Pro</h3>
+                <button onclick="closeAuthModal()" class="text-gray-400 hover:text-white text-sm">✕</button>
+            </div>
+            <p id="authModalDesc" class="text-xs text-gray-400">Access your secure cloud ledger across all your devices.</p>
+            
+            <form id="authForm" onsubmit="handleAuthSubmit(event)" class="space-y-3">
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1">Email Address</label>
+                    <input type="email" id="authEmail" required placeholder="driver@domain.com" class="w-full input-bg px-3 py-2 rounded text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1">Password</label>
+                    <input type="password" id="authPassword" required placeholder="••••••••" class="w-full input-bg px-3 py-2 rounded text-sm">
+                </div>
+                <div id="authErrorMsg" class="text-xs text-red-400 hidden"></div>
+                <div class="pt-2 flex flex-col gap-2">
+                    <button type="submit" id="authSubmitBtn" class="w-full bg-amber-500 hover:bg-amber-400 text-gray-950 font-bold py-2.5 rounded text-sm transition">
+                        Sign In
+                    </button>
+                    <button type="button" onclick="toggleAuthMode()" id="authToggleBtn" class="w-full text-xs text-amber-400 hover:underline py-1">
+                        Need an account? Sign Up
+                    </button>
+                </div>
+            </form>
+        </div>
     </div>
 
-    <!-- Application JavaScript Logic -->
+    <!-- JavaScript Application Logic -->
     <script>
-        class RigTrackerApp {
-            constructor() {
-                // State initialization with localStorage persistence for seamless user experience
-                this.currentUser = JSON.parse(localStorage.getItem('rtp_user')) || null;
-                this.currentView = this.currentUser ? 'dashboard' : 'login';
-                this.selectedYear = localStorage.getItem('rtp_selected_year') || new Date().getFullYear().toString();
-                
-                // Active years list
-                this.availableYears = JSON.parse(localStorage.getItem('rtp_years')) || [new Date().getFullYear().toString(), '2025', '2024'];
-                if (!this.availableYears.includes(this.selectedYear)) {
-                    this.availableYears.unshift(this.selectedYear);
+        // Supabase configuration using your project URL and correct public anon key initialization
+        const SUPABASE_URL = 'https://pxxikzzfrcncwufpzdfp.supabase.co';
+        // Note: Make sure to paste your exact Supabase project public anon key here if connecting to live database backend
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB4eGlrenpmcmNuY3d1ZnB6ZGZwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzA3NjkzMTYsImV4cCI6MjA0NjM0NTMxNn0...'; 
+        let supabaseClient = null;
+
+        try {
+            if (window.supabase && SUPABASE_ANON_KEY.length > 50) {
+                supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+            }
+        } catch (e) {
+            console.warn('Supabase initialization warning:', e);
+        }
+
+        let isSignUpMode = false;
+        let currentUser = null;
+
+        let settlements = JSON.parse(localStorage.getItem('rigtracker_settlements')) || [
+            { id: 1, date: '2026-09-25', gross: 4149.24, fuel: 1450.28, insurance: 94.75, plate: 0, escrow: 0, toll: 0, other: 0 },
+            { id: 2, date: '2026-10-09', gross: 5150.76, fuel: 2284.91, insurance: 94.75, plate: 0, escrow: 0, toll: 0, other: 0 },
+            { id: 3, date: '2026-10-15', gross: 3812.70, fuel: 1800.73, insurance: 94.75, plate: 0, escrow: 0, toll: 0, other: 0 },
+            { id: 4, date: '2026-10-23', gross: 6933.86, fuel: 2809.10, insurance: 94.75, plate: 0, escrow: 0, toll: 0, other: 0 },
+            { id: 5, date: '2026-10-30', gross: 2860.06, fuel: 1583.56, insurance: 94.75, plate: 0, escrow: 0, toll: 0, other: 0 }
+        ];
+
+        let perDiemNights = JSON.parse(localStorage.getItem('rigtracker_perdiem')) || [];
+
+        resetSettlementForm();
+        document.getElementById('perDiemDate').valueAsDate = new Date();
+
+        // Check active session on load if supabase connected
+        if (supabaseClient) {
+            supabaseClient.auth.getSession().then(({ data: { session } }) => {
+                if (session && session.user) {
+                    currentUser = session.user;
+                    updateAuthUI(currentUser.email);
                 }
+            });
+        }
 
-                // Default custom deduction labels (12 items)
-                this.defaultDeductionLabels = [
-                    'Fuel', 'Insurance', 'Maintenance', 'Permits / Fees', 'Escrow / Other',
-                    'Tolls', 'Comdata', 'Uniform', 'Lumper', 'Advance', 'Safety Gear', 'Misc / Supplies'
-                ];
+        function switchView(viewId) {
+            const views = ['dashboard', 'settlement', 'ledger', 'perDiem', 'taxForms'];
+            views.forEach(v => {
+                document.getElementById(`view-${v}`).classList.add('hidden');
+            });
 
-                this.deductionLabels = JSON.parse(localStorage.getItem('rtp_deduction_labels')) || this.defaultDeductionLabels;
+            document.getElementById(`view-${viewId}`).classList.remove('hidden');
 
-                // Load datasets
-                this.settlements = JSON.parse(localStorage.getItem('rtp_settlements')) || [
-                    { id: '1', year: '2026', date: '2026-01-05', settlementNum: 'SET-10104', gross: 4200.50, deductions: [350.40, 75.00, 120.00, 40.00, 25.50, 200.00, 100.00, 50.00, 10.00, 30.00, 0, 0] },
-                    { id: '2', year: '2026', date: '2026-01-12', settlementNum: 'SET-10105', gross: 4800.10, deductions: [410.20, 75.00, 120.00, 45.00, 30.00, 180.00, 110.00, 0, 15.00, 30.00, 0, 0] }
-                ];
-
-                this.perDiems = JSON.parse(localStorage.getItem('rtp_perdiems')) || [
-                    { id: '1', year: '2026', date: '2026-01-05', location: 'Nashville, TN', area: 'Pilot #450', loadNum: 'LD-9901', time: '08:00', tz: 'EST', receipt: null },
-                    { id: '2', year: '2026', date: '2026-01-08', location: 'Atlanta, GA', area: 'TA #12', loadNum: 'LD-9904', time: '17:30', tz: 'EST', receipt: null }
-                ];
-
-                // Editing IDs tracker
-                this.editingSettlementId = null;
-                this.editingPerDiemId = null;
-
-                this.render();
+            const backBar = document.getElementById('backBar');
+            if (viewId === 'dashboard') {
+                backBar.classList.add('hidden');
+            } else {
+                backBar.classList.remove('hidden');
+                const titles = {
+                    settlement: 'Settlement Entry',
+                    ledger: 'Spreadsheet Ledger & Deductions',
+                    perDiem: 'Per Diem Nights',
+                    taxForms: 'Annual Tax Forms'
+                };
+                document.getElementById('currentViewTitle').textContent = titles[viewId];
             }
 
-            saveState() {
-                localStorage.setItem('rtp_user', JSON.stringify(this.currentUser));
-                localStorage.setItem('rtp_selected_year', this.selectedYear);
-                localStorage.setItem('rtp_years', JSON.stringify(this.availableYears));
-                localStorage.setItem('rtp_settlements', JSON.stringify(this.settlements));
-                localStorage.setItem('rtp_perdiems', JSON.stringify(this.perDiems));
-                localStorage.setItem('rtp_deduction_labels', JSON.stringify(this.deductionLabels));
-            }
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
 
-            navigate(view) {
-                this.currentView = view;
-                this.render();
-            }
+        function saveData() {
+            localStorage.setItem('rigtracker_settlements', JSON.stringify(settlements));
+            localStorage.setItem('rigtracker_perdiem', JSON.stringify(perDiemNights));
+            renderAll();
+        }
 
-            goHome() {
-                this.navigate('dashboard');
-            }
+        function resetSettlementForm() {
+            document.getElementById('editingId').value = '';
+            document.getElementById('entryDate').valueAsDate = new Date();
+            document.getElementById('entryGross').value = '0.00';
+            document.getElementById('entryFuel').value = '0.00';
+            document.getElementById('entryInsurance').value = '0.00';
+            document.getElementById('entryPlate').value = '0.00';
+            document.getElementById('entryEscrow').value = '0.00';
+            document.getElementById('entryToll').value = '0.00';
+            document.getElementById('entryOther').value = '0.00';
+            document.getElementById('formTitle').textContent = 'Add Settlement Entry';
+            document.getElementById('submitBtn').textContent = 'Save Settlement';
+            document.getElementById('cancelEditBtn').classList.add('hidden');
+        }
 
-            showModal(title, message, icon = 'fa-circle-info') {
-                document.getElementById('modal-title').innerText = title;
-                document.getElementById('modal-message').innerText = message;
-                document.getElementById('modal-icon').innerHTML = `<i class="fa-solid ${icon}"></i>`;
-                document.getElementById('notification-modal').classList.remove('hidden');
-            }
+        function saveSettlementEntry(e) {
+            e.preventDefault();
+            const editingId = document.getElementById('editingId').value;
+            
+            const entryData = {
+                id: editingId ? parseInt(editingId) : Date.now(),
+                date: document.getElementById('entryDate').value,
+                gross: parseFloat(document.getElementById('entryGross').value) || 0,
+                fuel: parseFloat(document.getElementById('entryFuel').value) || 0,
+                insurance: parseFloat(document.getElementById('entryInsurance').value) || 0,
+                plate: parseFloat(document.getElementById('entryPlate').value) || 0,
+                escrow: parseFloat(document.getElementById('entryEscrow').value) || 0,
+                toll: parseFloat(document.getElementById('entryToll').value) || 0,
+                other: parseFloat(document.getElementById('entryOther').value) || 0
+            };
 
-            closeModal() {
-                document.getElementById('notification-modal').classList.add('hidden');
-            }
-
-            formatCurrency(amount) {
-                return '$' + Number(amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-            }
-
-            // Calculations for selected year
-            getYearCalculations(year) {
-                const yearSettlements = this.settlements.filter(s => s.year === year);
-                let totalGross = 0;
-                let totalDeductions = 0;
-                let itemizedTotals = new Array(12).fill(0);
-
-                yearSettlements.forEach(s => {
-                    totalGross += Number(s.gross || 0);
-                    s.deductions.forEach((val, idx) => {
-                        const num = Number(val || 0);
-                        totalDeductions += num;
-                        itemizedTotals[idx] += num;
-                    });
-                });
-
-                const netPayout = totalGross - totalDeductions;
-                return { totalGross, totalDeductions, netPayout, itemizedTotals, count: yearSettlements.length };
-            }
-
-            render() {
-                const viewport = document.getElementById('app-viewport');
-                const backBtn = document.getElementById('back-btn');
-                const userAvatar = document.getElementById('user-avatar');
-
-                viewport.innerHTML = '';
-
-                if (this.currentView !== 'login') {
-                    backBtn.classList.remove('hidden');
-                    backBtn.classList.add('flex');
-                    userAvatar.classList.remove('hidden');
-                    userAvatar.classList.add('flex');
-                    if(this.currentUser && this.currentUser.email) {
-                        userAvatar.innerText = this.currentUser.email.substring(0, 2).toUpperCase();
-                    }
-                } else {
-                    backBtn.classList.remove('flex');
-                    backBtn.classList.add('hidden');
-                    userAvatar.classList.remove('flex');
-                    userAvatar.classList.add('hidden');
+            if (editingId) {
+                const index = settlements.findIndex(s => s.id === parseInt(editingId));
+                if (index !== -1) {
+                    settlements[index] = entryData;
                 }
-
-                switch (this.currentView) {
-                    case 'login':
-                        this.renderLogin(viewport);
-                        break;
-                    case 'dashboard':
-                        this.renderDashboard(viewport);
-                        break;
-                    case 'settlement_entry':
-                        this.renderSettlementEntry(viewport);
-                        break;
-                    case 'spreadsheets':
-                        this.renderSpreadsheets(viewport);
-                        break;
-                    case 'perdiem':
-                        this.renderPerDiem(viewport);
-                        break;
-                    case 'taxform':
-                        this.renderTaxForm(viewport);
-                        break;
-                }
+            } else {
+                settlements.unshift(entryData);
             }
 
-            // --- 1. LOGIN SCREEN ---
-            renderLogin(container) {
-                container.innerHTML = `
-                    <div class="min-h-full flex flex-col items-center justify-center py-8 px-2 animate-fade">
-                        <div class="text-center space-y-3 mb-6">
-                            <div class="w-16 h-16 rounded-2xl gold-gradient-btn flex items-center justify-center mx-auto shadow-lg shadow-gold/20">
-                                <i class="fa-solid fa-oil-well text-obsidian text-2xl"></i>
-                            </div>
-                            <h1 class="text-2xl font-bold tracking-wider gold-gradient-text">RigTracker Pro</h1>
-                            <p class="text-xs text-gray-400">Secure Owner-Operator Ledger & Tax Suite</p>
-                        </div>
-                        
-                        <div class="glass-card w-full rounded-2xl p-6 space-y-4 shadow-xl">
-                            <h2 class="text-sm font-semibold text-gray-200 uppercase tracking-wider mb-2">Secure Cloud Access</h2>
-                            <form onsubmit="app.handleLogin(event)" class="space-y-4">
-                                <div>
-                                    <label class="block text-xs font-medium text-gray-400 mb-1">Email Address</label>
-                                    <div class="relative">
-                                        <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500"><i class="fa-solid fa-envelope"></i></span>
-                                        <input type="email" id="login-email" required placeholder="driver@rigtracker.com" value="operator@rigtracker.pro"
-                                            class="w-full pl-10 pr-3 py-2.5 rounded-xl bg-obsidian/80 border border-goldborder text-sm text-gray-100 focus:outline-none focus:border-gold">
-                                    </div>
-                                </div>
-                                <div>
-                                    <label class="block text-xs font-medium text-gray-400 mb-1">Password</label>
-                                    <div class="relative">
-                                        <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500"><i class="fa-solid fa-lock"></i></span>
-                                        <input type="password" id="login-pass" required placeholder="••••••••" value="securepassword"
-                                            class="w-full pl-10 pr-10 py-2.5 rounded-xl bg-obsidian/80 border border-goldborder text-sm text-gray-100 focus:outline-none focus:border-gold">
-                                    </div>
-                                </div>
-                                <button type="submit" class="w-full py-3 rounded-xl gold-gradient-btn text-obsidian font-bold text-sm shadow-lg transition transform active:scale-95 flex items-center justify-center space-x-2">
-                                    <i class="fa-solid fa-shield-halved"></i>
-                                    <span>SIGN IN / SYNC</span>
-                                </button>
-                            </form>
-                            <div class="text-center pt-2">
-                                <a href="#" onclick="app.showModal('Cloud Auth', 'Supabase Cloud-Sync is active. Use any credentials to sign in securely.'); return false;" class="text-xs text-gold hover:underline">Forgot Password or Need Access?</a>
-                            </div>
-                        </div>
-
-                        <div class="mt-8 text-center text-[10px] text-gray-500 flex items-center justify-center space-x-1">
-                            <i class="fa-solid fa-lock text-gold"></i>
-                            <span>Secured with AES-256 Cloud Encryption & Supabase</span>
-                        </div>
-                    </div>
-                `;
-            }
-
-            handleLogin(e) {
-                e.preventDefault();
-                const email = document.getElementById('login-email').value;
-                this.currentUser = { email, uid: 'op_' + Math.random().toString(36).substring(2, 9) };
-                this.saveState();
-                this.navigate('dashboard');
-            }
-
-            // --- 2. MASTER DASHBOARD ---
-            renderDashboard(container) {
-                const calc = this.getYearCalculations(this.selectedYear);
-
-                container.innerHTML = `
-                    <div class="space-y-4 animate-fade pb-6">
-                        <!-- Master Year Selector Card -->
-                        <div class="glass-card rounded-2xl p-4 space-y-2 border border-goldborder shadow-md">
-                            <label class="block text-[11px] font-semibold text-gold uppercase tracking-wider">Master Active Year Controller</label>
-                            <div class="flex items-center space-x-2">
-                                <select id="master-year-select" onchange="app.changeMasterYear(this.value)"
-                                    class="flex-1 bg-obsidian border border-goldborder rounded-xl px-3 py-2 text-sm text-white font-bold focus:outline-none focus:border-gold">
-                                    ${this.availableYears.map(y => `<option value="${y}" ${y === this.selectedYear ? 'selected' : ''}>Tax Year ${y} ${y === this.selectedYear ? '(Selected)' : ''}</option>`).join('')}
-                                </select>
-                                <button onclick="app.promptAddNewYear()" title="Add New Year" class="px-3 py-2 rounded-xl gold-gradient-btn text-obsidian font-bold text-sm shadow hover:opacity-95 transition">
-                                    <i class="fa-solid fa-plus"></i>
-                                </button>
-                            </div>
-                        </div>
-
-                        <!-- Selected Year Summary Card -->
-                        <div class="glass-card rounded-2xl p-5 space-y-4 border border-gold/40 shadow-xl bg-gradient-to-b from-darkcard to-obsidian">
-                            <div class="flex items-center justify-between border-b border-goldborder pb-2">
-                                <h2 class="text-xs font-bold text-gold uppercase tracking-wider">Selected Year Summary (${this.selectedYear})</h2>
-                                <span class="text-xs text-gray-400">${calc.count} Settlements</span>
-                            </div>
-                            
-                            <div class="grid grid-cols-2 gap-3">
-                                <div class="bg-obsidian/60 p-3 rounded-xl border border-goldborder/50">
-                                    <span class="block text-[10px] text-gray-400 uppercase">Gross Revenue</span>
-                                    <span class="text-base font-bold text-amber-300">${this.formatCurrency(calc.totalGross)}</span>
-                                </div>
-                                <div class="bg-obsidian/60 p-3 rounded-xl border border-goldborder/50">
-                                    <span class="block text-[10px] text-gray-400 uppercase">Total Deductions</span>
-                                    <span class="text-base font-bold text-rose-400">-${this.formatCurrency(calc.totalDeductions)}</span>
-                                </div>
-                            </div>
-
-                            <div class="bg-obsidian/80 p-3 rounded-xl border border-gold flex items-center justify-between shadow-inner">
-                                <div>
-                                    <span class="block text-[10px] text-gold uppercase font-semibold">Net Payout</span>
-                                    <span class="text-lg font-extrabold text-emerald-400">${this.formatCurrency(calc.netPayout)}</span>
-                                </div>
-                                <div class="w-8 h-8 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
-                                    <i class="fa-solid fa-arrow-trend-up"></i>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- 2x2 Grid Menu Navigation -->
-                        <div class="grid grid-cols-2 gap-3 pt-1">
-                            <button onclick="app.navigate('settlement_entry')" class="glass-card p-5 rounded-2xl flex flex-col items-center justify-center space-y-2 hover:border-gold transition group shadow-md text-center">
-                                <div class="w-12 h-12 rounded-xl bg-gold/10 text-gold flex items-center justify-center text-xl group-hover:scale-110 transition">
-                                    <i class="fa-solid fa-file-invoice-dollar"></i>
-                                </div>
-                                <span class="text-xs font-bold text-gray-200">Settlement Entry</span>
-                            </button>
-
-                            <button onclick="app.navigate('spreadsheets')" class="glass-card p-5 rounded-2xl flex flex-col items-center justify-center space-y-2 hover:border-gold transition group shadow-md text-center">
-                                <div class="w-12 h-12 rounded-xl bg-gold/10 text-gold flex items-center justify-center text-xl group-hover:scale-110 transition">
-                                    <i class="fa-solid fa-table-list"></i>
-                                </div>
-                                <span class="text-xs font-bold text-gray-200">Spreadsheets</span>
-                            </button>
-
-                            <button onclick="app.navigate('perdiem')" class="glass-card p-5 rounded-2xl flex flex-col items-center justify-center space-y-2 hover:border-gold transition group shadow-md text-center">
-                                <div class="w-12 h-12 rounded-xl bg-gold/10 text-gold flex items-center justify-center text-xl group-hover:scale-110 transition">
-                                    <i class="fa-solid fa-calendar-days"></i>
-                                </div>
-                                <span class="text-xs font-bold text-gray-200">Per Diem Log</span>
-                            </button>
-
-                            <button onclick="app.navigate('taxform')" class="glass-card p-5 rounded-2xl flex flex-col items-center justify-center space-y-2 hover:border-gold transition group shadow-md text-center">
-                                <div class="w-12 h-12 rounded-xl bg-gold/10 text-gold flex items-center justify-center text-xl group-hover:scale-110 transition">
-                                    <i class="fa-solid fa-file-shield"></i>
-                                </div>
-                                <span class="text-xs font-bold text-gray-200">Tax Form</span>
-                            </button>
-                        </div>
-                    </div>
-                `;
-            }
-
-            changeMasterYear(year) {
-                this.selectedYear = year;
-                this.saveState();
-                this.render();
-            }
-
-            promptAddNewYear() {
-                const newY = prompt("Enter new tax year (e.g., 2027):");
-                if (newY && /^\d{4}$/.test(newY.trim())) {
-                    const yr = newY.trim();
-                    if (!this.availableYears.includes(yr)) {
-                        this.availableYears.push(yr);
-                        this.availableYears.sort((a, b) => b.localeCompare(a));
-                    }
-                    this.selectedYear = yr;
-                    this.saveState();
-                    this.render();
-                } else if (newY) {
-                    this.showModal('Invalid Year', 'Please enter a valid 4-digit year format.');
-                }
-            }
-
-            // --- 3. SETTLEMENT ENTRY SCREEN ---
-            renderSettlementEntry(container) {
-                const isEditing = this.editingSettlementId !== null;
-                let editData = { date: new Date().toISOString().split('T')[0], settlementNum: 'SET-', gross: '', deductions: new Array(12).fill('') };
-                
-                if (isEditing) {
-                    const found = this.settlements.find(s => s.id === this.editingSettlementId);
-                    if (found) editData = found;
-                }
-
-                container.innerHTML = `
-                    <div class="space-y-4 animate-fade pb-6">
-                        <div class="flex items-center justify-between border-b border-goldborder pb-2">
-                            <h2 class="text-sm font-bold text-gold uppercase tracking-wider">${isEditing ? 'Edit Settlement' : 'New Settlement Entry'} (${this.selectedYear})</h2>
-                            ${isEditing ? `<button onclick="app.cancelEditSettlement()" class="text-xs text-rose-400 hover:underline">Cancel Edit</button>` : ''}
-                        </div>
-
-                        <form onsubmit="app.saveSettlement(event)" class="glass-card rounded-2xl p-4 space-y-4 shadow-xl border border-goldborder">
-                            <div>
-                                <label class="block text-xs font-semibold text-gray-300 mb-1">Settlement Date</label>
-                                <input type="date" id="set-date" required value="${editData.date}"
-                                    class="w-full bg-obsidian border border-goldborder rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-gold">
-                            </div>
-
-                            <div>
-                                <label class="block text-xs font-semibold text-gray-300 mb-1">Settlement Number</label>
-                                <input type="text" id="set-num" required placeholder="SET-10100" value="${editData.settlementNum}"
-                                    class="w-full bg-obsidian border border-goldborder rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-gold">
-                            </div>
-
-                            <div>
-                                <label class="block text-xs font-semibold text-amber-300 mb-1">Gross Revenue ($)</label>
-                                <input type="number" step="0.01" id="set-gross" required placeholder="0.00" value="${editData.gross !== '' ? editData.gross : ''}" oninput="app.calculateSettlementForm()"
-                                    class="w-full bg-obsidian border border-gold rounded-xl px-3 py-2.5 text-sm text-amber-300 font-bold focus:outline-none">
-                            </div>
-
-                            <div class="border-t border-goldborder pt-3">
-                                <div class="flex justify-between items-center mb-2">
-                                    <h3 class="text-xs font-bold text-gold uppercase tracking-wider">12 Customizable Deductions</h3>
-                                    <span class="text-[10px] text-gray-400">Click title to rename</span>
-                                </div>
-                                <div class="grid grid-cols-2 gap-2">
-                                    ${this.deductionLabels.map((label, idx) => `
-                                        <div class="bg-obsidian/60 p-2 rounded-xl border border-goldborder/60 space-y-1">
-                                            <div class="flex items-center justify-between">
-                                                <input type="text" value="${label}" onchange="app.renameDeduction(${idx}, this.value)"
-                                                    class="text-[11px] font-semibold text-gray-300 bg-transparent border-b border-transparent hover:border-gold focus:border-gold focus:outline-none w-full">
-                                            </div>
-                                            <input type="number" step="0.01" placeholder="0.00" value="${editData.deductions[idx] || ''}" oninput="app.calculateSettlementForm()"
-                                                class="set-deduction-input w-full bg-obsidian border border-goldborder rounded-lg px-2 py-1.5 text-xs text-rose-300 focus:outline-none focus:border-gold" data-index="${idx}">
-                                        </div>
-                                    `).join('')}
-                                </div>
-                            </div>
-
-                            <div class="bg-obsidian p-3 rounded-xl border border-gold flex items-center justify-between shadow-inner">
-                                <span class="text-xs font-bold text-gold uppercase">Calculated Net Payout</span>
-                                <span id="set-net-preview" class="text-base font-extrabold text-emerald-400">$0.00</span>
-                            </div>
-
-                            <button type="submit" class="w-full py-3 rounded-xl gold-gradient-btn text-obsidian font-bold text-sm shadow-lg transition transform active:scale-95">
-                                ${isEditing ? 'UPDATE SETTLEMENT ENTRY' : 'SUBMIT SETTLEMENT TO SPREADSHEET'}
-                            </button>
-                        </form>
-                    </div>
-                `;
-                this.calculateSettlementForm();
-            }
-
-            renameDeduction(index, newName) {
-                if(newName.trim()) {
-                    this.deductionLabels[index] = newName.trim();
-                    this.saveState();
-                }
-            }
-
-            calculateSettlementForm() {
-                const gross = parseFloat(document.getElementById('set-gross').value) || 0;
-                let totalDed = 0;
-                document.querySelectorAll('.set-deduction-input').forEach(input => {
-                    totalDed += parseFloat(input.value) || 0;
-                });
-                const net = gross - totalDed;
-                const netEl = document.getElementById('set-net-preview');
-                if (netEl) {
-                    netEl.innerText = this.formatCurrency(net);
-                }
-            }
-
-            saveSettlement(e) {
-                e.preventDefault();
-                const date = document.getElementById('set-date').value;
-                const settlementNum = document.getElementById('set-num').value.trim();
-                const gross = parseFloat(document.getElementById('set-gross').value) || 0;
-                
-                let deductions = [];
-                document.querySelectorAll('.set-deduction-input').forEach(input => {
-                    deductions.push(parseFloat(input.value) || 0);
-                });
-
-                if (this.editingSettlementId !== null) {
-                    const idx = this.settlements.findIndex(s => s.id === this.editingSettlementId);
-                    if (idx !== -1) {
-                        this.settlements[idx] = {
-                            ...this.settlements[idx],
-                            date, settlementNum, gross, deductions, year: this.selectedYear
-                        };
-                    }
-                    this.editingSettlementId = null;
-                } else {
-                    const newEntry = {
-                        id: 'set_' + Date.now(),
-                        year: this.selectedYear,
-                        date, settlementNum, gross, deductions
-                    };
-                    this.settlements.push(newEntry);
-                }
-
-                // Sort chronologically earliest to latest
-                this.settlements.sort((a, b) => new Date(a.date) - new Date(b.date));
-                this.saveState();
-                this.showModal('Success', 'Settlement entry successfully saved and synchronized!', 'fa-circle-check');
-                this.navigate('spreadsheets');
-            }
-
-            editSettlement(id) {
-                this.editingSettlementId = id;
-                this.navigate('settlement_entry');
-            }
-
-            cancelEditSettlement() {
-                this.editingSettlementId = null;
-                this.navigate('spreadsheets');
-            }
-
-            deleteSettlement(id) {
-                if (confirm('Are you sure you want to delete this settlement entry?')) {
-                    this.settlements = this.settlements.filter(s => s.id !== id);
-                    this.saveState();
-                    this.render();
-                }
-            }
-
-            // --- 4. SETTLEMENT SPREADSHEET TAB ---
-            renderSpreadsheets(container) {
-                const yearSettlements = this.settlements.filter(s => s.year === this.selectedYear);
-                // Ensure earliest to latest
-                yearSettlements.sort((a, b) => new Date(a.date) - new Date(b.date));
-
-                let totalGross = 0;
-                let totalNet = 0;
-                let totalDedSum = 0;
-
-                container.innerHTML = `
-                    <div class="space-y-4 animate-fade pb-6">
-                        <div class="flex items-center justify-between border-b border-goldborder pb-2">
-                            <div>
-                                <h2 class="text-sm font-bold text-gold uppercase tracking-wider">Settlements Spreadsheet (${this.selectedYear})</h2>
-                                <p class="text-[10px] text-gray-400">Chronological order (Earliest to Latest)</p>
-                            </div>
-                            <div class="space-x-1">
-                                <button onclick="app.printSpreadsheet()" class="px-3 py-1.5 rounded-lg gold-gradient-btn text-obsidian text-xs font-bold shadow"><i class="fa-solid fa-print"></i> Print</button>
-                            </div>
-                        </div>
-
-                        ${yearSettlements.length === 0 ? `
-                            <div class="glass-card rounded-2xl p-8 text-center space-y-3">
-                                <i class="fa-solid fa-folder-open text-gold text-3xl"></i>
-                                <p class="text-xs text-gray-300">No settlement entries found for tax year ${this.selectedYear}.</p>
-                                <button onclick="app.navigate('settlement_entry')" class="px-4 py-2 rounded-xl gold-gradient-btn text-obsidian text-xs font-bold">Add First Settlement</button>
-                            </div>
-                        ` : `
-                            <div class="glass-card rounded-2xl overflow-hidden border border-goldborder shadow-xl">
-                                <div class="overflow-x-auto max-h-[500px]">
-                                    <table class="w-full text-left border-collapse text-xs whitespace-nowrap">
-                                        <thead>
-                                            <tr class="bg-obsidian/90 text-gold border-b border-goldborder sticky top-0 z-10">
-                                                <th class="p-2.5 font-bold">Date</th>
-                                                <th class="p-2.5 font-bold">Settlement #</th>
-                                                <th class="p-2.5 font-bold text-right">Gross</th>
-                                                ${this.deductionLabels.map(l => `<th class="p-2.5 font-bold text-right text-rose-300">${l}</th>`).join('')}
-                                                <th class="p-2.5 font-bold text-right text-emerald-400">Net Payout</th>
-                                                <th class="p-2.5 font-bold text-center">Actions</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody class="divide-y divide-goldborder/30">
-                                            ${yearSettlements.map(s => {
-                                                let rowDed = s.deductions.reduce((a, b) => a + Number(b || 0), 0);
-                                                let net = s.gross - rowDed;
-                                                totalGross += Number(s.gross);
-                                                totalNet += net;
-                                                totalDedSum += rowDed;
-
-                                                return `
-                                                    <tr class="hover:bg-gold/5 transition">
-                                                        <td class="p-2.5 font-mono text-gray-300">${s.date}</td>
-                                                        <td class="p-2.5 font-semibold text-white">${s.settlementNum}</td>
-                                                        <td class="p-2.5 font-mono text-right text-amber-300">${this.formatCurrency(s.gross)}</td>
-                                                        ${s.deductions.map(d => `<td class="p-2.5 font-mono text-right text-rose-300/80">${d ? this.formatCurrency(d) : '-'}</td>`).join('')}
-                                                        <td class="p-2.5 font-mono text-right font-bold text-emerald-400">${this.formatCurrency(net)}</td>
-                                                        <td class="p-2.5 text-center space-x-1">
-                                                            <button onclick="app.editSettlement('${s.id}')" class="px-2 py-1 rounded bg-gold/20 text-gold hover:bg-gold hover:text-obsidian transition text-[10px]" title="Edit"><i class="fa-solid fa-pen"></i></button>
-                                                            <button onclick="app.deleteSettlement('${s.id}')" class="px-2 py-1 rounded bg-rose-500/20 text-rose-400 hover:bg-rose-500 hover:text-white transition text-[10px]" title="Delete"><i class="fa-solid fa-trash"></i></button>
-                                                        </td>
-                                                    </tr>
-                                                `;
-                                            }).join('')}
-                                        </tbody>
-                                        <tfoot>
-                                            <tr class="bg-obsidian font-bold text-gold border-t border-goldborder">
-                                                <td colspan="2" class="p-2.5 uppercase">Year Total (${this.selectedYear}):</td>
-                                                <td class="p-2.5 text-right font-mono text-amber-300">${this.formatCurrency(totalGross)}</td>
-                                                <td colspan="${this.deductionLabels.length}" class="p-2.5 text-right text-rose-300">Total Ded: -${this.formatCurrency(totalDedSum)}</td>
-                                                <td class="p-2.5 text-right font-mono text-emerald-400">${this.formatCurrency(totalNet)}</td>
-                                                <td></td>
-                                            </tr>
-                                        </tfoot>
-                                    </table>
-                                </div>
-                            </div>
-                        `}
-
-                        <button onclick="app.navigate('settlement_entry')" class="w-full py-3 rounded-xl gold-gradient-btn text-obsidian font-bold text-sm shadow-lg transition">
-                            <i class="fa-solid fa-plus mr-1"></i> ADD NEW SETTLEMENT ENTRY
-                        </button>
-                    </div>
-                `;
-            }
-
-            printSpreadsheet() {
-                const yearSettlements = this.settlements.filter(s => s.year === this.selectedYear);
-                yearSettlements.sort((a, b) => new Date(a.date) - new Date(b.date));
-
-                let html = `
-                    <h1 style="font-size: 18px; font-weight: bold; margin-bottom: 4px;">RigTracker Pro - Settlement Spreadsheet</h1>
-                    <p style="font-size: 11px; color: #555; margin-bottom: 12px;">Tax Year: ${this.selectedYear} | User: ${this.currentUser?.email || 'Operator'}</p>
-                    <table border="1" cellpadding="6" cellspacing="0" style="width: 100%; border-collapse: collapse; font-size: 10px;">
-                        <tr style="background: #f2f2f2;">
-                            <th>Date</th><th>Settlement #</th><th>Gross</th>
-                            ${this.deductionLabels.map(l => `<th>${l}</th>`).join('')}
-                            <th>Net Payout</th>
-                        </tr>
-                `;
-                yearSettlements.forEach(s => {
-                    let rowDed = s.deductions.reduce((a, b) => a + Number(b || 0), 0);
-                    let net = s.gross - rowDed;
-                    html += `
-                        <tr>
-                            <td>${s.date}</td>
-                            <td><b>${s.settlementNum}</b></td>
-                            <td align="right">$${Number(s.gross).toFixed(2)}</td>
-                            ${s.deductions.map(d => `<td align="right">${d ? '$' + Number(d).toFixed(2) : '-'}</td>`).join('')}
-                            <td align="right"><b>$${net.toFixed(2)}</b></td>
-                        </tr>
-                    `;
-                });
-                html += `</table>`;
-
-                document.getElementById('print-modal-title').innerText = `Settlements Spreadsheet (${this.selectedYear})`;
-                document.getElementById('print-modal-content').innerHTML = html;
-                document.getElementById('print-modal').classList.remove('hidden');
-            }
-
-            closePrintModal() {
-                document.getElementById('print-modal').classList.add('hidden');
-            }
-
-            // --- 5. PER DIEM LOG TAB ---
-            renderPerDiem(container) {
-                const yearPerDiems = this.perDiems.filter(p => p.year === this.selectedYear);
-                // Earliest to latest chronological
-                yearPerDiems.sort((a, b) => new Date(a.date) - new Date(b.date));
-
-                const isEditing = this.editingPerDiemId !== null;
-                let editData = { date: new Date().toISOString().split('T')[0], location: '', area: '', loadNum: '', time: '12:00', tz: 'EST', receipt: null };
-                if (isEditing) {
-                    const found = this.perDiems.find(p => p.id === this.editingPerDiemId);
-                    if (found) editData = found;
-                }
-
-                container.innerHTML = `
-                    <div class="space-y-4 animate-fade pb-6">
-                        <div class="flex items-center justify-between border-b border-goldborder pb-2">
-                            <div>
-                                <h2 class="text-sm font-bold text-gold uppercase tracking-wider">Per Diem Log (${this.selectedYear})</h2>
-                                <p class="text-[10px] text-gray-400">Strict Driver Log (Zero Calculations or Estimates)</p>
-                            </div>
-                            <span class="text-xs font-bold text-gold bg-gold/10 px-2.5 py-1 rounded-lg border border-goldborder">${yearPerDiems.length} Days Logged</span>
-                        </div>
-
-                        <!-- Per Diem Entry Form -->
-                        <form onsubmit="app.savePerDiem(event)" class="glass-card rounded-2xl p-4 space-y-3 shadow-xl border border-goldborder">
-                            <div class="flex justify-between items-center">
-                                <h3 class="text-xs font-bold text-gold uppercase">${isEditing ? 'Edit Per Diem Entry' : 'Log New Per Diem Day'}</h3>
-                                ${isEditing ? `<button type="button" onclick="app.cancelEditPerDiem()" class="text-[10px] text-rose-400 hover:underline">Cancel</button>` : ''}
-                            </div>
-                            
-                            <div class="grid grid-cols-2 gap-2">
-                                <div>
-                                    <label class="block text-[10px] font-semibold text-gray-300 mb-1">Date</label>
-                                    <input type="date" id="pd-date" required value="${editData.date}"
-                                        class="w-full bg-obsidian border border-goldborder rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-gold">
-                                </div>
-                                <div>
-                                    <label class="block text-[10px] font-semibold text-gray-300 mb-1">US Time Zone</label>
-                                    <select id="pd-tz" class="w-full bg-obsidian border border-goldborder rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-gold">
-                                        ${['EST', 'CST', 'MST', 'PST', 'AKST', 'HST'].map(tz => `<option value="${tz}" ${editData.tz === tz ? 'selected' : ''}>${tz}</option>`).join('')}
-                                    </select>
-                                </div>
-                            </div>
-
-                            <div class="grid grid-cols-2 gap-2">
-                                <div>
-                                    <label class="block text-[10px] font-semibold text-gray-300 mb-1">Location (City, State)</label>
-                                    <input type="text" id="pd-location" required placeholder="Nashville, TN" value="${editData.location}"
-                                        class="w-full bg-obsidian border border-goldborder rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-gold">
-                                </div>
-                                <div>
-                                    <label class="block text-[10px] font-semibold text-gray-300 mb-1">Area / Facility Description</label>
-                                    <input type="text" id="pd-area" placeholder="Pilot #450 / Truck Stop" value="${editData.area}"
-                                        class="w-full bg-obsidian border border-goldborder rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-gold">
-                                </div>
-                            </div>
-
-                            <div class="grid grid-cols-2 gap-2">
-                                <div>
-                                    <label class="block text-[10px] font-semibold text-gray-300 mb-1">Company Pro / Load #</label>
-                                    <input type="text" id="pd-load" placeholder="LD-9901" value="${editData.loadNum}"
-                                        class="w-full bg-obsidian border border-goldborder rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-gold">
-                                </div>
-                                <div>
-                                    <label class="block text-[10px] font-semibold text-gray-300 mb-1">Time</label>
-                                    <input type="time" id="pd-time" value="${editData.time}"
-                                        class="w-full bg-obsidian border border-goldborder rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-gold">
-                                </div>
-                            </div>
-
-                            <div>
-                                <label class="block text-[10px] font-semibold text-gray-300 mb-1">Receipt / Log Photo Upload (Optional)</label>
-                                <input type="file" id="pd-receipt" accept="image/*"
-                                    class="w-full text-xs text-gray-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-gold/20 file:text-gold hover:file:bg-gold hover:file:text-obsidian cursor-pointer">
-                            </div>
-
-                            <button type="submit" class="w-full py-2.5 rounded-xl gold-gradient-btn text-obsidian font-bold text-xs shadow-lg transition">
-                                ${isEditing ? 'UPDATE PER DIEM ENTRY' : 'LOG PER DIEM DAY'}
-                            </button>
-                        </form>
-
-                        <!-- Chronological Per Diem Spreadsheet List -->
-                        <div class="space-y-2">
-                            <div class="flex items-center justify-between">
-                                <h3 class="text-xs font-bold text-gold uppercase tracking-wider">Chronological Per Diem Spreadsheet</h3>
-                                <button onclick="app.printPerDiem()" class="px-2.5 py-1 rounded-lg bg-obsidian border border-goldborder text-gold text-[10px] font-semibold hover:bg-gold hover:text-obsidian transition"><i class="fa-solid fa-print mr-1"></i> Print Log</button>
-                            </div>
-
-                            ${yearPerDiems.length === 0 ? `
-                                <div class="glass-card rounded-2xl p-6 text-center text-xs text-gray-400">
-                                    No per diem days logged for ${this.selectedYear}.
-                                </div>
-                            ` : `
-                                <div class="glass-card rounded-2xl overflow-hidden border border-goldborder shadow-lg">
-                                    <div class="overflow-x-auto max-h-[350px]">
-                                        <table class="w-full text-left border-collapse text-xs whitespace-nowrap">
-                                            <thead>
-                                                <tr class="bg-obsidian/90 text-gold border-b border-goldborder sticky top-0 z-10">
-                                                    <th class="p-2 font-bold">Date</th>
-                                                    <th class="p-2 font-bold">Location</th>
-                                                    <th class="p-2 font-bold">Area Description</th>
-                                                    <th class="p-2 font-bold">Pro / Load #</th>
-                                                    <th class="p-2 font-bold">Time</th>
-                                                    <th class="p-2 font-bold text-center">Actions</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody class="divide-y divide-goldborder/30">
-                                                ${yearPerDiems.map(p => `
-                                                    <tr class="hover:bg-gold/5 transition">
-                                                        <td class="p-2 font-mono text-gray-300">${p.date}</td>
-                                                        <td class="p-2 font-semibold text-white">${p.location} (${p.tz})</td>
-                                                        <td class="p-2 text-gray-300">${p.area || '-'}</td>
-                                                        <td class="p-2 font-mono text-amber-300">${p.loadNum || '-'}</td>
-                                                        <td class="p-2 font-mono text-gray-400">${p.time}</td>
-                                                        <td class="p-2 text-center space-x-1">
-                                                            <button onclick="app.editPerDiem('${p.id}')" class="px-2 py-1 rounded bg-gold/20 text-gold hover:bg-gold hover:text-obsidian transition text-[10px]" title="Edit"><i class="fa-solid fa-pen"></i></button>
-                                                            <button onclick="app.deletePerDiem('${p.id}')" class="px-2 py-1 rounded bg-rose-500/20 text-rose-400 hover:bg-rose-500 hover:text-white transition text-[10px]" title="Delete"><i class="fa-solid fa-trash"></i></button>
-                                                        </td>
-                                                    </tr>
-                                                `).join('')}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-                            `}
-                        </div>
-                    </div>
-                `;
-            }
-
-            savePerDiem(e) {
-                e.preventDefault();
-                const date = document.getElementById('pd-date').value;
-                const location = document.getElementById('pd-location').value.trim();
-                const area = document.getElementById('pd-area').value.trim();
-                const loadNum = document.getElementById('pd-load').value.trim();
-                const time = document.getElementById('pd-time').value;
-                const tz = document.getElementById('pd-tz').value;
-                
-                const fileInput = document.getElementById('pd-receipt');
-                let receipt = null;
-                if (fileInput && fileInput.files && fileInput.files[0]) {
-                    receipt = fileInput.files[0].name;
-                }
-
-                if (this.editingPerDiemId !== null) {
-                    const idx = this.perDiems.findIndex(p => p.id === this.editingPerDiemId);
-                    if (idx !== -1) {
-                        this.perDiems[idx] = {
-                            ...this.perDiems[idx],
-                            date, location, area, loadNum, time, tz, year: this.selectedYear,
-                            receipt: receipt || this.perDiems[idx].receipt
-                        };
-                    }
-                    this.editingPerDiemId = null;
-                } else {
-                    const newEntry = {
-                        id: 'pd_' + Date.now(),
-                        year: this.selectedYear,
-                        date, location, area, loadNum, time, tz, receipt
-                    };
-                    this.perDiems.push(newEntry);
-                }
-
-                // Chronological earliest to latest
-                this.perDiems.sort((a, b) => new Date(a.date) - new Date(b.date));
-                this.saveState();
-                this.showModal('Success', 'Per Diem day logged successfully!', 'fa-circle-check');
-                this.render();
-            }
-
-            editPerDiem(id) {
-                this.editingPerDiemId = id;
-                this.render();
-            }
-
-            cancelEditPerDiem() {
-                this.editingPerDiemId = null;
-                this.render();
-            }
-
-            deletePerDiem(id) {
-                if (confirm('Are you sure you want to delete this per diem log entry?')) {
-                    this.perDiems = this.perDiems.filter(p => p.id !== id);
-                    this.saveState();
-                    this.render();
-                }
-            }
-
-            printPerDiem() {
-                const yearPerDiems = this.perDiems.filter(p => p.year === this.selectedYear);
-                yearPerDiems.sort((a, b) => new Date(a.date) - new Date(b.date));
-
-                let html = `
-                    <h1 style="font-size: 18px; font-weight: bold; margin-bottom: 4px;">RigTracker Pro - Per Diem Log Spreadsheet</h1>
-                    <p style="font-size: 11px; color: #555; margin-bottom: 12px;">Tax Year: ${this.selectedYear} | Total Days: ${yearPerDiems.length}</p>
-                    <table border="1" cellpadding="6" cellspacing="0" style="width: 100%; border-collapse: collapse; font-size: 10px;">
-                        <tr style="background: #f2f2f2;">
-                            <th>Date</th><th>Location</th><th>Area Description</th><th>Pro / Load #</th><th>Time</th><th>TZ</th>
-                        </tr>
-                `;
-                yearPerDiems.forEach(p => {
-                    html += `
-                        <tr>
-                            <td>${p.date}</td>
-                            <td><b>${p.location}</b></td>
-                            <td>${p.area || '-'}</td>
-                            <td>${p.loadNum || '-'}</td>
-                            <td>${p.time}</td>
-                            <td>${p.tz}</td>
-                        </tr>
-                    `;
-                });
-                html += `</table>`;
-
-                document.getElementById('print-modal-title').innerText = `Per Diem Log (${this.selectedYear})`;
-                document.getElementById('print-modal-content').innerHTML = html;
-                document.getElementById('print-modal').classList.remove('hidden');
-            }
-
-            // --- 6. TAX FORM TAB ---
-            renderTaxForm(container) {
-                const calc = this.getYearCalculations(this.selectedYear);
-                const yearSettlements = this.settlements.filter(s => s.year === this.selectedYear);
-                const yearPerDiems = this.perDiems.filter(p => p.year === this.selectedYear);
-
-                yearSettlements.sort((a, b) => new Date(a.date) - new Date(b.date));
-                yearPerDiems.sort((a, b) => new Date(a.date) - new Date(b.date));
-
-                container.innerHTML = `
-                    <div class="space-y-4 animate-fade pb-6">
-                        <div class="flex items-center justify-between border-b border-goldborder pb-2">
-                            <div>
-                                <h2 class="text-sm font-bold text-gold uppercase tracking-wider">Annual Tax Packet (${this.selectedYear})</h2>
-                                <p class="text-[10px] text-gray-400">Complete IRS-Ready Summary & Spreadsheets</p>
-                            </div>
-                            <button onclick="app.printTaxPacket()" class="px-3 py-1.5 rounded-lg gold-gradient-btn text-obsidian text-xs font-bold shadow"><i class="fa-solid fa-file-pdf"></i> Download PDF Form</button>
-                        </div>
-
-                        <!-- 3 Core Totals Card -->
-                        <div class="glass-card rounded-2xl p-4 space-y-3 border border-gold/40 shadow-xl">
-                            <h3 class="text-xs font-bold text-gold uppercase tracking-wider">Year-End Financial Overview</h3>
-                            <div class="grid grid-cols-3 gap-2 text-center">
-                                <div class="bg-obsidian/70 p-2.5 rounded-xl border border-goldborder">
-                                    <span class="block text-[9px] text-gray-400 uppercase">Gross Revenue</span>
-                                    <span class="text-xs font-bold text-amber-300">${this.formatCurrency(calc.totalGross)}</span>
-                                </div>
-                                <div class="bg-obsidian/70 p-2.5 rounded-xl border border-goldborder">
-                                    <span class="block text-[9px] text-gray-400 uppercase">Total Deductions</span>
-                                    <span class="text-xs font-bold text-rose-400">-${this.formatCurrency(calc.totalDeductions)}</span>
-                                </div>
-                                <div class="bg-obsidian/70 p-2.5 rounded-xl border border-goldborder">
-                                    <span class="block text-[9px] text-gray-400 uppercase">Net Payout</span>
-                                    <span class="text-xs font-bold text-emerald-400">${this.formatCurrency(calc.netPayout)}</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Individual Itemized Deduction Breakdown Boxes -->
-                        <div class="glass-card rounded-2xl p-4 space-y-3 border border-goldborder shadow-xl">
-                            <h3 class="text-xs font-bold text-gold uppercase tracking-wider">Itemized Deduction Breakdown (${this.selectedYear})</h3>
-                            <div class="grid grid-cols-2 gap-2">
-                                ${this.deductionLabels.map((label, idx) => `
-                                    <div class="bg-obsidian/60 p-2.5 rounded-xl border border-goldborder/50 flex justify-between items-center">
-                                        <span class="text-[11px] text-gray-300 font-medium truncate pr-1">${label}</span>
-                                        <span class="text-xs font-mono font-bold text-rose-300">${this.formatCurrency(calc.itemizedTotals[idx])}</span>
-                                    </div>
-                                `).join('')}
-                            </div>
-                        </div>
-
-                        <!-- Included Spreadsheets Notification -->
-                        <div class="glass-card rounded-2xl p-4 space-y-2 border border-goldborder bg-gold/5">
-                            <div class="flex items-center space-x-2 text-gold">
-                                <i class="fa-solid fa-circle-check"></i>
-                                <h4 class="text-xs font-bold uppercase">Included in Annual Tax Packet PDF</h4>
-                            </div>
-                            <ul class="text-[11px] text-gray-300 space-y-1 pl-5 list-disc">
-                                <li>Complete Settlement Spreadsheet (${yearSettlements.length} entries, chronological)</li>
-                                <li>Pure Per Diem Log Spreadsheet (${yearPerDiems.length} logged days)</li>
-                                <li>Itemized Category Breakdown Summaries</li>
-                            </ul>
-                        </div>
-
-                        <button onclick="app.printTaxPacket()" class="w-full py-3 rounded-xl gold-gradient-btn text-obsidian font-bold text-sm shadow-lg transition flex items-center justify-center space-x-2">
-                            <i class="fa-solid fa-cloud-arrow-down"></i>
-                            <span>DOWNLOAD FULL TAX PACKET (PDF)</span>
-                        </button>
-                    </div>
-                `;
-            }
-
-            printTaxPacket() {
-                const calc = this.getYearCalculations(this.selectedYear);
-                const yearSettlements = this.settlements.filter(s => s.year === this.selectedYear);
-                const yearPerDiems = this.perDiems.filter(p => p.year === this.selectedYear);
-
-                yearSettlements.sort((a, b) => new Date(a.date) - new Date(b.date));
-                yearPerDiems.sort((a, b) => new Date(a.date) - new Date(b.date));
-
-                let html = `
-                    <div style="font-family: sans-serif; padding: 10px;">
-                        <h1 style="font-size: 20px; font-weight: bold; border-bottom: 2px solid #D4AF37; padding-bottom: 6px; margin-bottom: 10px;">RigTracker Pro - Annual Tax Packet (${this.selectedYear})</h1>
-                        <p style="font-size: 11px; margin-bottom: 15px;"><b>Operator:</b> ${this.currentUser?.email || 'Owner-Operator'} | <b>Generated:</b> ${new Date().toLocaleDateString()}</p>
-                        
-                        <h2 style="font-size: 14px; font-weight: bold; background: #f4f4f4; padding: 6px; margin-top: 15px;">1. Year-End Financial Totals</h2>
-                        <table border="1" cellpadding="6" cellspacing="0" style="width: 100%; border-collapse: collapse; font-size: 11px; margin-bottom: 15px;">
-                            <tr><td><b>Gross Revenue</b></td><td align="right">$${calc.totalGross.toFixed(2)}</td></tr>
-                            <tr><td><b>Total Deductions</b></td><td align="right">-$${calc.totalDeductions.toFixed(2)}</td></tr>
-                            <tr style="background: #e9f8f0;"><td><b>Net Payout</b></td><td align="right"><b>$${calc.netPayout.toFixed(2)}</b></td></tr>
-                        </table>
-
-                        <h2 style="font-size: 14px; font-weight: bold; background: #f4f4f4; padding: 6px; margin-top: 15px;">2. Itemized Deduction Breakdowns</h2>
-                        <table border="1" cellpadding="6" cellspacing="0" style="width: 100%; border-collapse: collapse; font-size: 11px; margin-bottom: 15px;">
-                            ${this.deductionLabels.map((l, idx) => `
-                                <tr><td>${l}</td><td align="right">$${calc.itemizedTotals[idx].toFixed(2)}</td></tr>
-                            `).join('')}
-                        </table>
-
-                        <h2 style="font-size: 14px; font-weight: bold; background: #f4f4f4; padding: 6px; margin-top: 15px;">3. Complete Settlement Spreadsheet (${yearSettlements.length} Entries)</h2>
-                        <table border="1" cellpadding="5" cellspacing="0" style="width: 100%; border-collapse: collapse; font-size: 9px; margin-bottom: 15px;">
-                            <tr style="background: #eaeaea;">
-                                <th>Date</th><th>Settlement #</th><th>Gross</th>
-                                ${this.deductionLabels.map(l => `<th>${l}</th>`).join('')}
-                                <th>Net Payout</th>
-                            </tr>
-                            ${yearSettlements.map(s => {
-                                let rDed = s.deductions.reduce((a, b) => a + Number(b || 0), 0);
-                                let net = s.gross - rDed;
-                                return `
-                                    <tr>
-                                        <td>${s.date}</td><td><b>${s.settlementNum}</b></td>
-                                        <td align="right">$${Number(s.gross).toFixed(2)}</td>
-                                        ${s.deductions.map(d => `<td align="right">${d ? '$' + Number(d).toFixed(2) : '-'}</td>`).join('')}
-                                        <td align="right"><b>$${net.toFixed(2)}</b></td>
-                                    </tr>
-                                `;
-                            }).join('')}
-                        </table>
-
-                        <h2 style="font-size: 14px; font-weight: bold; background: #f4f4f4; padding: 6px; margin-top: 15px;">4. Per Diem Log Spreadsheet (${yearPerDiems.length} Logged Days)</h2>
-                        <table border="1" cellpadding="5" cellspacing="0" style="width: 100%; border-collapse: collapse; font-size: 9px;">
-                            <tr style="background: #eaeaea;">
-                                <th>Date</th><th>Location</th><th>Area Description</th><th>Pro / Load #</th><th>Time</th><th>TZ</th>
-                            </tr>
-                            ${yearPerDiems.map(p => `
-                                <tr>
-                                    <td>${p.date}</td><td><b>${p.location}</b></td>
-                                    <td>${p.area || '-'}</td><td>${p.loadNum || '-'}</td><td>${p.time}</td><td>${p.tz}</td>
-                                </tr>
-                            `).join('')}
-                        </table>
-                    </div>
-                `;
-
-                document.getElementById('print-modal-title').innerText = `RigTracker Pro Tax Packet (${this.selectedYear})`;
-                document.getElementById('print-modal-content').innerHTML = html;
-                document.getElementById('print-modal').classList.remove('hidden');
+            saveData();
+            resetSettlementForm();
+            switchView('ledger');
+        }
+
+        function editSettlement(id) {
+            const entry = settlements.find(s => s.id === id);
+            if (!entry) return;
+
+            document.getElementById('editingId').value = entry.id;
+            document.getElementById('entryDate').value = entry.date;
+            document.getElementById('entryGross').value = entry.gross.toFixed(2);
+            document.getElementById('entryFuel').value = entry.fuel.toFixed(2);
+            document.getElementById('entryInsurance').value = entry.insurance.toFixed(2);
+            document.getElementById('entryPlate').value = entry.plate.toFixed(2);
+            document.getElementById('entryEscrow').value = entry.escrow.toFixed(2);
+            document.getElementById('entryToll').value = entry.toll.toFixed(2);
+            document.getElementById('entryOther').value = entry.other.toFixed(2);
+
+            document.getElementById('formTitle').textContent = 'Edit Settlement Entry';
+            document.getElementById('submitBtn').textContent = 'Update Settlement';
+            document.getElementById('cancelEditBtn').classList.remove('hidden');
+
+            switchView('settlement');
+        }
+
+        function deleteSettlement(id) {
+            if (confirm('Are you sure you want to delete this settlement entry?')) {
+                settlements = settlements.filter(s => s.id !== id);
+                saveData();
             }
         }
 
-        // Initialize App on window load
-        let app;
-        window.onload = function() {
-            app = new RigTrackerApp();
-        };
+        function addPerDiemNight(e) {
+            e.preventDefault();
+            const newNight = {
+                id: Date.now(),
+                date: document.getElementById('perDiemDate').value,
+                notes: document.getElementById('perDiemNotes').value || 'Sleeper Berth'
+            };
+            perDiemNights.unshift(newNight);
+            saveData();
+            document.getElementById('perDiemForm').reset();
+            document.getElementById('perDiemDate').valueAsDate = new Date();
+        }
+
+        function deletePerDiemNight(id) {
+            perDiemNights = perDiemNights.filter(n => n.id !== id);
+            saveData();
+        }
+
+        function renderAll() {
+            let totalGross = 0, totalFuel = 0, totalInsurance = 0, totalPlate = 0, totalEscrow = 0, totalToll = 0, totalOther = 0;
+
+            const tableBody = document.getElementById('ledgerTableBody');
+            tableBody.innerHTML = '';
+
+            settlements.forEach(s => {
+                totalGross += s.gross;
+                totalFuel += s.fuel;
+                totalInsurance += s.insurance;
+                totalPlate += s.plate;
+                totalEscrow += s.escrow;
+                totalToll += s.toll;
+                totalOther += s.other;
+
+                tableBody.innerHTML += `
+                    <tr class="hover:bg-gray-900/50">
+                        <td class="p-3 text-gray-300">${s.date}</td>
+                        <td class="p-3 text-amber-400 font-semibold">$${s.gross.toFixed(2)}</td>
+                        <td class="p-3 text-red-400">$${s.fuel.toFixed(2)}</td>
+                        <td class="p-3 text-red-400">$${s.insurance.toFixed(2)}</td>
+                        <td class="p-3 text-red-400">$${s.plate.toFixed(2)}</td>
+                        <td class="p-3 text-red-400">$${s.escrow.toFixed(2)}</td>
+                        <td class="p-3 text-red-400">$${s.toll.toFixed(2)}</td>
+                        <td class="p-3 text-red-400">$${s.other.toFixed(2)}</td>
+                        <td class="p-3 text-right space-x-2">
+                            <button onclick="editSettlement(${s.id})" class="text-amber-400 hover:text-amber-300">Edit</button>
+                            <button onclick="deleteSettlement(${s.id})" class="text-gray-500 hover:text-red-400">Delete</button>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            const totalDeductions = totalFuel + totalInsurance + totalPlate + totalEscrow + totalToll + totalOther;
+            const netPayout = totalGross - totalDeductions;
+
+            // Update Dashboard Metrics
+            document.getElementById('dashGross').textContent = `$${totalGross.toFixed(2)}`;
+            document.getElementById('dashDeductions').textContent = `$${totalDeductions.toFixed(2)}`;
+            document.getElementById('dashNet').textContent = `$${netPayout.toFixed(2)}`;
+
+            // Update Ledger Breakdown
+            document.getElementById('sumFuel').textContent = `$${totalFuel.toFixed(2)}`;
+            document.getElementById('sumInsurance').textContent = `$${totalInsurance.toFixed(2)}`;
+            document.getElementById('sumPlate').textContent = `$${totalPlate.toFixed(2)}`;
+            document.getElementById('sumEscrow').textContent = `$${totalEscrow.toFixed(2)}`;
+            document.getElementById('sumToll').textContent = `$${totalToll.toFixed(2)}`;
+            document.getElementById('sumOther').textContent = `$${totalOther.toFixed(2)}`;
+
+            // Update Per Diem
+            const nightCount = perDiemNights.length;
+            const perDiemTotalVal = nightCount * 69;
+            document.getElementById('perDiemCount').textContent = `${nightCount} Nights`;
+            
+            const perDiemTableBody = document.getElementById('perDiemTableBody');
+            perDiemTableBody.innerHTML = '';
+            perDiemNights.forEach(n => {
+                perDiemTableBody.innerHTML += `
+                    <tr class="hover:bg-gray-900/50">
+                        <td class="p-3 text-gray-300">${n.date}</td>
+                        <td class="p-3 text-gray-300">${n.notes}</td>
+                        <td class="p-3 text-right">
+                            <button onclick="deletePerDiemNight(${n.id})" class="text-gray-500 hover:text-red-400">Delete</button>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            // Update Tax Forms
+            document.getElementById('taxGross').textContent = `$${totalGross.toFixed(2)}`;
+            document.getElementById('taxDeductions').textContent = `$${totalDeductions.toFixed(2)}`;
+            document.getElementById('taxNet').textContent = `$${netPayout.toFixed(2)}`;
+            document.getElementById('taxPerDiemDeduction').textContent = `$${perDiemTotalVal.toFixed(2)} (${nightCount} nights)`;
+
+            document.getElementById('taxItemizedTableBody').innerHTML = `
+                <tr><td class="p-2.5 text-gray-400">Fuel Deductions</td><td class="p-2.5 text-right font-bold text-red-400">$${totalFuel.toFixed(2)}</td></tr>
+                <tr><td class="p-2.5 text-gray-400">Insurance</td><td class="p-2.5 text-right font-bold text-red-400">$${totalInsurance.toFixed(2)}</td></tr>
+                <tr><td class="p-2.5 text-gray-400">Plate & Permits</td><td class="p-2.5 text-right font-bold text-red-400">$${totalPlate.toFixed(2)}</td></tr>
+                <tr><td class="p-2.5 text-gray-400">Escrow</td><td class="p-2.5 text-right font-bold text-red-400">$${totalEscrow.toFixed(2)}</td></tr>
+                <tr><td class="p-2.5 text-gray-400">Tolls</td><td class="p-2.5 text-right font-bold text-red-400">$${totalToll.toFixed(2)}</td></tr>
+                <tr><td class="p-2.5 text-gray-400">Other Deductions</td><td class="p-2.5 text-right font-bold text-red-400">$${totalOther.toFixed(2)}</td></tr>
+            `;
+        }
+
+        // Authentication Modal Logic
+        function openAuthModal() {
+            document.getElementById('authModal').classList.remove('hidden');
+        }
+        function closeAuthModal() {
+            document.getElementById('authModal').classList.add('hidden');
+            document.getElementById('authErrorMsg').classList.add('hidden');
+        }
+        function toggleAuthMode() {
+            isSignUpMode = !isSignUpMode;
+            document.getElementById('authModalTitle').textContent = isSignUpMode ? 'Create RigTracker Pro Account' : 'Sign In to RigTracker Pro';
+            document.getElementById('authSubmitBtn').textContent = isSignUpMode ? 'Sign Up' : 'Sign In';
+            document.getElementById('authToggleBtn').textContent = isSignUpMode ? 'Already have an account? Sign In' : "Need an account? Sign Up";
+            document.getElementById('authErrorMsg').classList.add('hidden');
+        }
+
+        function updateAuthUI(email) {
+            const badge = document.getElementById('cloudStatusBadge');
+            badge.textContent = `Cloud: ${email}`;
+            badge.className = 'hidden sm:inline-block text-xs px-2.5 py-1 rounded bg-emerald-950 text-emerald-400 font-medium border border-emerald-800';
+            
+            const btn = document.getElementById('authNavBtn');
+            btn.textContent = 'Sign Out';
+            btn.onclick = handleSignOut;
+        }
+
+        async function handleSignOut() {
+            if (supabaseClient) {
+                await supabaseClient.auth.signOut();
+            }
+            currentUser = null;
+            location.reload();
+        }
+
+        async function handleAuthSubmit(e) {
+            e.preventDefault();
+            const email = document.getElementById('authEmail').value;
+            const password = document.getElementById('authPassword').value;
+            const errDiv = document.getElementById('authErrorMsg');
+            errDiv.classList.add('hidden');
+
+            if (!supabaseClient) {
+                currentUser = { email };
+                updateAuthUI(email);
+                closeAuthModal();
+                alert(`Successfully ${isSignUpMode ? 'signed up' : 'signed in'} as ${email} (Local Simulation Mode)`);
+                return;
+            }
+
+            try {
+                let res;
+                if (isSignUpMode) {
+                    res = await supabaseClient.auth.signUp({ email, password });
+                } else {
+                    res = await supabaseClient.auth.signInWithPassword({ email, password });
+                }
+
+                if (res.error) throw res.error;
+
+                currentUser = res.data.user || (res.data.session ? res.data.session.user : null);
+                updateAuthUI(email);
+                closeAuthModal();
+                alert(isSignUpMode ? 'Account created successfully! Check your email if verification is required.' : 'Signed in successfully!');
+            } catch (err) {
+                errDiv.textContent = err.message || 'Authentication failed.';
+                errDiv.classList.remove('hidden');
+            }
+        }
+
+        function downloadPDF() {
+            const element = document.getElementById('taxPacketPrintArea');
+            const opt = {
+                margin:       0.5,
+                filename:     'RigTracker_Pro_2026_Tax_Packet.pdf',
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2, backgroundColor: '#0b0e14' },
+                jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' }
+            };
+            html2pdf().from(element).set(opt).save();
+        }
+
+        function exportBackup() {
+            const data = { settlements, perDiemNights, exportDate: new Date().toISOString() };
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `RigTracker_Pro_Backup_${new Date().toISOString().split('T')[0]}.json`;
+            a.click();
+        }
+
+        renderAll();
     </script>
 </body>
 </html>
