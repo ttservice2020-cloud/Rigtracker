@@ -283,15 +283,12 @@
                     return;
                 }
                 
-                alert("Account created successfully! You can now sign in with your credentials.");
+                alert("Account created successfully! You can now sign in.");
                 toggleAuthMode();
                 return;
             } else {
-                // Sign In Mode: Check if username is typed or an email
                 let loginEmail = usernameInput;
                 if (!usernameInput.includes('@')) {
-                    // If they typed a username, look up or construct fallback email mapping, or allow direct sign-in if stored. 
-                    // To make sign-in robust for username or email, we attempt sign-in.
                     loginEmail = `${usernameInput.toLowerCase().replace(/[^a-z0-9]/g, '')}@rigtracker.local`;
                 }
 
