@@ -279,12 +279,9 @@
                     return;
                 }
                 
-                if (data.user && !data.session) {
-                    alert("Account created successfully! You can now sign in.");
-                    toggleAuthMode();
-                    return;
-                }
-                currentUser = data.user;
+                alert("Account created successfully! You can now sign in.");
+                toggleAuthMode();
+                return;
             } else {
                 const { data, error } = await supabase.auth.signInWithPassword({
                     email: syntheticEmail,
