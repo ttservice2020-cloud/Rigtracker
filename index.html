@@ -45,7 +45,7 @@
             </div>
 
             <div class="flex items-center space-x-2">
-                <span id="cloudStatusBadge" class="hidden sm:inline-block text-xs px-2.5 py-1 rounded bg-gray-900 text-gray-400 font-medium border border-gray-800">Offline / Local</span>
+                <span id="cloudStatusBadge" class="hidden sm:inline-block text-xs px-2.5 py-1 rounded bg-gray-900 text-gray-400 font-medium border border-gray-800">Local Mode</span>
                 <button onclick="exportBackup()" class="bg-gray-900 hover:bg-gray-800 text-gray-200 text-xs font-semibold px-3 py-2 rounded border border-gray-800 transition">
                     Backup
                 </button>
@@ -332,18 +332,17 @@
 
     <!-- JavaScript Application Logic -->
     <script>
-        // Supabase configuration using your project URL and correct public anon key initialization
         const SUPABASE_URL = 'https://pxxikzzfrcncwufpzdfp.supabase.co';
-        // Note: Make sure to paste your exact Supabase project public anon key here if connecting to live database backend
-        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB4eGlrenpmcmNuY3d1ZnB6ZGZwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzA3NjkzMTYsImV4cCI6MjA0NjM0NTMxNn0...'; 
+        // Set to your actual public anon key if linking Supabase backend, otherwise leaves clean fallback mode
+        const SUPABASE_ANON_KEY = ''; 
         let supabaseClient = null;
 
         try {
-            if (window.supabase && SUPABASE_ANON_KEY.length > 50) {
+            if (window.supabase && SUPABASE_ANON_KEY && SUPABASE_ANON_KEY.length > 20) {
                 supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
             }
         } catch (e) {
-            console.warn('Supabase initialization warning:', e);
+            console.warn('Supabase initialization fallback active.');
         }
 
         let isSignUpMode = false;
@@ -362,7 +361,6 @@
         resetSettlementForm();
         document.getElementById('perDiemDate').valueAsDate = new Date();
 
-        // Check active session on load if supabase connected
         if (supabaseClient) {
             supabaseClient.auth.getSession().then(({ data: { session } }) => {
                 if (session && session.user) {
@@ -530,12 +528,10 @@
             const totalDeductions = totalFuel + totalInsurance + totalPlate + totalEscrow + totalToll + totalOther;
             const netPayout = totalGross - totalDeductions;
 
-            // Update Dashboard Metrics
             document.getElementById('dashGross').textContent = `$${totalGross.toFixed(2)}`;
             document.getElementById('dashDeductions').textContent = `$${totalDeductions.toFixed(2)}`;
             document.getElementById('dashNet').textContent = `$${netPayout.toFixed(2)}`;
 
-            // Update Ledger Breakdown
             document.getElementById('sumFuel').textContent = `$${totalFuel.toFixed(2)}`;
             document.getElementById('sumInsurance').textContent = `$${totalInsurance.toFixed(2)}`;
             document.getElementById('sumPlate').textContent = `$${totalPlate.toFixed(2)}`;
@@ -543,7 +539,6 @@
             document.getElementById('sumToll').textContent = `$${totalToll.toFixed(2)}`;
             document.getElementById('sumOther').textContent = `$${totalOther.toFixed(2)}`;
 
-            // Update Per Diem
             const nightCount = perDiemNights.length;
             const perDiemTotalVal = nightCount * 69;
             document.getElementById('perDiemCount').textContent = `${nightCount} Nights`;
@@ -562,7 +557,6 @@
                 `;
             });
 
-            // Update Tax Forms
             document.getElementById('taxGross').textContent = `$${totalGross.toFixed(2)}`;
             document.getElementById('taxDeductions').textContent = `$${totalDeductions.toFixed(2)}`;
             document.getElementById('taxNet').textContent = `$${netPayout.toFixed(2)}`;
@@ -578,7 +572,6 @@
             `;
         }
 
-        // Authentication Modal Logic
         function openAuthModal() {
             document.getElementById('authModal').classList.remove('hidden');
         }
@@ -623,7 +616,6 @@
                 currentUser = { email };
                 updateAuthUI(email);
                 closeAuthModal();
-                alert(`Successfully ${isSignUpMode ? 'signed up' : 'signed in'} as ${email} (Local Simulation Mode)`);
                 return;
             }
 
@@ -640,7 +632,6 @@
                 currentUser = res.data.user || (res.data.session ? res.data.session.user : null);
                 updateAuthUI(email);
                 closeAuthModal();
-                alert(isSignUpMode ? 'Account created successfully! Check your email if verification is required.' : 'Signed in successfully!');
             } catch (err) {
                 errDiv.textContent = err.message || 'Authentication failed.';
                 errDiv.classList.remove('hidden');
