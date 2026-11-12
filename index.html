@@ -3,795 +3,461 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RigTracker Pro - Professional Owner-Operator Ledger</title>
+    <title>RigTracker Pro - Owner-Operator Ledger</title>
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <!-- Supabase Client -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        :root {
-            --bg-color: #121212;
-            --card-bg: #1e1e1e;
-            --text-color: #e0e0e0;
-            --text-muted: #aaaaaa;
-            --accent-yellow: #ffb703;
-            --accent-green: #2ec4b6;
-            --accent-red: #e71d36;
-            --border-color: #333333;
-            --input-bg: #2a2a2a;
-        }
-
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-        }
-
-        body {
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            padding: 10px;
-            max-width: 600px;
-            margin: 0 auto;
-        }
-
-        header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            background-color: var(--card-bg);
-            padding: 12px 15px;
-            border-radius: 12px;
-            border: 1px solid var(--border-color);
-            margin-bottom: 15px;
-        }
-
-        .logo-area {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .logo-box {
-            background-color: var(--accent-yellow);
-            color: #000;
-            font-weight: 800;
-            font-size: 18px;
-            padding: 8px 12px;
-            border-radius: 8px;
-        }
-
-        .app-title h1 {
-            font-size: 18px;
-            color: #fff;
-        }
-
-        .app-title p {
-            font-size: 12px;
-            color: var(--text-muted);
-        }
-
-        .header-actions {
-            display: flex;
-            gap: 8px;
-            align-items: center;
-        }
-
-        .badge-cloud {
-            background-color: #1b4332;
-            color: #52b788;
-            font-size: 11px;
-            padding: 4px 8px;
-            border-radius: 6px;
-            font-weight: 600;
-            border: 1px solid #2d6a4f;
-            cursor: pointer;
-        }
-
-        .btn-backup {
-            background-color: #2b2b2b;
-            color: #fff;
-            border: 1px solid var(--border-color);
-            padding: 6px 10px;
-            border-radius: 6px;
-            font-size: 12px;
-            cursor: pointer;
-        }
-
-        .sub-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 15px;
-        }
-
-        .btn-back {
-            background-color: var(--card-bg);
-            color: var(--accent-yellow);
-            border: 1px solid var(--border-color);
-            padding: 8px 14px;
-            border-radius: 8px;
-            font-size: 13px;
-            font-weight: 600;
-            cursor: pointer;
-        }
-
-        .card {
-            background-color: var(--card-bg);
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
-            padding: 15px;
-            margin-bottom: 15px;
-        }
-
-        .metric-card {
-            text-align: left;
-            margin-bottom: 12px;
-        }
-
-        .metric-title {
-            font-size: 11px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            color: var(--text-muted);
-            margin-bottom: 5px;
-        }
-
-        .metric-value {
-            font-size: 26px;
-            font-weight: 700;
-        }
-
-        .val-yellow { color: var(--accent-yellow); }
-        .val-red { color: var(--accent-red); }
-        .val-green { color: var(--accent-green); }
-
-        .menu-grid {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            margin-top: 15px;
-        }
-
-        .menu-btn {
-            background-color: var(--card-bg);
-            color: #fff;
-            border: 1px solid var(--border-color);
-            padding: 16px;
-            border-radius: 10px;
-            font-size: 15px;
-            font-weight: 600;
-            text-align: center;
-            cursor: pointer;
-        }
-
-        .menu-btn:active {
-            background-color: #2a2a2a;
-        }
-
-        .grid-2 {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-            margin-bottom: 15px;
-        }
-
-        .sub-card {
-            background-color: #242424;
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            padding: 10px;
-        }
-
-        .sub-card label {
-            font-size: 11px;
-            color: var(--text-muted);
-            display: block;
-            margin-bottom: 3px;
-        }
-
-        .sub-card .val {
-            font-size: 16px;
-            font-weight: 600;
-        }
-
-        .section-title {
-            font-size: 14px;
-            color: var(--accent-yellow);
-            margin: 20px 0 10px 0;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .form-group {
-            margin-bottom: 12px;
-        }
-
-        .form-group label {
-            display: block;
-            font-size: 12px;
-            color: var(--text-muted);
-            margin-bottom: 5px;
-        }
-
-        .form-control {
-            width: 100%;
-            background-color: var(--input-bg);
-            border: 1px solid var(--border-color);
-            color: #fff;
-            padding: 10px;
-            border-radius: 8px;
-            font-size: 14px;
-        }
-
-        .btn-primary {
-            width: 100%;
-            background-color: var(--accent-yellow);
-            color: #000;
-            border: none;
-            padding: 12px;
-            border-radius: 8px;
-            font-weight: 700;
-            font-size: 15px;
-            cursor: pointer;
-            margin-top: 10px;
-        }
-
-        .btn-sync-action {
-            background-color: var(--accent-green);
-            color: #000;
-            border: none;
-            padding: 8px 12px;
-            border-radius: 6px;
-            font-weight: 700;
-            font-size: 12px;
-            cursor: pointer;
-        }
-
-        .ledger-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 12px;
-            margin-top: 10px;
-            white-space: nowrap;
-        }
-
-        .ledger-table th {
-            text-align: left;
-            color: var(--accent-yellow);
-            padding: 8px 6px;
-            border-bottom: 1px solid var(--border-color);
-            font-size: 10px;
-            text-transform: uppercase;
-        }
-
-        .ledger-table td {
-            padding: 10px 6px;
-            border-bottom: 1px solid #222;
-        }
-
-        .action-btns {
-            display: flex;
-            gap: 5px;
-        }
-
-        .btn-sm {
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 11px;
-            cursor: pointer;
-            border: none;
-        }
-
-        .btn-delete { background-color: var(--accent-red); color: #fff; }
-
-        .hidden { display: none !important; }
-
-        @media print {
-            body { background-color: #fff !important; color: #000 !important; max-width: 100% !important; padding: 0 !important; }
-            header, .sub-header, .menu-grid, .btn-primary, .action-btns, .btn-backup, #cloud-settings-card { display: none !important; }
-            .card { border: 1px solid #ccc !important; background-color: #fff !important; color: #000 !important; box-shadow: none !important; margin-bottom: 20px !important; page-break-inside: avoid; }
-            .sub-card { background-color: #f5f5f5 !important; border: 1px solid #ddd !important; }
-            .ledger-table th { color: #333 !important; border-bottom: 2px solid #000 !important; }
-            .ledger-table td { border-bottom: 1px solid #ddd !important; color: #000 !important; }
-            .val-yellow, .val-red, .val-green, .metric-value { color: #000 !important; font-weight: bold !important; }
-            .section-title { color: #000 !important; border-bottom: 1px solid #000; padding-bottom: 4px; }
-        }
+        body { background-color: #0f172a; color: #f8fafc; font-family: system-ui, -apple-system, sans-serif; }
     </style>
 </head>
-<body>
+<body class="min-h-screen p-4 md:p-8">
 
-    <header>
-        <div class="logo-area">
-            <div class="logo-box">RT</div>
-            <div class="app-title">
-                <h1>RigTracker Pro</h1>
-                <p>Professional Owner-Operator Ledger</p>
-            </div>
-        </div>
-        <div class="header-actions">
-            <div class="badge-cloud" onclick="toggleCloudSettings()">☁️ Cloud Sync</div>
-            <button class="btn-backup" onclick="exportBackup()">JSON</button>
-        </div>
-    </header>
-
-    <!-- CLOUD SETTINGS PANEL (Hidden by default, toggleable) -->
-    <div id="cloud-settings-card" class="card hidden" style="border-color: var(--accent-green);">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-            <h3 style="font-size: 14px; color: var(--accent-green);">Cross-Device Cloud Sync</h3>
-            <span style="font-size: 12px; cursor: pointer; color: var(--text-muted);" onclick="toggleCloudSettings()">✕ Close</span>
-        </div>
-        <p style="font-size: 11px; color: var(--text-muted); margin-bottom: 10px;">Enter your free JSONBin.io Bin ID and Master Key to access your ledger from any phone, tablet, or PC.</p>
-        
-        <div class="form-group">
-            <label>JSONBin Bin ID</label>
-            <input type="text" id="sync-bin-id" class="form-control" placeholder="e.g. 658a...">
-        </div>
-        <div class="form-group">
-            <label>JSONBin Master Key ($2a$10...)</label>
-            <input type="password" id="sync-api-key" class="form-control" placeholder="e.g. $2a$10...">
-        </div>
-        
-        <div style="display: flex; gap: 8px; margin-top: 10px;">
-            <button class="btn-sync-action" style="flex: 1;" onclick="pushToCloud()">☁️ Push to Cloud</button>
-            <button class="btn-sync-action" style="flex: 1; background-color: #3b82f6; color: #fff;" onclick="pullFromCloud()">📥 Pull from Cloud</button>
-        </div>
-    </div>
-
-    <!-- DASHBOARD VIEW -->
-    <div id="tab-dashboard" class="tab-content">
-        <div class="card metric-card">
-            <div class="metric-title">YTD Gross Revenue</div>
-            <div class="metric-value val-yellow" id="dash-gross">$0.00</div>
-        </div>
-
-        <div class="card metric-card">
-            <div class="metric-title">YTD Total Deductions</div>
-            <div class="metric-value val-red" id="dash-deductions">$0.00</div>
-        </div>
-
-        <div class="card metric-card">
-            <div class="metric-title">YTD Net Total Payout</div>
-            <div class="metric-value val-green" id="dash-net">$0.00</div>
-        </div>
-
-        <div class="section-title">Itemized Deductions Breakdown</div>
-        <div class="grid-2">
-            <div class="sub-card">
-                <label>Fuel</label>
-                <div class="val val-red" id="sum-fuel">$0.00</div>
-            </div>
-            <div class="sub-card">
-                <label>Insurance</label>
-                <div class="val val-red" id="sum-insurance">$0.00</div>
-            </div>
-            <div class="sub-card">
-                <label>Plate</label>
-                <div class="val val-red" id="sum-plate">$0.00</div>
-            </div>
-            <div class="sub-card">
-                <label>Escrow</label>
-                <div class="val val-red" id="sum-escrow">$0.00</div>
-            </div>
-            <div class="sub-card">
-                <label>Toll</label>
-                <div class="val val-red" id="sum-toll">$0.00</div>
-            </div>
-            <div class="sub-card">
-                <label>Other</label>
-                <div class="val val-red" id="sum-other">$0.00</div>
-            </div>
-        </div>
-
-        <!-- Grid Menu Buttons -->
-        <div class="menu-grid">
-            <button class="menu-btn" onclick="switchTab('entry')">Settlement Entry</button>
-            <button class="menu-btn" onclick="switchTab('spreadsheet')">Spreadsheet Ledger</button>
-            <button class="menu-btn" onclick="switchTab('perdiem')">Per Diem Nights</button>
-            <button class="menu-btn" onclick="switchTab('tax')">Annual Tax Forms</button>
-        </div>
-    </div>
-
-    <!-- SETTLEMENT ENTRY TAB -->
-    <div id="tab-entry" class="tab-content hidden">
-        <div class="sub-header">
-            <button class="btn-back" onclick="switchTab('dashboard')">← Back to Dashboard</button>
-        </div>
-        <div class="card">
-            <div class="form-group">
-                <label>Date</label>
-                <input type="date" id="ent-date" class="form-control">
-            </div>
-            <div class="form-group">
-                <label>Gross ($)</label>
-                <input type="number" step="0.01" id="ent-gross" class="form-control" placeholder="0.00" oninput="calcEntry()">
+    <!-- AUTHENTICATION OVERLAY -->
+    <div id="auth-overlay" class="fixed inset-0 bg-slate-950/90 z-50 flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 md:p-8 w-full max-w-md shadow-2xl">
+            <div class="text-center mb-6">
+                <h1 class="text-2xl font-black text-amber-500 tracking-wider">RIGTRACKER PRO</h1>
+                <p id="auth-subtitle" class="text-slate-400 text-sm mt-1">Secure, private owner-operator ledger</p>
             </div>
 
-            <div class="section-title" style="margin-top:10px; font-size:12px;">Settlement Deductions</div>
-            <div class="grid-2">
-                <div class="form-group">
-                    <label>Fuel ($)</label>
-                    <input type="number" step="0.01" id="ent-fuel" class="form-control" placeholder="0.00" oninput="calcEntry()">
+            <!-- Form Container -->
+            <div id="auth-form-container" class="space-y-4">
+                <div>
+                    <label class="block text-xs uppercase tracking-wider text-slate-400 mb-1 font-bold">Username <span class="text-amber-500">*</span></label>
+                    <input type="text" id="auth-username" class="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:outline-none focus:border-amber-500" placeholder="e.g. roadwarrior42">
                 </div>
-                <div class="form-group">
-                    <label>Insurance ($)</label>
-                    <input type="number" step="0.01" id="ent-insurance" class="form-control" placeholder="0.00" oninput="calcEntry()">
+
+                <div id="optional-signup-fields" class="space-y-4 hidden">
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-xs uppercase tracking-wider text-slate-400 mb-1">First Name</label>
+                            <input type="text" id="auth-firstname" class="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white text-sm focus:outline-none focus:border-amber-500" placeholder="Derick">
+                        </div>
+                        <div>
+                            <label class="block text-xs uppercase tracking-wider text-slate-400 mb-1">Last Name</label>
+                            <input type="text" id="auth-lastname" class="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white text-sm focus:outline-none focus:border-amber-500" placeholder="Thomas">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs uppercase tracking-wider text-slate-400 mb-1">Business Name</label>
+                        <input type="text" id="auth-business" class="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white text-sm focus:outline-none focus:border-amber-500" placeholder="Thomas Transport Service LLC">
+                    </div>
+                    <div>
+                        <label class="block text-xs uppercase tracking-wider text-slate-400 mb-1">Email Address <span class="text-slate-500 font-normal">(Optional)</span></label>
+                        <input type="email" id="auth-email" class="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white text-sm focus:outline-none focus:border-amber-500" placeholder="driver@domain.com">
+                    </div>
+                    <div>
+                        <label class="block text-xs uppercase tracking-wider text-slate-400 mb-1">Date of Birth</label>
+                        <input type="date" id="auth-dob" class="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white text-sm focus:outline-none focus:border-amber-500">
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label>Plate ($)</label>
-                    <input type="number" step="0.01" id="ent-plate" class="form-control" placeholder="0.00" oninput="calcEntry()">
+
+                <div>
+                    <label class="block text-xs uppercase tracking-wider text-slate-400 mb-1 font-bold">Password <span class="text-amber-500">*</span></label>
+                    <input type="password" id="auth-password" class="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:outline-none focus:border-amber-500" placeholder="••••••••">
                 </div>
-                <div class="form-group">
-                    <label>Escrow ($)</label>
-                    <input type="number" step="0.01" id="ent-escrow" class="form-control" placeholder="0.00" oninput="calcEntry()">
+
+                <div id="confirm-password-box" class="hidden">
+                    <label class="block text-xs uppercase tracking-wider text-slate-400 mb-1 font-bold">Confirm Password <span class="text-amber-500">*</span></label>
+                    <input type="password" id="auth-password-confirm" class="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:outline-none focus:border-amber-500" placeholder="••••••••">
                 </div>
-                <div class="form-group">
-                    <label>Toll ($)</label>
-                    <input type="number" step="0.01" id="ent-toll" class="form-control" placeholder="0.00" oninput="calcEntry()">
-                </div>
-                <div class="form-group">
-                    <label>Other ($)</label>
-                    <input type="number" step="0.01" id="ent-other" class="form-control" placeholder="0.00" oninput="calcEntry()">
+
+                <p id="auth-error" class="text-red-400 text-xs text-center font-medium"></p>
+
+                <!-- Action Buttons -->
+                <button id="auth-action-btn" onclick="submitAuth()" class="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold py-3 px-4 rounded-lg transition-colors cursor-pointer">
+                    Sign In
+                </button>
+
+                <div class="text-center pt-2">
+                    <button onclick="toggleAuthMode()" id="auth-switch-btn" class="text-sm text-slate-400 hover:text-amber-400 underline cursor-pointer">
+                        Need an account? Create one (Privacy Matters)
+                    </button>
                 </div>
             </div>
-
-            <div class="form-group" style="text-align: center; margin-top: 15px;">
-                <label>Calculated Net Payout:</label>
-                <div style="font-size: 22px; font-weight: 700;" class="val-green" id="ent-net">$0.00</div>
-            </div>
-
-            <button class="btn-primary" onclick="saveSettlement()">Save Settlement Entry</button>
-        </div>
-    </div>
-
-    <!-- SPREADSHEET LEDGER TAB -->
-    <div id="tab-spreadsheet" class="tab-content hidden">
-        <div class="sub-header">
-            <button class="btn-back" onclick="switchTab('dashboard')">← Back to Dashboard</button>
-        </div>
-        <div class="card">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-                <h3 style="font-size: 15px; color:#fff;">Settlement Spreadsheet</h3>
-                <span style="font-size: 12px; color:var(--text-muted);" id="entry-count">0 entries</span>
-            </div>
-            <div style="overflow-x: auto;">
-                <table class="ledger-table">
-                    <thead>
-                        <tr>
-                            <th>Date</th>
-                            <th>Gross</th>
-                            <th>Fuel</th>
-                            <th>Ins</th>
-                            <th>Plate</th>
-                            <th>Escrow</th>
-                            <th>Toll</th>
-                            <th>Other</th>
-                            <th>Net Total</th>
-                            <th>Action</th>
-                        </tr>
-                    </thead>
-                    <tbody id="ledger-rows">
-                        <!-- Populated by JS -->
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-
-    <!-- PER DIEM TAB -->
-    <div id="tab-perdiem" class="tab-content hidden">
-        <div class="sub-header">
-            <button class="btn-back" onclick="switchTab('dashboard')">← Back to Dashboard</button>
-        </div>
-        <div class="card metric-card">
-            <div class="metric-title">2026 Nights on Road</div>
-            <div class="metric-value val-yellow" id="perdiem-count">0 Nights</div>
-        </div>
-        <div class="card">
-            <div class="form-group">
-                <label>Night Date</label>
-                <input type="date" id="pd-date" class="form-control">
-            </div>
-            <div class="form-group">
-                <label>Location / Notes (Optional)</label>
-                <input type="text" id="pd-note" class="form-control" placeholder="e.g. Pilot Truck Stop - Chicago, IL">
-            </div>
-            <button class="btn-primary" onclick="savePerDiem()">Log Night in Truck</button>
-        </div>
-    </div>
-
-    <!-- TAX FORMS TAB -->
-    <div id="tab-tax" class="tab-content hidden">
-        <div class="sub-header">
-            <button class="btn-back" onclick="switchTab('dashboard')">← Back to Dashboard</button>
-        </div>
-        <div class="card">
-            <h3 style="font-size: 15px; color:#fff; margin-bottom: 5px;">Annual Tax & Per Diem Packets</h3>
-            <p style="font-size: 12px; color:var(--text-muted); margin-bottom: 12px;">Print or save accountant-ready PDF packets.</p>
-            <button class="btn-primary" onclick="window.print()">Print / Save as PDF</button>
-        </div>
-
-        <div class="card">
-            <h3 style="font-size: 15px; color:var(--accent-yellow); margin-bottom: 10px;">Year of 2026 Tax Summary</h3>
-            <div style="font-size: 13px; line-height: 1.8; margin-bottom: 15px;">
-                <p>Gross Revenue: <span class="val-yellow" id="tax-gross">$0.00</span></p>
-                <p>Total Deductions: <span class="val-red" id="tax-deductions">$0.00</span></p>
-                <p>Net Payout: <span class="val-green" id="tax-net">$0.00</span></p>
-                <p>Total Sleeper Nights: <span class="val-yellow" id="tax-perdiem">0 Nights</span></p>
-            </div>
-
-            <div class="section-title" style="margin-top:15px;">Itemized Deductions Breakdown</div>
-            <div class="grid-2" style="margin-top: 8px;">
-                <div class="sub-card"><label>Fuel</label><div class="val val-red" id="tax-sum-fuel">$0.00</div></div>
-                <div class="sub-card"><label>Insurance</label><div class="val val-red" id="tax-sum-ins">$0.00</div></div>
-                <div class="sub-card"><label>Plate</label><div class="val val-red" id="tax-sum-plate">$0.00</div></div>
-                <div class="sub-card"><label>Escrow</label><div class="val val-red" id="tax-sum-escrow">$0.00</div></div>
-                <div class="sub-card"><label>Toll</label><div class="val val-red" id="tax-sum-toll">$0.00</div></div>
-                <div class="sub-card"><label>Other</label><div class="val val-red" id="tax-sum-other">$0.00</div></div>
-            </div>
-
-            <div class="section-title" style="margin-top:20px;">Gross → Deductions → Net Ledger</div>
-            <div style="overflow-x: auto;">
-                <table class="ledger-table">
-                    <thead>
-                        <tr>
-                            <th>Date</th>
-                            <th>Gross</th>
-                            <th>Fuel</th>
-                            <th>Ins</th>
-                            <th>Plate</th>
-                            <th>Escrow</th>
-                            <th>Toll</th>
-                            <th>Other</th>
-                            <th>Net Total</th>
-                        </tr>
-                    </thead>
-                    <tbody id="tax-ledger-rows">
-                        <!-- Populated by JS -->
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-
-    <script>
-        let settlements = JSON.parse(localStorage.getItem('rt_settlements')) || [];
-        let perDiemNights = JSON.parse(localStorage.getItem('rt_perdiem')) || [];
-
-        document.getElementById('ent-date').valueAsDate = new Date();
-        document.getElementById('pd-date').valueAsDate = new Date();
-
-        // Load saved sync credentials on startup
-        if(localStorage.getItem('rt_sync_bin')) {
-            document.getElementById('sync-bin-id').value = localStorage.getItem('rt_sync_bin');
-        }
-        if(localStorage.getItem('rt_sync_key')) {
-            document.getElementById('sync-api-key').value = localStorage.getItem('rt_sync_key');
-        }
-
-        function toggleCloudSettings() {
-            document.getElementById('cloud-settings-card').classList.toggle('hidden');
-        }
-
-        function switchTab(tabId) {
-            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
-            document.getElementById('tab-' + tabId).classList.remove('hidden');
-            window.scrollTo(0, 0);
-            renderData();
-        }
-
-        function calcEntry() {
-            const gross = parseFloat(document.getElementById('ent-gross').value) || 0;
-            const fuel = parseFloat(document.getElementById('ent-fuel').value) || 0;
-            const ins = parseFloat(document.getElementById('ent-insurance').value) || 0;
-            const plate = parseFloat(document.getElementById('ent-plate').value) || 0;
-            const escrow = parseFloat(document.getElementById('ent-escrow').value) || 0;
-            const toll = parseFloat(document.getElementById('ent-toll').value) || 0;
-            const other = parseFloat(document.getElementById('ent-other').value) || 0;
-
-            const totalDed = fuel + ins + plate + escrow + toll + other;
-            const net = gross - totalDed;
-            document.getElementById('ent-net').textContent = '$' + net.toFixed(2);
-        }
-
-        function saveSettlement() {
-            const entry = {
-                id: Date.now(),
-                date: document.getElementById('ent-date').value,
-                gross: parseFloat(document.getElementById('ent-gross').value) || 0,
-                fuel: parseFloat(document.getElementById('ent-fuel').value) || 0,
-                insurance: parseFloat(document.getElementById('ent-insurance').value) || 0,
-                plate: parseFloat(document.getElementById('ent-plate').value) || 0,
-                escrow: parseFloat(document.getElementById('ent-escrow').value) || 0,
-                toll: parseFloat(document.getElementById('ent-toll').value) || 0,
-                other: parseFloat(document.getElementById('ent-other').value) || 0,
-            };
-
-            settlements.push(entry);
-            localStorage.setItem('rt_settlements', JSON.stringify(settlements));
-            alert('Settlement saved locally!');
             
-            // Clear entry inputs
-            document.getElementById('ent-gross').value = '';
-            document.getElementById('ent-fuel').value = '';
-            document.getElementById('ent-insurance').value = '';
-            document.getElementById('ent-plate').value = '';
-            document.getElementById('ent-escrow').value = '';
-            document.getElementById('ent-toll').value = '';
-            document.getElementById('ent-other').value = '';
-            calcEntry();
-            renderData();
+            <div class="mt-6 border-t border-slate-800 pt-4 text-center">
+                <p class="text-[11px] text-slate-500">🔒 Zero tracking. Your data is encrypted and tied strictly to your secure profile.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN APP CONTAINER -->
+    <div class="max-w-6xl mx-auto space-y-6">
+        
+        <!-- Header & Profile Bar -->
+        <header class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col sm:flex-row justify-between items-center gap-4">
+            <div>
+                <h1 class="text-2xl font-black text-amber-500 tracking-wider">RIGTRACKER PRO</h1>
+                <p class="text-slate-400 text-xs">Owner-Operator Settlement & Expense Ledger</p>
+            </div>
+            <div class="flex items-center gap-3">
+                <span id="user-display-tag" class="text-xs bg-slate-800 text-slate-300 px-3 py-1.5 rounded-lg border border-slate-700">Driver</span>
+                <button onclick="handleLogout()" class="text-xs bg-red-950/50 hover:bg-red-900/50 text-red-300 border border-red-800/50 px-3 py-1.5 rounded-lg transition-colors cursor-pointer">
+                    Sign Out
+                </button>
+            </div>
+        </header>
+
+        <!-- DASHBOARD METRIC CARDS -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 border-l-4 border-l-amber-500 shadow-lg">
+                <p class="text-xs font-bold uppercase tracking-wider text-slate-400">YTD Gross Revenue</p>
+                <h2 id="metric-gross" class="text-3xl font-black text-amber-400 mt-2">$0.00</h2>
+            </div>
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 border-l-4 border-l-red-500 shadow-lg">
+                <p class="text-xs font-bold uppercase tracking-wider text-slate-400">YTD Total Deductions</p>
+                <h2 id="metric-deductions" class="text-3xl font-black text-red-400 mt-2">$0.00</h2>
+            </div>
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 border-l-4 border-l-emerald-500 shadow-lg">
+                <p class="text-xs font-bold uppercase tracking-wider text-slate-400">YTD Net Payout</p>
+                <h2 id="metric-net" class="text-3xl font-black text-emerald-400 mt-2">$0.00</h2>
+            </div>
+        </div>
+
+        <!-- GRID NAVIGATION TABS -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <button onclick="switchTab('settlements')" id="tab-settlements" class="bg-amber-500 text-slate-950 font-bold py-3 px-4 rounded-xl text-sm transition-all cursor-pointer shadow">Settlements</button>
+            <button onclick="switchTab('expenses')" id="tab-expenses" class="bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 font-bold py-3 px-4 rounded-xl text-sm transition-all cursor-pointer">Expenses</button>
+            <button onclick="switchTab('escrow')" id="tab-escrow" class="bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 font-bold py-3 px-4 rounded-xl text-sm transition-all cursor-pointer">Maintenance Escrow</button>
+            <button onclick="switchTab('tax')" id="tab-tax" class="bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 font-bold py-3 px-4 rounded-xl text-sm transition-all cursor-pointer">Tax Summary & Per Diem</button>
+        </div>
+
+        <!-- TAB CONTENT SECTIONS -->
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-xl">
+            
+            <!-- SETTLEMENTS SECTION -->
+            <div id="section-settlements" class="space-y-6">
+                <div class="flex justify-between items-center border-b border-slate-800 pb-4">
+                    <h3 class="text-lg font-bold text-white">Settlement Records</h3>
+                    <button onclick="openAddSettlementModal()" class="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold px-4 py-2 rounded-lg text-sm transition-colors cursor-pointer">+ Add Settlement</button>
+                </div>
+                <div id="settlements-list" class="space-y-3">
+                    <p class="text-slate-500 text-sm italic">No settlements recorded yet.</p>
+                </div>
+            </div>
+
+            <!-- EXPENSES SECTION -->
+            <div id="section-expenses" class="space-y-6 hidden">
+                <div class="flex justify-between items-center border-b border-slate-800 pb-4">
+                    <h3 class="text-lg font-bold text-white">Itemized Expenses</h3>
+                    <button onclick="openAddExpenseModal()" class="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold px-4 py-2 rounded-lg text-sm transition-colors cursor-pointer">+ Add Expense</button>
+                </div>
+                <div id="expenses-list" class="space-y-3">
+                    <p class="text-slate-500 text-sm italic">No expenses recorded yet.</p>
+                </div>
+            </div>
+
+            <!-- ESCROW SECTION -->
+            <div id="section-escrow" class="space-y-6 hidden">
+                <div class="border-b border-slate-800 pb-4">
+                    <h3 class="text-lg font-bold text-white">Maintenance Escrow Tracker</h3>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="bg-slate-950 p-5 rounded-xl border border-slate-800">
+                        <p class="text-xs uppercase tracking-wider text-slate-400">Current Escrow Balance</p>
+                        <h4 id="escrow-balance-display" class="text-4xl font-black text-amber-400 mt-2">$0.00</h4>
+                        <div class="flex gap-2 mt-4">
+                            <button onclick="adjustEscrow(500)" class="bg-slate-800 hover:bg-slate-700 text-emerald-400 font-bold px-3 py-1.5 rounded-lg text-xs cursor-pointer">+ Add $500</button>
+                            <button onclick="adjustEscrow(-500)" class="bg-slate-800 hover:bg-slate-700 text-red-400 font-bold px-3 py-1.5 rounded-lg text-xs cursor-pointer">- Deduct $500</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAX SUMMARY & PER DIEM SECTION -->
+            <div id="section-tax" class="space-y-6 hidden">
+                <div class="flex justify-between items-center border-b border-slate-800 pb-4">
+                    <h3 class="text-lg font-bold text-white">Annual Tax & Per Diem Summary</h3>
+                    <button onclick="window.print()" class="bg-slate-800 hover:bg-slate-750 text-slate-200 border border-slate-700 font-bold px-4 py-2 rounded-lg text-sm transition-colors cursor-pointer">Print / Export Packet</button>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="bg-slate-950 p-5 rounded-xl border border-slate-800 space-y-3">
+                        <h4 class="font-bold text-amber-500 text-sm uppercase tracking-wider">IRS Per Diem Tracker</h4>
+                        <div class="flex justify-between text-sm py-1 border-b border-slate-900">
+                            <span class="text-slate-400">Total Nights on Road:</span>
+                            <span id="tax-perdiem-nights" class="font-bold text-white">0 Nights</span>
+                        </div>
+                        <div class="flex justify-between text-sm py-1">
+                            <span class="text-slate-400">Estimated Deduction (@ $69/day):</span>
+                            <span id="tax-perdiem-total" class="font-bold text-emerald-400">$0.00</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- JAVASCRIPT LOGIC & SUPABASE SYNC -->
+    <script>
+        // ==========================================
+        // SUPABASE CONFIGURATION (Wired to your project)
+        // ==========================================
+        const SUPABASE_URL = 'https://pxxikzzfrcncwufpzdfp.supabase.co';
+        const SUPABASE_ANON_KEY = 'sb_publishable_7yQMjUtCtnHC6jgRF4ROLA_CmgsHaZo';
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        let currentUser = null;
+        let isSignUpMode = false;
+
+        // App State Data
+        let appData = {
+            settlements: [],
+            expenses: [],
+            escrowBalance: 0,
+            perDiemNights: 0
+        };
+
+        // ==========================================
+        // AUTHENTICATION CONTROLS
+        // ==========================================
+        function toggleAuthMode() {
+            isSignUpMode = !isSignUpMode;
+            const subtitle = document.getElementById('auth-subtitle');
+            const actionBtn = document.getElementById('auth-action-btn');
+            const switchBtn = document.getElementById('auth-switch-btn');
+            const optionalFields = document.getElementById('optional-signup-fields');
+            const confirmBox = document.getElementById('confirm-password-box');
+
+            if (isSignUpMode) {
+                subtitle.innerText = "Create secure profile (Privacy First)";
+                actionBtn.innerText = "Create Account";
+                switchBtn.innerText = "Already have an account? Sign In";
+                optionalFields.classList.remove('hidden');
+                confirmBox.classList.remove('hidden');
+            } else {
+                subtitle.innerText = "Secure, private owner-operator ledger";
+                actionBtn.innerText = "Sign In";
+                switchBtn.innerText = "Need an account? Create one (Privacy Matters)";
+                optionalFields.classList.add('hidden');
+                confirmBox.classList.add('hidden');
+            }
+            document.getElementById('auth-error').innerText = '';
         }
 
-        function deleteSettlement(id) {
-            settlements = settlements.filter(s => s.id !== id);
-            localStorage.setItem('rt_settlements', JSON.stringify(settlements));
-            renderData();
+        async function submitAuth() {
+            const usernameInput = document.getElementById('auth-username').value.trim();
+            const password = document.getElementById('auth-password').value;
+            const errorEl = document.getElementById('auth-error');
+            errorEl.innerText = '';
+
+            if (!usernameInput || !password) {
+                errorEl.innerText = "Username and password are required.";
+                return;
+            }
+
+            // Map username to a clean email handle for Supabase Auth backend compatibility
+            const syntheticEmail = `${usernameInput.toLowerCase().replace(/[^a-z0-9]/g, '')}@rigtracker.local`;
+
+            if (isSignUpMode) {
+                const confirmPassword = document.getElementById('auth-password-confirm').value;
+                if (password !== confirmPassword) {
+                    errorEl.innerText = "Passwords do not match.";
+                    return;
+                }
+
+                const metadata = {
+                    username: usernameInput,
+                    firstname: document.getElementById('auth-firstname').value,
+                    lastname: document.getElementById('auth-lastname').value,
+                    business: document.getElementById('auth-business').value,
+                    dob: document.getElementById('auth-dob').value
+                };
+
+                const { data, error } = await supabase.auth.signUp({
+                    email: syntheticEmail,
+                    password: password,
+                    options: { data: metadata }
+                });
+
+                if (error) {
+                    errorEl.innerText = error.message;
+                    return;
+                }
+                currentUser = data.user;
+            } else {
+                const { data, error } = await supabase.auth.signInWithPassword({
+                    email: syntheticEmail,
+                    password: password
+                });
+
+                if (error) {
+                    errorEl.innerText = "Invalid username or password.";
+                    return;
+                }
+                currentUser = data.user;
+            }
+
+            document.getElementById('auth-overlay').style.display = 'none';
+            document.getElementById('user-display-tag').innerText = usernameInput;
+            await loadUserDataFromCloud();
+            renderDashboard();
         }
 
-        function savePerDiem() {
-            const pd = {
-                id: Date.now(),
-                date: document.getElementById('pd-date').value,
-                note: document.getElementById('pd-note').value
-            };
-            perDiemNights.push(pd);
-            localStorage.setItem('rt_perdiem', JSON.stringify(perDiemNights));
-            alert('Per diem night logged!');
-            document.getElementById('pd-note').value = '';
-            renderData();
+        async function handleLogout() {
+            await supabase.auth.signOut();
+            currentUser = null;
+            document.getElementById('auth-overlay').style.display = 'flex';
         }
 
-        function renderData() {
-            let totalGross = 0, totalFuel = 0, totalIns = 0, totalPlate = 0, totalEscrow = 0, totalToll = 0, totalOther = 0;
+        // Check active session on page load
+        window.addEventListener('DOMContentLoaded', async () => {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session) {
+                currentUser = session.user;
+                document.getElementById('auth-overlay').style.display = 'none';
+                const meta = currentUser.user_metadata;
+                if (meta && meta.username) {
+                    document.getElementById('user-display-tag').innerText = meta.username;
+                }
+                await loadUserDataFromCloud();
+                renderDashboard();
+            }
+        });
 
-            let tbody = document.getElementById('ledger-rows');
-            let taxTbody = document.getElementById('tax-ledger-rows');
-            tbody.innerHTML = '';
-            taxTbody.innerHTML = '';
+        // ==========================================
+        // CLOUD DATA SYNC & PERSISTENCE
+        // ==========================================
+        async function loadUserDataFromCloud() {
+            if (!currentUser) return;
 
-            settlements.sort((a,b) => new Date(b.date) - new Date(a.date)).forEach(s => {
-                totalGross += s.gross;
-                totalFuel += s.fuel;
-                totalIns += s.insurance;
-                totalPlate += s.plate;
-                totalEscrow += s.escrow;
-                totalToll += s.toll;
-                totalOther += s.other;
+            const { data, error } = await supabase
+                .from('driver_ledgers')
+                .select('ledger_json')
+                .eq('user_id', currentUser.id)
+                .single();
 
-                const net = s.gross - (s.fuel + s.insurance + s.plate + s.escrow + s.toll + s.other);
+            if (data && data.ledger_json) {
+                appData = data.ledger_json;
+            } else {
+                // Initialize default state if first time
+                appData = { settlements: [], expenses: [], escrowBalance: 0, perDiemNights: 0 };
+            }
+        }
 
-                const rowHtml = `
-                    <tr>
-                        <td>${s.date}</td>
-                        <td class="val-yellow">$${s.gross.toFixed(2)}</td>
-                        <td class="val-red">$${s.fuel.toFixed(2)}</td>
-                        <td class="val-red">$${s.insurance.toFixed(2)}</td>
-                        <td class="val-red">$${s.plate.toFixed(2)}</td>
-                        <td class="val-red">$${s.escrow.toFixed(2)}</td>
-                        <td class="val-red">$${s.toll.toFixed(2)}</td>
-                        <td class="val-red">$${s.other.toFixed(2)}</td>
-                        <td class="val-green">$${net.toFixed(2)}</td>
-                `;
+        let saveTimeout;
+        function saveAppData() {
+            // Instant local backup
+            localStorage.setItem('rigtracker_data', JSON.stringify(appData));
+            renderDashboard();
 
-                tbody.innerHTML += rowHtml + `<td><div class="action-btns"><button class="btn-sm btn-delete" onclick="deleteSettlement(${s.id})">Del</button></div></td></tr>`;
-                taxTbody.innerHTML += rowHtml + `</tr>`;
+            // Auto-sync to cloud database in background
+            if (!currentUser) return;
+            clearTimeout(saveTimeout);
+            saveTimeout = setTimeout(async () => {
+                await supabase
+                    .from('driver_ledgers')
+                    .upsert({ 
+                        user_id: currentUser.id, 
+                        ledger_json: appData, 
+                        updated_at: new Date() 
+                    });
+            }, 1000);
+        }
+
+        // ==========================================
+        // UI & NAVIGATION LOGIC
+        // ==========================================
+        function switchTab(tabName) {
+            const tabs = ['settlements', 'expenses', 'escrow', 'tax'];
+            tabs.forEach(t => {
+                const btn = document.getElementById(`tab-${t}`);
+                const sec = document.getElementById(`section-${t}`);
+                if (t === tabName) {
+                    btn.className = "bg-amber-500 text-slate-950 font-bold py-3 px-4 rounded-xl text-sm transition-all cursor-pointer shadow";
+                    sec.classList.remove('hidden');
+                } else {
+                    btn.className = "bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 font-bold py-3 px-4 rounded-xl text-sm transition-all cursor-pointer";
+                    sec.classList.add('hidden');
+                }
             });
-
-            const totalDed = totalFuel + totalIns + totalPlate + totalEscrow + totalToll + totalOther;
-            const totalNet = totalGross - totalDed;
-
-            document.getElementById('dash-gross').textContent = '$' + totalGross.toFixed(2);
-            document.getElementById('dash-deductions').textContent = '$' + totalDed.toFixed(2);
-            document.getElementById('dash-net').textContent = '$' + totalNet.toFixed(2);
-
-            document.getElementById('sum-fuel').textContent = '$' + totalFuel.toFixed(2);
-            document.getElementById('sum-insurance').textContent = '$' + totalIns.toFixed(2);
-            document.getElementById('sum-plate').textContent = '$' + totalPlate.toFixed(2);
-            document.getElementById('sum-escrow').textContent = '$' + totalEscrow.toFixed(2);
-            document.getElementById('sum-toll').textContent = '$' + totalToll.toFixed(2);
-            document.getElementById('sum-other').textContent = '$' + totalOther.toFixed(2);
-
-            document.getElementById('entry-count').textContent = settlements.length + ' entries';
-            document.getElementById('perdiem-count').textContent = perDiemNights.length + ' Nights';
-
-            document.getElementById('tax-gross').textContent = '$' + totalGross.toFixed(2);
-            document.getElementById('tax-deductions').textContent = '$' + totalDed.toFixed(2);
-            document.getElementById('tax-net').textContent = '$' + totalNet.toFixed(2);
-            document.getElementById('tax-perdiem').textContent = perDiemNights.length + ' Nights';
-
-            document.getElementById('tax-sum-fuel').textContent = '$' + totalFuel.toFixed(2);
-            document.getElementById('tax-sum-ins').textContent = '$' + totalIns.toFixed(2);
-            document.getElementById('tax-sum-plate').textContent = '$' + totalPlate.toFixed(2);
-            document.getElementById('tax-sum-escrow').textContent = '$' + totalEscrow.toFixed(2);
-            document.getElementById('tax-sum-toll').textContent = '$' + totalToll.toFixed(2);
-            document.getElementById('tax-sum-other').textContent = '$' + totalOther.toFixed(2);
         }
 
-        // ==========================================
-        // CLOUD SYNC FUNCTIONS (JSONBin.io)
-        // ==========================================
-        async function pushToCloud() {
-            const binId = document.getElementById('sync-bin-id').value.trim();
-            const apiKey = document.getElementById('sync-api-key').value.trim();
+        function renderDashboard() {
+            // Calculate Totals
+            let totalGross = appData.settlements.reduce((sum, s) => sum + Number(s.gross || 0), 0);
+            let totalExpenses = appData.expenses.reduce((sum, e) => sum + Number(e.amount || 0), 0);
+            let netPayout = totalGross - totalExpenses;
 
-            if(!binId || !apiKey) {
-                alert('Please enter your JSONBin Bin ID and Master Key.');
-                return;
+            document.getElementById('metric-gross').innerText = `$${totalGross.toFixed(2)}`;
+            document.getElementById('metric-deductions').innerText = `$${totalExpenses.toFixed(2)}`;
+            document.getElementById('metric-net').innerText = `$${netPayout.toFixed(2)}`;
+            document.getElementById('escrow-balance-display').innerText = `$${Number(appData.escrowBalance || 0).toFixed(2)}`;
+            
+            // Tax Per Diem
+            document.getElementById('tax-perdiem-nights').innerText = `${appData.perDiemNights || 0} Nights`;
+            document.getElementById('tax-perdiem-total').innerText = `$${((appData.perDiemNights || 0) * 69).toFixed(2)}`;
+
+            // Render Settlements List
+            const sList = document.getElementById('settlements-list');
+            if (appData.settlements.length === 0) {
+                sList.innerHTML = `<p class="text-slate-500 text-sm italic">No settlements recorded yet.</p>`;
+            } else {
+                sList.innerHTML = appData.settlements.map((s, idx) => `
+                    <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 flex justify-between items-center">
+                        <div>
+                            <p class="font-bold text-white">Load #${s.loadNum || 'N/A'} - <span class="text-amber-400">$${Number(s.gross).toFixed(2)}</span></p>
+                            <p class="text-xs text-slate-400">Date: ${s.date || 'N/A'}</p>
+                        </div>
+                        <button onclick="deleteSettlement(${idx})" class="text-red-400 hover:text-red-300 text-xs font-bold cursor-pointer">Delete</button>
+                    </div>
+                `).join('');
             }
 
-            localStorage.setItem('rt_sync_bin', binId);
-            localStorage.setItem('rt_sync_key', apiKey);
-
-            const payload = { settlements, perDiemNights };
-
-            try {
-                const res = await fetch(`https://api.jsonbin.io/v3/b/${binId}`, {
-                    method: 'PUT',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-Master-Key': apiKey
-                    },
-                    body: JSON.stringify(payload)
-                });
-
-                if(!res.ok) throw new Error('Failed to push to cloud.');
-                alert('Successfully pushed all ledger entries to cloud!');
-                toggleCloudSettings();
-            } catch(err) {
-                console.error(err);
-                alert('Error pushing to cloud. Check your Bin ID and Master Key.');
+            // Render Expenses List
+            const eList = document.getElementById('expenses-list');
+            if (appData.expenses.length === 0) {
+                eList.innerHTML = `<p class="text-slate-500 text-sm italic">No expenses recorded yet.</p>`;
+            } else {
+                eList.innerHTML = appData.expenses.map((e, idx) => `
+                    <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 flex justify-between items-center">
+                        <div>
+                            <p class="font-bold text-white">${e.category} - <span class="text-red-400">-$${Number(e.amount).toFixed(2)}</span></p>
+                            <p class="text-xs text-slate-450">${e.note || ''}</p>
+                        </div>
+                        <button onclick="deleteExpense(${idx})" class="text-red-400 hover:text-red-300 text-xs font-bold cursor-pointer">Delete</button>
+                    </div>
+                `).join('');
             }
         }
 
-        async function pullFromCloud() {
-            const binId = document.getElementById('sync-bin-id').value.trim();
-            const apiKey = document.getElementById('sync-api-key').value.trim();
-
-            if(!binId || !apiKey) {
-                alert('Please enter your JSONBin Bin ID and Master Key.');
-                return;
-            }
-
-            localStorage.setItem('rt_sync_bin', binId);
-            localStorage.setItem('rt_sync_key', apiKey);
-
-            try {
-                const res = await fetch(`https://api.jsonbin.io/v3/b/${binId}/latest`, {
-                    headers: {
-                        'X-Master-Key': apiKey
-                    }
-                });
-
-                if(!res.ok) throw new Error('Failed to pull from cloud.');
-                const data = await res.json();
-                
-                if(data.record && data.record.settlements) {
-                    settlements = data.record.settlements;
-                    localStorage.setItem('rt_settlements', JSON.stringify(settlements));
-                }
-                if(data.record && data.record.perDiemNights) {
-                    perDiemNights = data.record.perDiemNights;
-                    localStorage.setItem('rt_perdiem', JSON.stringify(perDiemNights));
-                }
-
-                renderData();
-                alert('Successfully pulled latest ledger from cloud!');
-                toggleCloudSettings();
-            } catch(err) {
-                console.error(err);
-                alert('Error pulling from cloud. Check your Bin ID and Master Key.');
-            }
+        // Quick interactive sample actions for testing
+        function openAddSettlementModal() {
+            let gross = prompt("Enter Gross Settlement Amount ($):");
+            if (!gross) return;
+            let loadNum = prompt("Enter Load / Settlement Number:") || "101";
+            
+            appData.settlements.push({ loadNum, gross: parseFloat(gross), date: new Date().toLocaleDateString() });
+            saveAppData();
         }
 
-        function exportBackup() {
-            const data = { settlements, perDiemNights };
-            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'rigtracker_backup_' + new Date().toISOString().slice(0,10) + '.json';
-            a.click();
+        function openAddExpenseModal() {
+            let amount = prompt("Enter Expense Amount ($):");
+            if (!amount) return;
+            let category = prompt("Enter Category (Fuel, Toll, Maintenance, Insurance, etc.):") || "Fuel";
+            
+            appData.expenses.push({ category, amount: parseFloat(amount), note: "Quick Entry" });
+            saveAppData();
         }
 
-        renderData();
+        function deleteSettlement(index) {
+            appData.settlements.splice(index, 1);
+            saveAppData();
+        }
+
+        function deleteExpense(index) {
+            appData.expenses.splice(index, 1);
+            saveAppData();
+        }
+
+        function adjustEscrow(amount) {
+            appData.escrowBalance = (appData.escrowBalance || 0) + amount;
+            saveAppData();
+        }
     </script>
 </body>
 </html>
