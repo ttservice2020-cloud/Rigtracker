@@ -71,7 +71,7 @@
                     Sign In
                 </button>
 
-                <!-- Matching Sign Up Bar -->
+                <!-- Separate Sign Up Mode Switch Button -->
                 <div>
                     <button type="button" id="auth-switch-btn" onclick="toggleAuthMode()" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold py-3 px-4 rounded-lg transition-colors cursor-pointer shadow">
                         Sign Up
@@ -251,8 +251,6 @@
                 return;
             }
 
-            let targetEmail = `${usernameInput.toLowerCase().replace(/[^a-z0-9]/g, '')}@rigtracker.local`;
-
             if (isSignUpMode) {
                 const emailInput = document.getElementById('auth-email').value.trim();
                 const confirmPassword = document.getElementById('auth-password-confirm').value;
@@ -266,8 +264,6 @@
                     return;
                 }
 
-                targetEmail = emailInput;
-
                 const metadata = {
                     username: usernameInput,
                     firstname: document.getElementById('auth-firstname').value,
@@ -277,7 +273,7 @@
                 };
 
                 const { data, error } = await supabase.auth.signUp({
-                    email: targetEmail,
+                    email: emailInput,
                     password: password,
                     options: { data: metadata }
                 });
@@ -287,19 +283,20 @@
                     return;
                 }
                 
-                alert("Account created successfully! You can now sign in.");
+                alert("Account created successfully! You can now sign in with your credentials.");
                 toggleAuthMode();
                 return;
             } else {
-                // If signing in via username, map to synthetic local email if it's one of those, otherwise use email directly if user typed it
+                // Sign In Mode: Check if username is typed or an email
+                let loginEmail = usernameInput;
                 if (!usernameInput.includes('@')) {
-                    targetEmail = `${usernameInput.toLowerCase().replace(/[^a-z0-9]/g, '')}@rigtracker.local`;
-                } else {
-                    targetEmail = usernameInput;
+                    // If they typed a username, look up or construct fallback email mapping, or allow direct sign-in if stored. 
+                    // To make sign-in robust for username or email, we attempt sign-in.
+                    loginEmail = `${usernameInput.toLowerCase().replace(/[^a-z0-9]/g, '')}@rigtracker.local`;
                 }
 
                 const { data, error } = await supabase.auth.signInWithPassword({
-                    email: targetEmail,
+                    email: loginEmail,
                     password: password
                 });
 
