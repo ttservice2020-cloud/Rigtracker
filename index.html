@@ -114,43 +114,56 @@
             <div class="card-bg p-5 rounded-xl shadow-lg">
                 <div class="flex justify-between items-center mb-4">
                     <h2 id="formTitle" class="font-bold text-sm text-white">Add Settlement Entry</h2>
-                    <button type="button" onclick="resetSettlementForm()" class="text-xs text-gray-400 hover:text-amber-400 underline">Clear to Zero</button>
+                    <button type="button" onclick="resetSettlementForm()" class="text-xs text-gray-400 hover:text-amber-400 underline">Clear Form</button>
                 </div>
-                <form id="settlementForm" onsubmit="saveSettlementEntry(event)" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <form id="settlementForm" onsubmit="saveSettlementEntry(event)" class="space-y-4">
                     <input type="hidden" id="editingId" value="">
-                    <div>
-                        <label class="block text-xs text-gray-400 mb-1">Date</label>
-                        <input type="date" id="entryDate" required class="w-full input-bg px-3 py-2 rounded text-sm">
+                    
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs text-gray-400 mb-1">Date</label>
+                            <input type="date" id="entryDate" required class="w-full input-bg px-3 py-2 rounded text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-400 mb-1">Gross Revenue ($)</label>
+                            <input type="number" step="0.01" id="entryGross" oninput="calculateFormNet()" placeholder="" value="" required class="w-full input-bg px-3 py-2 rounded text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-400 mb-1">Fuel ($)</label>
+                            <input type="number" step="0.01" id="entryFuel" oninput="calculateFormNet()" placeholder="" value="" class="w-full input-bg px-3 py-2 rounded text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-400 mb-1">Insurance ($)</label>
+                            <input type="number" step="0.01" id="entryInsurance" oninput="calculateFormNet()" placeholder="" value="" class="w-full input-bg px-3 py-2 rounded text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-400 mb-1">Plate ($)</label>
+                            <input type="number" step="0.01" id="entryPlate" oninput="calculateFormNet()" placeholder="" value="" class="w-full input-bg px-3 py-2 rounded text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-400 mb-1">Escrow ($)</label>
+                            <input type="number" step="0.01" id="entryEscrow" oninput="calculateFormNet()" placeholder="" value="" class="w-full input-bg px-3 py-2 rounded text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-400 mb-1">Toll ($)</label>
+                            <input type="number" step="0.01" id="entryToll" oninput="calculateFormNet()" placeholder="" value="" class="w-full input-bg px-3 py-2 rounded text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-400 mb-1">Other Deductions ($)</label>
+                            <input type="number" step="0.01" id="entryOther" oninput="calculateFormNet()" placeholder="" value="" class="w-full input-bg px-3 py-2 rounded text-sm">
+                        </div>
                     </div>
-                    <div>
-                        <label class="block text-xs text-gray-400 mb-1">Gross Revenue ($)</label>
-                        <input type="number" step="0.01" id="entryGross" placeholder="0.00" value="0.00" required class="w-full input-bg px-3 py-2 rounded text-sm">
+
+                    <!-- Live Net Calculation Box on Form -->
+                    <div class="bg-black p-4 rounded-lg border border-gray-800 flex items-center justify-between">
+                        <div>
+                            <p class="text-xs font-semibold uppercase tracking-wider text-gray-400">Calculated Net Payout</p>
+                            <p class="text-[10px] text-gray-500">Gross minus all itemized deductions above</p>
+                        </div>
+                        <div id="formCalculatedNet" class="text-xl sm:text-2xl font-extrabold text-emerald-400">$0.00</div>
                     </div>
-                    <div>
-                        <label class="block text-xs text-gray-400 mb-1">Fuel ($)</label>
-                        <input type="number" step="0.01" id="entryFuel" placeholder="0.00" value="0.00" class="w-full input-bg px-3 py-2 rounded text-sm">
-                    </div>
-                    <div>
-                        <label class="block text-xs text-gray-400 mb-1">Insurance ($)</label>
-                        <input type="number" step="0.01" id="entryInsurance" placeholder="0.00" value="0.00" class="w-full input-bg px-3 py-2 rounded text-sm">
-                    </div>
-                    <div>
-                        <label class="block text-xs text-gray-400 mb-1">Plate ($)</label>
-                        <input type="number" step="0.01" id="entryPlate" placeholder="0.00" value="0.00" class="w-full input-bg px-3 py-2 rounded text-sm">
-                    </div>
-                    <div>
-                        <label class="block text-xs text-gray-400 mb-1">Escrow ($)</label>
-                        <input type="number" step="0.01" id="entryEscrow" placeholder="0.00" value="0.00" class="w-full input-bg px-3 py-2 rounded text-sm">
-                    </div>
-                    <div>
-                        <label class="block text-xs text-gray-400 mb-1">Toll ($)</label>
-                        <input type="number" step="0.01" id="entryToll" placeholder="0.00" value="0.00" class="w-full input-bg px-3 py-2 rounded text-sm">
-                    </div>
-                    <div>
-                        <label class="block text-xs text-gray-400 mb-1">Other Deductions ($)</label>
-                        <input type="number" step="0.01" id="entryOther" placeholder="0.00" value="0.00" class="w-full input-bg px-3 py-2 rounded text-sm">
-                    </div>
-                    <div class="sm:col-span-2 flex justify-end space-x-3 mt-2">
+
+                    <div class="flex justify-end space-x-3 pt-2">
                         <button type="button" id="cancelEditBtn" onclick="resetSettlementForm()" class="hidden bg-gray-900 hover:bg-gray-800 text-gray-300 font-bold px-4 py-2.5 rounded text-sm transition border border-gray-800">Cancel</button>
                         <button type="submit" id="submitBtn" class="bg-amber-500 hover:bg-amber-400 text-gray-950 font-bold px-6 py-2.5 rounded text-sm transition">
                             Save Settlement
@@ -384,16 +397,38 @@
         function resetSettlementForm() {
             document.getElementById('editingId').value = '';
             document.getElementById('entryDate').valueAsDate = new Date();
-            document.getElementById('entryGross').value = '0.00';
-            document.getElementById('entryFuel').value = '0.00';
-            document.getElementById('entryInsurance').value = '0.00';
-            document.getElementById('entryPlate').value = '0.00';
-            document.getElementById('entryEscrow').value = '0.00';
-            document.getElementById('entryToll').value = '0.00';
-            document.getElementById('entryOther').value = '0.00';
+            document.getElementById('entryGross').value = '';
+            document.getElementById('entryFuel').value = '';
+            document.getElementById('entryInsurance').value = '';
+            document.getElementById('entryPlate').value = '';
+            document.getElementById('entryEscrow').value = '';
+            document.getElementById('entryToll').value = '';
+            document.getElementById('entryOther').value = '';
             document.getElementById('formTitle').textContent = 'Add Settlement Entry';
             document.getElementById('submitBtn').textContent = 'Save Settlement';
             document.getElementById('cancelEditBtn').classList.add('hidden');
+            calculateFormNet();
+        }
+
+        function calculateFormNet() {
+            const gross = parseFloat(document.getElementById('entryGross').value) || 0;
+            const fuel = parseFloat(document.getElementById('entryFuel').value) || 0;
+            const insurance = parseFloat(document.getElementById('entryInsurance').value) || 0;
+            const plate = parseFloat(document.getElementById('entryPlate').value) || 0;
+            const escrow = parseFloat(document.getElementById('entryEscrow').value) || 0;
+            const toll = parseFloat(document.getElementById('entryToll').value) || 0;
+            const other = parseFloat(document.getElementById('entryOther').value) || 0;
+
+            const totalDeductions = fuel + insurance + plate + escrow + toll + other;
+            const net = gross - totalDeductions;
+
+            const netEl = document.getElementById('formCalculatedNet');
+            netEl.textContent = `$${net.toFixed(2)}`;
+            if (net < 0) {
+                netEl.className = 'text-xl sm:text-2xl font-extrabold text-red-400';
+            } else {
+                netEl.className = 'text-xl sm:text-2xl font-extrabold text-emerald-400';
+            }
         }
 
         function saveSettlementEntry(e) {
@@ -432,18 +467,19 @@
 
             document.getElementById('editingId').value = entry.id;
             document.getElementById('entryDate').value = entry.date;
-            document.getElementById('entryGross').value = entry.gross.toFixed(2);
-            document.getElementById('entryFuel').value = entry.fuel.toFixed(2);
-            document.getElementById('entryInsurance').value = entry.insurance.toFixed(2);
-            document.getElementById('entryPlate').value = entry.plate.toFixed(2);
-            document.getElementById('entryEscrow').value = entry.escrow.toFixed(2);
-            document.getElementById('entryToll').value = entry.toll.toFixed(2);
-            document.getElementById('entryOther').value = entry.other.toFixed(2);
+            document.getElementById('entryGross').value = entry.gross ? entry.gross.toFixed(2) : '';
+            document.getElementById('entryFuel').value = entry.fuel ? entry.fuel.toFixed(2) : '';
+            document.getElementById('entryInsurance').value = entry.insurance ? entry.insurance.toFixed(2) : '';
+            document.getElementById('entryPlate').value = entry.plate ? entry.plate.toFixed(2) : '';
+            document.getElementById('entryEscrow').value = entry.escrow ? entry.escrow.toFixed(2) : '';
+            document.getElementById('entryToll').value = entry.toll ? entry.toll.toFixed(2) : '';
+            document.getElementById('entryOther').value = entry.other ? entry.other.toFixed(2) : '';
 
             document.getElementById('formTitle').textContent = 'Edit Settlement Entry';
             document.getElementById('submitBtn').textContent = 'Update Settlement';
             document.getElementById('cancelEditBtn').classList.remove('hidden');
 
+            calculateFormNet();
             switchView('settlement');
         }
 
