@@ -487,27 +487,37 @@ async function handleAuthSubmit(e) {
 async function checkAuthSession() {
   if (!supabaseClient) return;
   try {
-    const { data: { session } } = await supabaseClient.auth.getSession();
+    const { data: { session }, error } = await supabaseClient.auth.getSession();
+    if (error) throw error;
     if (session) {
       document.getElementById('authScreen').classList.add('hidden');
       document.getElementById('appScreen').classList.remove('hidden');
       document.getElementById('userEmailDisplay').innerText = session.user.email;
       document.getElementById('signOutBtn').classList.remove('hidden');
-      loadUserData();
+      await loadUserData();
     } else {
+      localSettlements = [];
+      localPerDiem = [];
+      updateDashboard();
       document.getElementById('authScreen').classList.remove('hidden');
       document.getElementById('appScreen').classList.add('hidden');
+      document.getElementById('userEmailDisplay').innerText = '';
       document.getElementById('signOutBtn').classList.add('hidden');
     }
   } catch (err) {
     console.error("Auth session check error:", err);
+    alert('Could not check your sign-in status. Please refresh and try again.');
   }
 }
 
 async function handleSignOut() {
   if (!supabaseClient) return;
-  await supabaseClient.auth.signOut();
-  checkAuthSession();
+  const { error } = await supabaseClient.auth.signOut();
+  if (error) {
+    alert('Sign out failed: ' + error.message);
+    return;
+  }
+  await checkAuthSession();
 }
 
 function switchTab(tabName) {
@@ -540,31 +550,111 @@ function calculateNet() {
   document.getElementById('previewNet').innerText = '$' + net.toFixed(2);
 }
 
-function saveSettlement(e) {
+async function saveSettlement(e) {
   e.preventDefault();
+  if (!supabaseClient) {
+    alert('Supabase is not available. Please refresh and try again.');
+    return;
+  }
+
+  const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
+  if (sessionError || !session) {
+    alert('Please sign in again before saving this settlement.');
+    await checkAuthSession();
+    return;
+  }
+
   const date = document.getElementById('settleDate').value;
-  const number = document.getElementById('settleNumber').value;
+  const number = document.getElementById('settleNumber').value.trim();
   const gross = parseFloat(document.getElementById('settleGross').value) || 0;
   const deductionInputs = document.querySelectorAll('.deduction-input');
   let totalDed = 0;
   deductionInputs.forEach(input => { totalDed += parseFloat(input.value) || 0; });
   const net = gross - totalDed;
 
-  localSettlements.push({ date, number, gross, deductions: totalDed, net });
+  const { data, error } = await supabaseClient
+    .from('settlements')
+    .insert({
+      user_id: session.user.id,
+      date,
+      settlement_number: number || null,
+      gross,
+      deductions: totalDed,
+      net
+    })
+    .select('id, date, settlement_number, gross, deductions, net')
+    .single();
+
+  if (error) {
+    console.error('Settlement save error:', error);
+    alert('Settlement was not saved: ' + error.message);
+    return;
+  }
+
+  localSettlements.unshift({
+    id: data.id,
+    date: data.date,
+    number: data.settlement_number,
+    gross: Number(data.gross),
+    deductions: Number(data.deductions),
+    net: Number(data.net)
+  });
   document.getElementById('settlementForm').reset();
   document.getElementById('previewNet').innerText = '$0.00';
   updateDashboard();
   switchTab('spreadsheet');
 }
 
-function savePerDiem(e) {
+async function savePerDiem(e) {
   e.preventDefault();
+  if (!supabaseClient) {
+    alert('Supabase is not available. Please refresh and try again.');
+    return;
+  }
+
+  const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
+  if (sessionError || !session) {
+    alert('Please sign in again before saving this per diem entry.');
+    await checkAuthSession();
+    return;
+  }
+
   const date = document.getElementById('pdDate').value;
-  const location = document.getElementById('pdLocation').value;
-  localPerDiem.push({ date, location });
+  const location = document.getElementById('pdLocation').value.trim();
+  const { data, error } = await supabaseClient
+    .from('per_diem')
+    .insert({ user_id: session.user.id, date, location })
+    .select('id, date, location')
+    .single();
+
+  if (error) {
+    console.error('Per diem save error:', error);
+    alert('Per diem entry was not saved: ' + error.message);
+    return;
+  }
+
+  localPerDiem.unshift(data);
   document.getElementById('pdDate').value = '';
   document.getElementById('pdLocation').value = '';
   updateDashboard();
+}
+
+async function deletePerDiem(id) {
+  if (!supabaseClient || !id) return;
+  const { error } = await supabaseClient.from('per_diem').delete().eq('id', id);
+  if (error) {
+    console.error('Per diem delete error:', error);
+    alert('Per diem entry was not deleted: ' + error.message);
+    return;
+  }
+  localPerDiem = localPerDiem.filter(entry => entry.id !== id);
+  updateDashboard();
+}
+
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>\"']/g, char => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', "'": '&#39;'
+  })[char]);
 }
 
 function updateDashboard() {
@@ -576,11 +666,14 @@ function updateDashboard() {
   if (localSettlements.length === 0) {
     sheetHtml = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted);">No records found.</td></tr>';
   } else {
-    localSettlements.forEach((s, index) => {
-      totalGross += s.gross;
-      totalDed += s.deductions;
-      totalNet += s.net;
-      sheetHtml += `<tr><td>${s.date}</td><td>${s.number || 'N/A'}</td><td>$${s.gross.toFixed(2)}</td><td>$${s.deductions.toFixed(2)}</td><td>$${s.net.toFixed(2)}</td></tr>`;
+    localSettlements.forEach(s => {
+      const gross = Number(s.gross) || 0;
+      const deductions = Number(s.deductions) || 0;
+      const net = Number(s.net) || 0;
+      totalGross += gross;
+      totalDed += deductions;
+      totalNet += net;
+      sheetHtml += `<tr><td>${escapeHtml(s.date)}</td><td>${escapeHtml(s.number || 'N/A')}</td><td>$${gross.toFixed(2)}</td><td>$${deductions.toFixed(2)}</td><td>$${net.toFixed(2)}</td></tr>`;
     });
   }
   document.getElementById('spreadsheetBody').innerHTML = sheetHtml;
@@ -589,8 +682,8 @@ function updateDashboard() {
   if (localPerDiem.length === 0) {
     pdHtml = '<tr><td colspan="3" style="text-align: center; color: var(--text-muted);">No per diem nights logged.</td></tr>';
   } else {
-    localPerDiem.forEach((pd, index) => {
-      pdHtml += `<tr><td>${pd.date}</td><td>${pd.location}</td><td><button class="btn-action" style="padding: 0.2rem 0.5rem;" onclick="localPerDiem.splice(${index},1);updateDashboard()">Delete</button></td></tr>`;
+    localPerDiem.forEach(pd => {
+      pdHtml += `<tr><td>${escapeHtml(pd.date)}</td><td>${escapeHtml(pd.location)}</td><td><button class="btn-action" style="padding: 0.2rem 0.5rem;" onclick="deletePerDiem('${escapeHtml(pd.id)}')">Delete</button></td></tr>`;
     });
   }
   document.getElementById('perDiemBody').innerHTML = pdHtml;
@@ -605,7 +698,35 @@ function updateDashboard() {
   document.getElementById('taxNet').innerText = '$' + totalNet.toFixed(2);
 }
 
-function loadUserData() {
+async function loadUserData() {
+  if (!supabaseClient) return;
+  const [settlementResult, perDiemResult] = await Promise.all([
+    supabaseClient
+      .from('settlements')
+      .select('id, date, settlement_number, gross, deductions, net')
+      .order('date', { ascending: false }),
+    supabaseClient
+      .from('per_diem')
+      .select('id, date, location')
+      .order('date', { ascending: false })
+  ]);
+
+  if (settlementResult.error || perDiemResult.error) {
+    const error = settlementResult.error || perDiemResult.error;
+    console.error('User data load error:', error);
+    alert('Could not load your saved records: ' + error.message + '. Check that the Supabase tables are set up.');
+    return;
+  }
+
+  localSettlements = (settlementResult.data || []).map(row => ({
+    id: row.id,
+    date: row.date,
+    number: row.settlement_number,
+    gross: Number(row.gross) || 0,
+    deductions: Number(row.deductions) || 0,
+    net: Number(row.net) || 0
+  }));
+  localPerDiem = perDiemResult.data || [];
   updateDashboard();
 }
 
