@@ -158,6 +158,9 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
  .login-field label{font-size:16px}
  .login-field input{min-height:52px}
 }
+.settlement-actions{display:flex;gap:8px}
+.settlement-actions .outline{padding:7px 10px}
+.settlement-actions .delete{border-color:var(--red)}
 @media print{
  body{background:#fff;color:#000}
  .brandbar,.no-print,button,.top-actions{display:none!important}
@@ -225,7 +228,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
  </section>
 
  <section id="settlementPage" class="page">
-  <div class="page-head"><div><button class="back" onclick="showPage('dashboardPage')">← Back to Dashboard</button><h1>Settlement Entry</h1></div><select class="year-select" id="settlementYear" aria-label="Settlement year"></select></div>
+  <div class="page-head"><div><button class="back" onclick="showPage('dashboardPage')">← Back to Dashboard</button><h1 id="settlementTitle">Settlement Entry</h1></div><select class="year-select" id="settlementYear" aria-label="Settlement year"></select></div>
   <form id="settlementForm" onsubmit="saveSettlement(event)">
    <div class="panel gold-edge">
     <h2>Settlement Details</h2>
@@ -244,15 +247,16 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
     <div class="total"><strong>Total Deductions</strong><span id="formDed">$0.00</span></div>
     <div class="total"><strong>Net Payout</strong><span class="gold" id="formNet">$0.00</span></div>
    </div>
-   <button class="gold-btn full" type="submit" style="font-size:22px">Submit Settlement</button>
-   <p class="muted" style="text-align:center;margin-top:8px">Submitting saves this settlement and adds it to your spreadsheet.</p>
+   <button id="settlementSubmit" class="gold-btn full" type="submit" style="font-size:22px">Submit Settlement</button>
+   <button id="settlementCancel" class="outline full hidden" type="button" onclick="showPage('spreadsheetPage')">Cancel Edit</button>
+   <p id="settlementHint" class="muted" style="text-align:center;margin-top:8px">Submitting saves this settlement and adds it to your spreadsheet.</p>
   </form>
  </section>
 
  <section id="spreadsheetPage" class="page">
-  <div class="page-head"><div><button class="back" onclick="showPage('dashboardPage')">← Back to Dashboard</button><h1>Spreadsheet</h1></div><button class="outline" onclick="showHelp('Spreadsheet','Your submitted settlements appear here. Scroll sideways to view all 12 deduction columns. Use Download to save a CSV file, or Print to make a paper copy.')">ⓘ Help</button></div>
+  <div class="page-head"><div><button class="back" onclick="showPage('dashboardPage')">← Back to Dashboard</button><h1>Spreadsheet</h1></div><button class="outline" onclick="showHelp('Spreadsheet','Use Edit or Delete beside a settlement to make changes. Scroll sideways to see more columns. Use Download to save a CSV file, or Print to make a paper copy.')">ⓘ Help</button></div>
   <div class="table-shell"><table id="settlementTable"><thead id="settlementHead"></thead><tbody id="settlementRows"></tbody><tfoot id="settlementFoot"></tfoot></table></div>
-  <p class="table-help">Scroll sideways to view all 12 deduction columns.</p>
+  <p class="table-help">Deduction columns appear as you name or enter deductions.</p>
   <div class="grid stats" style="grid-template-columns:repeat(3,minmax(0,1fr))">
    <div class="card stat"><div class="stat-label">Gross Pay</div><div class="stat-value" id="sheetGross">$0.00</div></div>
    <div class="card stat"><div class="stat-label">Total Deductions</div><div class="stat-value" id="sheetDed">$0.00</div></div>
@@ -344,6 +348,8 @@ let selectedRole = 'driver';
 let signUpMode = false;
 let selectedYear = String(new Date().getFullYear());
 let settlements = [];
+let editingSettlement = null;
+let settlementChangePending = false;
 let stays = [];
 let taxDocuments = [];
 let deductionLabels = Array.from({length:12},(_,i)=>'Deduction '+(i+1));
@@ -363,6 +369,7 @@ function closeModal(){document.getElementById('modal').classList.remove('open')}
 function showHelp(title,body){showModal(title,body)}
 function notAvailable(name){showToast(name+' is not available yet.')}
 function showPage(id){
+ if(id!=='settlementPage' && editingSettlement)resetSettlementForm();
  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
  const page=document.getElementById(id);if(page)page.classList.add('active');
  window.scrollTo({top:0,behavior:'smooth'});
@@ -417,6 +424,7 @@ async function openSignedInApp(user){
 async function signOut(){
  if(supabaseClient)await supabaseClient.auth.signOut();
  currentUser=null;settlements=[];stays=[];taxDocuments=[];
+ resetSettlementForm();
  document.getElementById('appHeader').classList.add('hidden');document.getElementById('appScreen').classList.add('hidden');document.getElementById('authScreen').classList.remove('hidden');
 }
 function setupYears(){
@@ -429,12 +437,13 @@ function setupYears(){
  });
 }
 function renderDeductionInputs(preserveAmounts=false){
+ const labels=editingSettlement?.labels ?? deductionLabels;
  const host=document.getElementById('deductionInputs');
  const amounts=preserveAmounts?Array.from(host.querySelectorAll('.deduction-amount'),input=>input.value):[];
  host.innerHTML='';
  for(let i=0;i<12;i++){
   const row=document.createElement('div');row.className='deduction-row';
-  row.innerHTML='<strong>'+escapeHtml(deductionLabels[i])+'</strong><button class="plus" type="button" title="Name or edit deduction" aria-label="Name or edit '+escapeHtml(deductionLabels[i])+'">+</button><input class="deduction-amount" type="number" min="0" step="0.01" value="0.00" aria-label="'+escapeHtml(deductionLabels[i])+' amount">';
+  row.innerHTML='<strong>'+escapeHtml(labels[i])+'</strong><button class="plus" type="button" title="Name or edit deduction" aria-label="Name or edit '+escapeHtml(labels[i])+'">+</button><input class="deduction-amount" type="number" min="0" step="0.01" value="0.00" aria-label="'+escapeHtml(labels[i])+' amount">';
   row.querySelector('.plus').addEventListener('click',()=>renameDeduction(i));
   const amount=row.querySelector('.deduction-amount');
   if(i<amounts.length)amount.value=amounts[i];
@@ -444,76 +453,226 @@ function renderDeductionInputs(preserveAmounts=false){
  calculateSettlement();
 }
 async function renameDeduction(index){
- const next=window.prompt('Name this deduction',deductionLabels[index]);
+ const labels=editingSettlement?.labels ?? deductionLabels;
+ const next=window.prompt('Name this deduction',labels[index]);
  if(next===null)return;
  const trimmed=next.trim();if(!trimmed){showToast('Enter a name or cancel to leave the current one.');return}
- deductionLabels[index]=trimmed;renderDeductionInputs(true);await savePreferences();
+ labels[index]=trimmed;
+ renderDeductionInputs(true);
+ if(!editingSettlement)await savePreferences();
 }
 function calculateSettlement(){
  const gross=Number(document.getElementById('settleGross').value)||0;
- let deductions=0;document.querySelectorAll('.deduction-amount').forEach(input=>deductions+=Number(input.value)||0);
+ let deductions=editingSettlement?.carriedDeductions ?? 0;document.querySelectorAll('.deduction-amount').forEach(input=>deductions+=Number(input.value)||0);
  document.getElementById('formGross').textContent=money(gross);
  document.getElementById('formDed').textContent=money(deductions);
  document.getElementById('formNet').textContent=money(gross-deductions);
 }
 document.addEventListener('input',event=>{if(event.target&&event.target.id==='settleGross')calculateSettlement()});
 
+function resetSettlementForm(){
+ editingSettlement=null;
+ document.getElementById('settlementForm').reset();
+ document.getElementById('settleDate').value=todayForZone(preferredZone);
+ document.getElementById('settlementTitle').textContent='Settlement Entry';
+ document.getElementById('settlementSubmit').textContent='Submit Settlement';
+ document.getElementById('settlementCancel').classList.add('hidden');
+ document.getElementById('settlementHint').textContent='Submitting saves this settlement and adds it to your spreadsheet.';
+ renderDeductionInputs();
+}
+
+function editSettlement(id){
+ if(settlementChangePending)return;
+ const row=settlements.find(entry=>String(entry.id)===id);
+ if(!row)return;
+ const items=normalizedItems(row);
+ const labels=deductionLabels.map((label,i)=>items[i]?.name || label);
+ const amounts=labels.map((_,i)=>Number(items[i]?.amount)||0);
+ let carriedDeductions=roundMoney(Number(row.deductions||0)-amounts.reduce((sum,amount)=>sum+amount,0));
+ if(carriedDeductions>0 && items.length===0){
+  labels[0]='Previous deductions';
+  amounts[0]=carriedDeductions;
+  carriedDeductions=0;
+ }
+ editingSettlement={id:row.id,labels,carriedDeductions};
+ document.getElementById('settleDate').value=row.date;
+ document.getElementById('settleNumber').value=row.settlement_number ?? '';
+ document.getElementById('settleGross').value=row.gross;
+ document.getElementById('settlementTitle').textContent='Edit Settlement';
+ document.getElementById('settlementSubmit').textContent='Save Changes';
+ document.getElementById('settlementCancel').classList.remove('hidden');
+ document.getElementById('settlementHint').textContent=carriedDeductions
+  ? 'The original deduction adjustment of '+money(carriedDeductions)+' is included in the total.'
+  : 'Save Changes updates this settlement in your spreadsheet.';
+ renderDeductionInputs();
+ document.querySelectorAll('.deduction-amount').forEach((input,i)=>{input.value=amounts[i].toFixed(2)});
+ calculateSettlement();
+ showPage('settlementPage');
+}
+
 async function saveSettlement(event){
  event.preventDefault();
+ if(settlementChangePending)return;
  if(!currentUser||!supabaseClient){showToast('Sign in again before saving.');return}
- const date=document.getElementById('settleDate').value;
+ const owner=currentUser;
+ const edit=editingSettlement;
+ const submit=document.getElementById('settlementSubmit');
+ const cancel=document.getElementById('settlementCancel');
+ const date=settlementDate(document.getElementById('settleDate').value);
  const number=document.getElementById('settleNumber').value.trim();
- const gross=Number(document.getElementById('settleGross').value)||0;
- const values=Array.from(document.querySelectorAll('.deduction-amount')).map((input,i)=>({name:deductionLabels[i],amount:Number(input.value)||0}));
- const deductions=values.reduce((sum,item)=>sum+item.amount,0);
- const data={user_id:currentUser.id,date:settlementDate(date),settlement_number:number||null,gross:roundMoney(gross),deductions:roundMoney(deductions),net:roundMoney(gross-deductions),deduction_items:values};
- const result=await supabaseClient.from('settlements').insert(data).select('*').single();
- if(result.error){showToast('Settlement not saved: '+result.error.message);return}
- settlements.unshift(result.data);renderDashboard();renderSpreadsheet();renderTax();
- document.getElementById('settlementForm').reset();document.getElementById('settleDate').value=todayForZone(preferredZone);document.querySelectorAll('.deduction-amount').forEach(i=>i.value='0.00');calculateSettlement();
- showPage('spreadsheetPage');showToast('Settlement saved to your account.');
+ const gross=roundMoney(document.getElementById('settleGross').value);
+ const labels=edit?.labels ?? deductionLabels;
+ const values=Array.from(document.querySelectorAll('.deduction-amount'),(input,i)=>({
+  name:labels[i],amount:roundMoney(input.value)
+ }));
+ const deductions=roundMoney(values.reduce((sum,item)=>sum+item.amount,edit?.carriedDeductions ?? 0));
+ const data={date,settlement_number:number||null,gross,deductions,net:roundMoney(gross-deductions),deduction_items:values};
+ settlementChangePending=true;
+ submit.disabled=true;
+ cancel.disabled=true;
+ try{
+  const table=supabaseClient.from('settlements');
+  const query=edit
+   ? table.update(data).eq('id',edit.id).eq('user_id',owner.id)
+   : table.insert({...data,user_id:owner.id});
+  const result=await query.select('*').single();
+  if(currentUser!==owner)return;
+  if(result.error)throw result.error;
+  settlements=edit
+   ? settlements.map(row=>row.id===edit.id?result.data:row)
+   : [result.data,...settlements];
+  const year=String(result.data.date).slice(0,4);
+  if(year!==selectedYear){
+   selectedYear=year;
+   for(const id of ['dashboardYear','settlementYear','taxYear']){
+    const select=document.getElementById(id);
+    if(!Array.from(select.options).some(option=>option.value===year))select.add(new Option(year,year));
+    select.value=year;
+   }
+  }
+  resetSettlementForm();
+  renderDashboard();
+  renderTax();
+  showPage('spreadsheetPage');
+  showToast(edit?'Settlement updated.':'Settlement saved to your account.');
+ }catch(error){
+  if(currentUser===owner)showToast('Settlement not saved: '+error.message);
+ }finally{
+  settlementChangePending=false;
+  submit.disabled=false;
+  cancel.disabled=false;
+ }
 }
+
+async function deleteSettlement(id){
+ if(settlementChangePending||!currentUser||!supabaseClient)return;
+ const row=settlements.find(entry=>String(entry.id)===id);
+ if(!row)return;
+ const label=row.settlement_number || row.date;
+ if(!window.confirm('Delete settlement '+label+'? This cannot be undone.'))return;
+ const owner=currentUser;
+ settlementChangePending=true;
+ try{
+  const result=await supabaseClient.from('settlements').delete()
+   .eq('id',row.id).eq('user_id',owner.id).select('id').single();
+  if(currentUser!==owner)return;
+  if(result.error)throw result.error;
+  settlements=settlements.filter(entry=>entry.id!==row.id);
+  renderDashboard();
+  renderSpreadsheet();
+  renderTax();
+  showToast('Settlement deleted.');
+ }catch(error){
+  if(currentUser===owner)showToast('Settlement not deleted: '+error.message);
+ }finally{
+  settlementChangePending=false;
+ }
+}
+
+document.getElementById('settlementRows').addEventListener('click',event=>{
+ const button=event.target.closest('button[data-settlement-action]');
+ if(!button)return;
+ if(button.dataset.settlementAction==='edit')editSettlement(button.dataset.settlementId);
+ if(button.dataset.settlementAction==='delete')deleteSettlement(button.dataset.settlementId);
+});
+
 function settlementDate(value){return value||todayForZone(preferredZone)}
 function roundMoney(v){return Math.round((Number(v)||0)*100)/100}
 function rowsForYear(list,field){return list.filter(item=>String(item[field]||'').slice(0,4)===selectedYear)}
 function normalizedItems(settlement){
  if(Array.isArray(settlement.deduction_items))return settlement.deduction_items;
- try{return JSON.parse(settlement.deduction_items||'[]')}catch(e){return []}
+ try{
+  const items=JSON.parse(settlement.deduction_items||'[]');
+  return Array.isArray(items)?items:[];
+ }catch(e){return []}
 }
 function renderDashboard(){
  const sy=rowsForYear(settlements,'date');const py=rowsForYear(stays,'date');
  let gross=0,ded=0,net=0;sy.forEach(s=>{gross+=Number(s.gross)||0;ded+=Number(s.deductions)||0;net+=Number(s.net)||0});
  document.getElementById('dashGross').textContent=money(gross);document.getElementById('dashDed').textContent=money(ded);document.getElementById('dashNet').textContent=money(net);document.getElementById('dashNights').textContent=String(py.length);
 }
+function spreadsheetData(){
+ const rows=rowsForYear(settlements,'date').slice()
+  .sort((a,b)=>String(a.date).localeCompare(String(b.date)));
+ const names=new Set();
+ const entries=rows.map(row=>{
+  const amounts=new Map();
+  normalizedItems(row).forEach((item,index)=>{
+   const name=String(item?.name||'').trim() || 'Deduction '+(index+1);
+   const amount=Number(item?.amount)||0;
+   if(!amount && name==='Deduction '+(index+1))return;
+   names.add(name);
+   amounts.set(name,roundMoney((amounts.get(name)||0)+amount));
+  });
+  return {row,amounts};
+ });
+ return {entries,names:[...names]};
+}
+
 function renderSpreadsheet(){
- const list=rowsForYear(settlements,'date').slice().sort((a,b)=>String(a.date).localeCompare(String(b.date)));
- const head=['Date','Settlement #','Gross Pay'];
- for(let i=0;i<12;i++)head.push(deductionLabels[i]||('Deduction '+(i+1)));
- head.push('Total Deductions','Net Payout');
- document.getElementById('settlementHead').innerHTML='<tr>'+head.map(x=>'<th>'+escapeHtml(x)+'</th>').join('')+'</tr>';
- if(!list.length)document.getElementById('settlementRows').innerHTML='<tr><td colspan="17" style="text-align:center;padding:55px">No settlements yet.<br><span class="muted">Submitted settlements will appear here.</span></td></tr>';
- else document.getElementById('settlementRows').innerHTML=list.map(s=>{
-  const items=normalizedItems(s);const cols=['<td>'+escapeHtml(s.date)+'</td>','<td>'+escapeHtml(s.settlement_number||'—')+'</td>','<td>'+money(s.gross)+'</td>'];
-  for(let i=0;i<12;i++){const it=items[i];cols.push('<td>'+(it?money(it.amount):money(0))+'</td>')}
-  cols.push('<td>'+money(s.deductions)+'</td>','<td>'+money(s.net)+'</td>');
-  return '<tr>'+cols.join('')+'</tr>';
- }).join('');
- let totalGross=0,totalDed=0,totalNet=0;list.forEach(s=>{totalGross+=Number(s.gross)||0;totalDed+=Number(s.deductions)||0;totalNet+=Number(s.net)||0});
- const totals=['Totals',list.length+' settlements',money(totalGross)];
- for(let i=0;i<12;i++){let sum=0;list.forEach(s=>{const it=normalizedItems(s)[i];sum+=Number(it&&it.amount)||0});totals.push(money(sum))}
- totals.push(money(totalDed),money(totalNet));
- document.getElementById('settlementFoot').innerHTML='<tr class="table-footer">'+totals.map(x=>'<td>'+escapeHtml(x)+'</td>').join('')+'</tr>';
- document.getElementById('sheetGross').textContent=money(totalGross);document.getElementById('sheetDed').textContent=money(totalDed);document.getElementById('sheetNet').textContent=money(totalNet);
+ const {entries,names}=spreadsheetData();
+ const headers=['Date','Settlement #','Gross Pay',...names,'Total Deductions','Net Payout'];
+ document.getElementById('settlementHead').innerHTML='<tr><th class="no-print">Actions</th>'+
+  headers.map(label=>'<th>'+escapeHtml(label)+'</th>').join('')+'</tr>';
+ const body=document.getElementById('settlementRows');
+ const sums=new Map(names.map(name=>[name,0]));
+ let gross=0,deductions=0,net=0;
+ body.innerHTML=entries.map(({row,amounts})=>{
+  gross+=Number(row.gross)||0;
+  deductions+=Number(row.deductions)||0;
+  net+=Number(row.net)||0;
+  const id=escapeHtml(row.id);
+  const actions='<td class="no-print"><div class="settlement-actions">'+
+   '<button type="button" class="outline" data-settlement-action="edit" data-settlement-id="'+id+'">Edit</button>'+
+   '<button type="button" class="outline delete" data-settlement-action="delete" data-settlement-id="'+id+'">Delete</button>'+
+   '</div></td>';
+  const cells=[row.date,row.settlement_number||'—',money(row.gross)];
+  for(const name of names){
+   sums.set(name,sums.get(name)+(amounts.get(name)||0));
+   cells.push(amounts.has(name)?money(amounts.get(name)):'');
+  }
+  cells.push(money(row.deductions),money(row.net));
+  return '<tr>'+actions+cells.map(value=>'<td>'+escapeHtml(value)+'</td>').join('')+'</tr>';
+ }).join('') || '<tr><td colspan="'+(headers.length+1)+'" style="text-align:center;padding:55px">No settlements yet.</td></tr>';
+ const totals=['Totals',entries.length+' settlements',money(gross),...names.map(name=>money(sums.get(name))),money(deductions),money(net)];
+ document.getElementById('settlementFoot').innerHTML='<tr class="table-footer"><td class="no-print"></td>'+
+  totals.map(value=>'<td>'+escapeHtml(value)+'</td>').join('')+'</tr>';
+ document.getElementById('sheetGross').textContent=money(gross);
+ document.getElementById('sheetDed').textContent=money(deductions);
+ document.getElementById('sheetNet').textContent=money(net);
 }
 function csvEscape(value){return '"'+String(value===null||value===undefined?'':value).replace(/"/g,'""')+'"'}
 function downloadFile(name,content,type){
  const blob=new Blob([content],{type:type});const link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download=name;link.click();setTimeout(()=>URL.revokeObjectURL(link.href),1000)
 }
 function downloadSpreadsheet(){
- const list=rowsForYear(settlements,'date');const heads=['Date','Settlement #','Gross Pay'].concat(deductionLabels).concat(['Total Deductions','Net Payout']);
- const lines=[heads.map(csvEscape).join(',')];
- list.forEach(s=>{const items=normalizedItems(s);const vals=[s.date,s.settlement_number,s.gross];for(let i=0;i<12;i++)vals.push(items[i]?items[i].amount:0);vals.push(s.deductions,s.net);lines.push(vals.map(csvEscape).join(','))});
- downloadFile('RigTracker-Settlements-'+selectedYear+'.csv','\ufeff'+lines.join('\r\n'),'text/csv;charset=utf-8')
+ const {entries,names}=spreadsheetData();
+ const headers=['Date','Settlement #','Gross Pay',...names,'Total Deductions','Net Payout'];
+ const rows=entries.map(({row,amounts})=>[
+  row.date,row.settlement_number,row.gross,...names.map(name=>amounts.get(name)??''),row.deductions,row.net
+ ]);
+ const csv=[headers,...rows].map(row=>row.map(csvEscape).join(',')).join('\r\n');
+ downloadFile('RigTracker-Settlements-'+selectedYear+'.csv','\ufeff'+csv,'text/csv;charset=utf-8');
 }
 function downloadPerDiem(){
  const list=rowsForYear(stays,'date');const heads=['Date','Location','Description','Sleeper Start Date','Sleeper Start Time','Sleeper End Date','Sleeper End Time','Time Zone','Attachment'];
