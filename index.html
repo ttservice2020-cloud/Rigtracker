@@ -443,7 +443,7 @@ function renderDeductionInputs(preserveAmounts=false){
  host.innerHTML='';
  for(let i=0;i<12;i++){
   const row=document.createElement('div');row.className='deduction-row';
-  row.innerHTML='<strong>'+escapeHtml(labels[i])+'</strong><button class="plus" type="button" title="Name or edit deduction" aria-label="Name or edit '+escapeHtml(labels[i])+'">+</button><input class="deduction-amount" type="number" min="0" step="0.01" value="0.00" aria-label="'+escapeHtml(labels[i])+' amount">';
+  row.innerHTML='<strong>'+escapeHtml(labels[i])+'</strong><button class="plus" type="button" title="Name or edit deduction" aria-label="Name or edit '+escapeHtml(labels[i])+'">+</button><input class="deduction-amount" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00" aria-label="'+escapeHtml(labels[i])+' amount">';
   row.querySelector('.plus').addEventListener('click',()=>renameDeduction(i));
   const amount=row.querySelector('.deduction-amount');
   if(i<amounts.length)amount.value=amounts[i];
@@ -505,7 +505,7 @@ function editSettlement(id){
   ? 'The original deduction adjustment of '+money(carriedDeductions)+' is included in the total.'
   : 'Save Changes updates this settlement in your spreadsheet.';
  renderDeductionInputs();
- document.querySelectorAll('.deduction-amount').forEach((input,i)=>{input.value=amounts[i].toFixed(2)});
+ document.querySelectorAll('.deduction-amount').forEach((input,i)=>{input.value=amounts[i]===0?'':amounts[i].toFixed(2)});
  calculateSettlement();
  showPage('settlementPage');
 }
