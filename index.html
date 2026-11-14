@@ -1,738 +1,629 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>RigTracker Pro</title>
-<!-- Supabase CDN -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
-:root {
-  --bg-deep: #0a0a0a;
-  --bg-card: #141414;
-  --border-color: #262626;
-  --accent-gold: #d4af37;
-  --accent-gold-hover: #e6c55c;
-  --text-main: #f5f5f5;
-  --text-muted: #a3a3a3;
-  --green: #22c55e;
-  --red: #ef4444;
-  --yellow: #eab308;
+:root{--black:#050505;--panel:#141414;--panel2:#1b1b1b;--gold:#f6c21a;--gold2:#ffd84f;--white:#f7f7f7;--muted:#a9a9a9;--line:#555;--silver1:#f4f4f4;--silver2:#b8b8b8;--red:#ef1c24}
+*{box-sizing:border-box}
+body{margin:0;background:var(--black);color:var(--white);font-family:Arial,Helvetica,sans-serif;min-height:100vh}
+button,input,select,textarea{font:inherit}
+button{cursor:pointer}
+.hidden{display:none!important}
+.brandbar{height:76px;border-bottom:2px solid var(--gold);display:flex;align-items:center;justify-content:space-between;padding:8px 3%;gap:14px}
+.brand{display:flex;align-items:center;gap:12px;font-size:clamp(20px,3vw,34px);font-weight:800}
+.truck{width:80px;height:42px;flex:none}
+.brand span{white-space:nowrap}
+.top-actions{display:flex;align-items:center;gap:12px;color:var(--muted)}
+.top-actions button,.outline{color:var(--white);background:transparent;border:2px solid var(--gold);border-radius:10px;padding:9px 15px;font-weight:700}
+main{max-width:1440px;margin:0 auto;padding:24px 3% 48px}
+h1{font-size:clamp(30px,4vw,48px);margin:10px 0 16px}
+h2{font-size:clamp(22px,3vw,32px);margin:0 0 8px}
+h3{margin:0 0 10px}
+p{line-height:1.45}
+.gold{color:var(--gold)}
+.muted{color:var(--muted)}
+.gold-btn{background:linear-gradient(#ffdc61,#f2b900);border:0;border-radius:12px;color:#080808;font-size:18px;font-weight:800;padding:14px 22px}
+.gold-btn:hover{filter:brightness(1.07)}
+.secondary-btn{background:#191919;color:var(--white);border:2px solid #777;border-radius:10px;font-weight:700;padding:10px 16px}
+.page-head{display:flex;align-items:center;justify-content:space-between;gap:18px;flex-wrap:wrap;margin:12px 0 24px}
+.back{color:var(--white);background:none;border:0;font-size:16px;padding:8px 0;text-align:left}
+.year-select{background:#1c1c1c;color:#fff;border:2px solid #fff;border-radius:11px;padding:10px 16px;font-weight:700;min-width:145px}
+.card{background:linear-gradient(145deg,#181818,#0d0d0d);border:1px solid #383838;border-radius:16px;padding:22px}
+.grid{display:grid;gap:18px}
+.stats{grid-template-columns:repeat(4,minmax(0,1fr));margin:24px 0}
+.stat{border:1.5px solid #eee;padding:18px 22px;min-height:104px}
+.stat-label{font-size:17px;font-weight:700}
+.stat-value{font-size:32px;font-weight:800;margin-top:8px}
+.tiles{grid-template-columns:repeat(2,minmax(0,1fr))}
+.tile{background:linear-gradient(125deg,#eee,#bababa 38%,#f5f5f5 56%,#aaa);color:#111;border-radius:16px;padding:22px 26px;display:flex;align-items:center;justify-content:space-between;gap:20px;min-height:126px}
+.tile h3{font-size:24px;margin:0 0 6px}
+.tile p{font-size:18px;margin:0;max-width:420px}
+.tile .gold-btn{min-width:190px}
+.panel{background:#101010;border:2px solid #555;border-radius:16px;padding:22px;margin:16px 0}
+.panel.gold-edge{border-color:var(--gold)}
+.panel.red-edge{border-color:var(--red)}
+.form-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}
+.field label{display:block;font-weight:700;margin:0 0 7px;font-size:17px}
+.field input,.field select,.field textarea,.deduction-name{width:100%;border:1px solid #999;border-radius:9px;background:#f7f7f7;color:#111;padding:12px 14px;min-height:48px}
+.field textarea{min-height:62px;resize:vertical}
+.deduction-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 14px;margin-top:16px}
+.deduction-row{display:grid;grid-template-columns:minmax(100px,1fr) 48px minmax(120px,1fr);gap:9px;align-items:center;border:1px solid #bdbdbd;border-radius:11px;background:linear-gradient(120deg,#eee,#bdbdbd,#f2f2f2);padding:8px 10px;color:#111}
+.deduction-row:nth-child(even){background:linear-gradient(120deg,#d8d8d8,#aaa,#e5e5e5)}
+.deduction-row strong{font-size:16px}
+.deduction-row input{background:#fff;border:1px solid #333;border-radius:8px;color:#111;padding:9px;width:100%;font-weight:700}
+.plus{background:#111;color:var(--gold);border:3px solid var(--gold);border-radius:8px;font-size:24px;font-weight:800;width:42px;height:42px;line-height:30px}
+.totals{display:grid;grid-template-columns:repeat(3,1fr);border:2px solid var(--gold);border-radius:14px;padding:16px;margin:22px 0}
+.total{text-align:center;border-right:1px solid #aaa}
+.total:last-child{border:0}
+.total strong{display:block;font-size:17px}
+.total span{display:block;font-size:32px;font-weight:800;margin-top:5px}
+.full{width:100%}
+.table-shell{overflow:auto;border:1px solid #666;border-radius:12px}
+table{width:100%;border-collapse:collapse;min-width:850px}
+th,td{padding:11px 13px;border:1px solid #555;text-align:left;white-space:nowrap}
+th{background:linear-gradient(#eee,#bbb);color:#111}
+tbody tr:nth-child(even){background:#161616}
+tbody tr:nth-child(odd){background:#0b0b0b}
+.amount-box{display:inline-block;border:1px solid #aaa;border-radius:6px;padding:3px 10px;min-width:100px;text-align:right}
+.table-footer{font-weight:800;background:#111}
+.table-help{text-align:center;margin:10px;color:var(--muted)}
+.actions-row{display:flex;justify-content:center;gap:14px;flex-wrap:wrap;margin:20px}
+.page{display:none}
+.page.active{display:block}
+.login-wrap{max-width:700px;margin:24px auto 60px}
+.login-hero{text-align:center;margin:14px auto 28px}
+.hero-truck{width:min(300px,60vw);height:auto}
+.login-hero h1{font-size:clamp(42px,7vw,72px);margin:4px 0}
+.login-hero p{font-size:clamp(18px,2.6vw,28px);margin:8px}
+.login-card{background:linear-gradient(145deg,#202020,#101010);border-radius:28px;padding:clamp(24px,5vw,56px);box-shadow:0 10px 45px #111}
+.login-card h2{text-align:center;font-size:clamp(34px,5vw,54px);margin-bottom:30px}
+.role-tabs{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid #777;border-radius:15px;overflow:hidden;margin-bottom:28px}
+.role-tab{background:transparent;color:#fff;border:0;border-right:1px solid #777;padding:16px 8px;font-size:20px;font-weight:800}
+.role-tab:last-child{border:0}
+.role-tab.active{background:linear-gradient(#ffdc61,#efb700);color:#090909}
+.login-field{margin:18px 0}
+.login-field label{display:block;font-size:18px;font-weight:700;margin-bottom:8px}
+.login-field input{width:100%;min-height:58px;background:#252525;color:white;border:1px solid #999;border-radius:12px;padding:14px;font-size:18px}
+.login-actions{margin-top:38px}
+.link-row{text-align:right;margin:10px 0 20px}
+.link-btn{background:none;border:0;color:#ffe25d;text-decoration:underline;font-size:16px}
+.login-bottom{text-align:center;border-top:1px solid #777;margin-top:22px;padding-top:20px;font-size:17px}
+.inline-link{color:#ffdc46;background:none;border:0;text-decoration:underline;font-size:inherit}
+.tag{background:#444;color:#ddd;border-radius:22px;padding:7px 14px;font-size:14px}
+.summary-row{display:grid;grid-template-columns:1.6fr 1fr;gap:18px}
+.expense-table{width:100%;min-width:0}
+.expense-table th:first-child,.expense-table td:first-child{width:75%}
+.tax-stats{grid-template-columns:repeat(3,1fr);margin:0 0 14px}
+.tax-stats .stat{border:2px solid var(--red)}
+.tax-callout{background:#151515;border:2px solid var(--red);border-radius:14px;padding:18px}
+.tax-actions{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:20px 0}
+.tax-actions button{background:#111;border:2px solid var(--red);color:#fff;border-radius:12px;padding:13px;font-size:16px;font-weight:800}
+.tax-docs{display:grid;grid-template-columns:1fr 1fr;align-items:center;gap:20px}
+.time-zone{min-width:220px}
+.perdiem-form{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.perdiem-form .wide{grid-column:1/-1}
+.sleeper-grid{display:grid;grid-template-columns:1fr 1fr 160px;gap:12px;align-items:end}
+.support-actions{display:flex;gap:16px;justify-content:center;flex-wrap:wrap}
+#toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#252525;border:1px solid var(--gold);padding:14px 20px;border-radius:10px;z-index:100;max-width:90vw;box-shadow:0 5px 25px #000}
+#modal{position:fixed;inset:0;background:#000b;display:none;align-items:center;justify-content:center;padding:20px;z-index:90}
+#modal.open{display:flex}
+.modal-card{max-width:520px;width:100%;background:#171717;border:2px solid var(--gold);border-radius:16px;padding:24px}
+.modal-card button{margin-top:12px}
+footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margin-top:28px}
+@media(max-width:850px){
+ .stats{grid-template-columns:repeat(2,1fr)}
+ .form-grid{grid-template-columns:1fr 1fr}
+ .summary-row{grid-template-columns:1fr}
+ .tile{padding:18px;min-height:120px}
+ .tile .gold-btn{min-width:140px;padding:12px}
 }
-
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  -webkit-text-size-adjust: 100%;
+@media(max-width:600px){
+ main{padding:16px 4% 36px}
+ .brandbar{height:auto;min-height:66px;padding:8px 4%}
+ .truck{width:56px;height:34px}
+ .top-actions{gap:6px}
+ .top-actions span{display:none}
+ .stats{gap:10px}
+ .stat{padding:13px;min-height:92px}
+ .stat-label{font-size:13px}
+ .stat-value{font-size:23px}
+ .tiles{grid-template-columns:1fr;gap:12px}
+ .tile{padding:16px;min-height:115px}
+ .tile h3{font-size:19px}
+ .tile p{font-size:15px}
+ .tile .gold-btn{min-width:110px;max-width:138px;font-size:14px;padding:11px 8px}
+ .form-grid,.deduction-grid,.tax-stats,.tax-actions,.tax-docs,.perdiem-form{grid-template-columns:1fr}
+ .perdiem-form .wide{grid-column:auto}
+ .deduction-row{grid-template-columns:minmax(80px,1fr) 40px minmax(90px,1fr);padding:6px}
+ .deduction-row strong{font-size:14px}
+ .deduction-row input{padding:8px 5px}
+ .plus{width:36px;height:36px;font-size:20px}
+ .totals{padding:10px 4px}
+ .total strong{font-size:13px}
+ .total span{font-size:22px}
+ .sleeper-grid{grid-template-columns:1fr 1fr}
+ .sleeper-grid .gold-btn,.sleeper-grid .secondary-btn{grid-column:1/-1}
+ .panel{padding:16px}
+ .login-card{padding:22px 18px}
+ .role-tab{font-size:16px;padding:13px 4px}
+ .login-card h2{font-size:36px}
+ .login-field label{font-size:16px}
+ .login-field input{min-height:52px}
 }
-
-body {
-  background-color: var(--bg-deep);
-  color: var(--text-main);
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-}
-
-header {
-  background-color: var(--bg-card);
-  border-bottom: 1px solid var(--border-color);
-  padding: 1rem 1.5rem;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.logo {
-  font-size: 1.25rem;
-  font-weight: 700;
-  color: var(--accent-gold);
-  letter-spacing: 0.05em;
-}
-
-.auth-status {
-  font-size: 0.875rem;
-  color: var(--text-muted);
-  display: flex;
-  gap: 1rem;
-  align-items: center;
-}
-
-.auth-status button {
-  background: none;
-  border: 1px solid var(--border-color);
-  color: var(--text-main);
-  padding: 0.25rem 0.75rem;
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-.auth-status button:hover {
-  border-color: var(--accent-gold);
-  color: var(--accent-gold);
-}
-
-main {
-  flex: 1;
-  padding: 1.5rem;
-  max-width: 1200px;
-  width: 100%;
-  margin: 0 auto;
-}
-
-/* Auth Screen */
-.auth-container {
-  max-width: 400px;
-  margin: 4rem auto;
-  background: var(--bg-card);
-  border: 1px solid var(--border-color);
-  padding: 2rem;
-  border-radius: 8px;
-}
-
-.auth-container h2 {
-  color: var(--accent-gold);
-  margin-bottom: 1.5rem;
-  font-size: 1.5rem;
-}
-
-.form-group {
-  margin-bottom: 1rem;
-}
-
-.form-group label {
-  display: block;
-  font-size: 0.875rem;
-  color: var(--text-muted);
-  margin-bottom: 0.5rem;
-}
-
-.form-group input {
-  width: 100%;
-  padding: 0.75rem;
-  background: var(--bg-deep);
-  border: 1px solid var(--border-color);
-  color: var(--text-main);
-  border-radius: 4px;
-  font-size: 1rem;
-}
-
-.form-group input:focus {
-  outline: none;
-  border-color: var(--accent-gold);
-}
-
-.btn-primary {
-  width: 100%;
-  padding: 0.75rem;
-  background-color: var(--accent-gold);
-  color: var(--bg-deep);
-  border: none;
-  font-weight: 600;
-  border-radius: 4px;
-  cursor: pointer;
-  margin-top: 1rem;
-}
-
-.btn-primary:hover {
-  background-color: var(--accent-gold-hover);
-}
-
-.auth-switch {
-  text-align: center;
-  margin-top: 1rem;
-  font-size: 0.875rem;
-  color: var(--text-muted);
-}
-
-.auth-switch span {
-  color: var(--accent-gold);
-  cursor: pointer;
-  text-decoration: underline;
-}
-
-/* Dashboard Grid */
-.dashboard-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 1.5rem;
-  margin-bottom: 2rem;
-}
-
-.card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-color);
-  padding: 1.5rem;
-  border-radius: 8px;
-}
-
-.card h3 {
-  font-size: 0.875rem;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin-bottom: 0.5rem;
-}
-
-.card .value {
-  font-size: 1.75rem;
-  font-weight: 700;
-}
-
-.value.gross { color: var(--yellow); }
-.value.deductions { color: var(--red); }
-.value.net { color: var(--green); }
-
-/* Navigation Tabs */
-.nav-tabs {
-  display: flex;
-  gap: 0.5rem;
-  border-bottom: 1px solid var(--border-color);
-  margin-bottom: 1.5rem;
-  flex-wrap: wrap;
-}
-
-.nav-tab {
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  padding: 0.75rem 1.25rem;
-  font-size: 1rem;
-  cursor: pointer;
-  border-bottom: 2px solid transparent;
-}
-
-.nav-tab.active {
-  color: var(--accent-gold);
-  border-bottom-color: var(--accent-gold);
-}
-
-.tab-content {
-  display: none;
-}
-
-.tab-content.active {
-  display: block;
-}
-
-/* Tables & Forms */
-table {
-  width: 100%;
-  border-collapse: collapse;
-  background: var(--bg-card);
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  overflow: hidden;
-  margin-top: 1rem;
-}
-
-th, td {
-  padding: 0.75rem 1rem;
-  text-align: left;
-  border-bottom: 1px solid var(--border-color);
-  font-size: 0.875rem;
-}
-
-th {
-  background-color: #1a1a1a;
-  color: var(--accent-gold);
-  font-weight: 600;
-}
-
-tr:hover {
-  background-color: rgba(212, 175, 55, 0.02);
-}
-
-.btn-action {
-  background: none;
-  border: 1px solid var(--border-color);
-  color: var(--text-main);
-  padding: 0.5rem 1rem;
-  border-radius: 4px;
-  cursor: pointer;
-  font-weight: 600;
-}
-
-.btn-action:hover {
-  border-color: var(--accent-gold);
-  color: var(--accent-gold);
-}
-
-.deduction-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 1rem;
-  margin-top: 1rem;
-}
-
-.hidden { display: none !important; }
-
-@media print {
-  body { background: white; color: black; }
-  header, .nav-tabs, .auth-container, button { display: none !important; }
-  .tab-content { display: block !important; }
-  .card { border: 1px solid #ccc; background: white; color: black; }
+@media print{
+ body{background:#fff;color:#000}
+ .brandbar,.no-print,button,.top-actions{display:none!important}
+ main{max-width:none;padding:0}
+ .page{display:none!important}
+ .page.active{display:block!important}
+ .panel,.card,.stat,.tax-callout{background:#fff;color:#000;border-color:#777}
+ table,th,td{color:#000}
+ footer{color:#444}
 }
 </style>
 </head>
 <body>
-
-<header>
-  <div class="logo">RIGTRACKER PRO</div>
-  <div class="auth-status" id="authStatusContainer">
-    <span id="userEmailDisplay"></span>
-    <button id="signOutBtn" class="hidden" onclick="handleSignOut()">Sign Out</button>
-  </div>
+<header class="brandbar hidden" id="appHeader">
+ <div class="brand">
+  <svg class="truck" viewBox="0 0 160 80" aria-hidden="true"><g fill="none" stroke="#f6c21a" stroke-width="4" stroke-linejoin="round"><path d="M8 54h96V19H40L8 40z"/><path d="M104 32h25l19 20v12h-44z"/><path d="M124 34v17h24"/><path d="M17 40h24M49 19v35"/><circle cx="42" cy="63" r="10" fill="#050505"/><circle cx="42" cy="63" r="4" fill="#f6c21a"/><circle cx="123" cy="63" r="10" fill="#050505"/><circle cx="123" cy="63" r="4" fill="#f6c21a"/><path d="M149 53h8v8h-8"/></g></svg>
+  <span>RigTracker Pro</span>
+ </div>
+ <div class="top-actions"><span id="accountLabel">Driver account</span><button onclick="signOut()">Sign Out</button></div>
 </header>
 
 <main>
-  <!-- Auth Screen -->
-  <div id="authScreen" class="auth-container">
-    <h2 id="authTitle">Sign In</h2>
-    <form id="authForm" onsubmit="handleAuthSubmit(event)">
-      <div class="form-group">
-        <label>Email Address</label>
-        <input type="email" id="authEmail" autocapitalize="none" required>
-      </div>
-      <div class="form-group">
-        <label>Password</label>
-        <input type="password" id="authPassword" required>
-      </div>
-      <button type="submit" class="btn-primary" id="authSubmitBtn">Sign In</button>
-    </form>
-    <div class="auth-switch">
-      <p id="authSwitchText">Don't have an account? <span onclick="toggleAuthMode()">Sign Up</span></p>
-    </div>
+<section id="authScreen">
+ <div class="login-wrap">
+  <div class="login-hero">
+   <svg class="hero-truck" viewBox="0 0 160 80" aria-hidden="true"><g fill="none" stroke="#f6c21a" stroke-width="4" stroke-linejoin="round"><path d="M8 54h96V19H40L8 40z"/><path d="M104 32h25l19 20v12h-44z"/><path d="M124 34v17h24"/><path d="M17 40h24M49 19v35"/><circle cx="42" cy="63" r="10" fill="#050505"/><circle cx="42" cy="63" r="4" fill="#f6c21a"/><circle cx="123" cy="63" r="10" fill="#050505"/><circle cx="123" cy="63" r="4" fill="#f6c21a"/><path d="M149 53h8v8h-8"/></g></svg>
+   <h1>RigTracker Pro</h1><p>Your trucking records. All in one place.</p>
   </div>
-
-  <!-- Main App Interface -->
-  <div id="appScreen" class="hidden">
-    <div class="dashboard-grid">
-      <div class="card">
-        <h3>YTD Gross</h3>
-        <div class="value gross" id="ytdGross">$0.00</div>
-      </div>
-      <div class="card">
-        <h3>Total Deductions</h3>
-        <div class="value deductions" id="ytdDeductions">$0.00</div>
-      </div>
-      <div class="card">
-        <h3>Net Payout</h3>
-        <div class="value net" id="ytdNet">$0.00</div>
-      </div>
-      <div class="card">
-        <h3>Per Diem Nights</h3>
-        <div class="value" id="ytdPerDiem" style="color: var(--text-main);">0</div>
-      </div>
-    </div>
-
-    <div class="nav-tabs">
-      <button class="nav-tab active" onclick="switchTab('settlements')">Settlement Entry</button>
-      <button class="nav-tab" onclick="switchTab('spreadsheet')">Spreadsheet</button>
-      <button class="nav-tab" onclick="switchTab('perdiem')">Per Diem Log</button>
-      <button class="nav-tab" onclick="switchTab('tax')">Tax Summary</button>
-    </div>
-
-    <!-- Settlement Entry Tab -->
-    <div id="settlementsTab" class="tab-content active">
-      <div class="card">
-        <h3 style="margin-bottom: 1rem; color: var(--accent-gold);">New Settlement Entry</h3>
-        <form id="settlementForm" onsubmit="saveSettlement(event)">
-          <div class="dashboard-grid" style="margin-bottom: 1rem;">
-            <div class="form-group">
-              <label>Date</label>
-              <input type="date" id="settleDate" required>
-            </div>
-            <div class="form-group">
-              <label>Settlement # / Load ID</label>
-              <input type="text" id="settleNumber" placeholder="e.g. LTI-94820">
-            </div>
-            <div class="form-group">
-              <label>Gross Amount ($)</label>
-              <input type="number" step="0.01" id="settleGross" placeholder="0.00" oninput="calculateNet()" required>
-            </div>
-          </div>
-
-          <h4 style="margin-bottom: 0.75rem; font-size: 0.95rem; color: var(--text-muted);">Itemized Deductions</h4>
-          <div class="deduction-grid">
-            <div class="form-group"><label>Fuel</label><input type="number" step="0.01" class="deduction-input" placeholder="0.00" oninput="calculateNet()"></div>
-            <div class="form-group"><label>Insurance</label><input type="number" step="0.01" class="deduction-input" placeholder="0.00" oninput="calculateNet()"></div>
-            <div class="form-group"><label>Plate / Permits</label><input type="number" step="0.01" class="deduction-input" placeholder="0.00" oninput="calculateNet()"></div>
-            <div class="form-group"><label>Maintenance Escrow</label><input type="number" step="0.01" class="deduction-input" placeholder="0.00" oninput="calculateNet()"></div>
-            <div class="form-group"><label>Tolls & Scales</label><input type="number" step="0.01" class="deduction-input" placeholder="0.00" oninput="calculateNet()"></div>
-            <div class="form-group"><label>Other Deductions</label><input type="number" step="0.01" class="deduction-input" placeholder="0.00" oninput="calculateNet()"></div>
-          </div>
-
-          <div style="margin-top: 1.5rem; display: flex; justify-content: space-between; align-items: center; background: var(--bg-deep); padding: 1rem; border-radius: 6px; border: 1px solid var(--border-color);">
-            <div>
-              <span style="color: var(--text-muted); font-size: 0.875rem;">Calculated Net Payout:</span>
-              <div id="previewNet" style="font-size: 1.5rem; font-weight: 700; color: var(--green);">$0.00</div>
-            </div>
-            <button type="submit" class="btn-action" style="background: var(--accent-gold); color: var(--bg-deep);">Save Settlement</button>
-          </div>
-        </form>
-      </div>
-    </div>
-
-    <!-- Spreadsheet Tab -->
-    <div id="spreadsheetTab" class="tab-content">
-      <div class="card">
-        <h3 style="margin-bottom: 1rem; color: var(--accent-gold);">Settlement Ledger Records</h3>
-        <table>
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Settlement #</th>
-              <th>Gross</th>
-              <th>Deductions</th>
-              <th>Net Payout</th>
-            </tr>
-          </thead>
-          <tbody id="spreadsheetBody">
-            <tr><td colspan="5" style="text-align: center; color: var(--text-muted);">No records found.</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <!-- Per Diem Tab -->
-    <div id="perdiemTab" class="tab-content">
-      <div class="card">
-        <h3 style="margin-bottom: 1rem; color: var(--accent-gold);">Per Diem & Sleeper Berth Log</h3>
-        <form onsubmit="savePerDiem(event)">
-          <div class="dashboard-grid" style="margin-bottom: 1rem;">
-            <div class="form-group"><label>Date</label><input type="date" id="pdDate" required></div>
-            <div class="form-group"><label>Location / City, State</label><input type="text" id="pdLocation" placeholder="e.g. Nashville, TN" required></div>
-          </div>
-          <button type="submit" class="btn-action" style="background: var(--accent-gold); color: var(--bg-deep);">Log Per Diem Night</button>
-        </form>
-        <table style="margin-top: 1.5rem;">
-          <thead>
-            <tr><th>Date</th><th>Location</th><th>Action</th></tr>
-          </thead>
-          <tbody id="perDiemBody">
-            <tr><td colspan="3" style="text-align: center; color: var(--text-muted);">No per diem nights logged.</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <!-- Tax Summary Tab -->
-    <div id="taxTab" class="tab-content">
-      <div class="card">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-          <h3 style="color: var(--accent-gold);">Annual Operational Summary & Tax Packet</h3>
-          <button class="btn-action" onclick="window.print()">Print / Export PDF</button>
-        </div>
-        <p style="color: var(--text-muted); font-size: 0.875rem; margin-bottom: 1.5rem;">Operational bookkeeping summaries and itemized ledger totals for tax preparation.</p>
-        <div class="dashboard-grid">
-          <div class="card"><h3>Total Gross Earnings</h3><div class="value gross" id="taxGross">$0.00</div></div>
-          <div class="card"><h3>Total Itemized Deductions</h3><div class="value deductions" id="taxDeductions">$0.00</div></div>
-          <div class="card"><h3>Net Operational Total</h3><div class="value net" id="taxNet">$0.00</div></div>
-        </div>
-      </div>
-    </div>
+  <div class="login-card">
+   <h2 id="authHeading">Welcome back</h2>
+   <div class="role-tabs">
+    <button class="role-tab active" data-role="driver" onclick="chooseRole('driver',this)">Driver</button>
+    <button class="role-tab" data-role="fleet" onclick="chooseRole('fleet',this)">Fleet</button>
+    <button class="role-tab" data-role="tax" onclick="chooseRole('tax',this)">Tax</button>
+   </div>
+   <form id="authForm" onsubmit="submitAuth(event)">
+    <div class="login-field"><label for="email">Email address</label><input id="email" type="email" autocomplete="username" placeholder="Enter your email address" required></div>
+    <div class="login-field"><label for="password">Password</label><input id="password" type="password" autocomplete="current-password" placeholder="Enter your password" required></div>
+    <div class="login-actions"><button id="authSubmit" class="gold-btn full" type="submit">Sign In</button></div>
+   </form>
+   <div class="link-row"><button class="link-btn" onclick="forgotPassword()">Forgot password?</button></div>
+   <div class="login-bottom"><span id="authSwitchLabel">New to RigTracker Pro?</span> <button class="inline-link" id="authSwitch" onclick="toggleAuthMode()">Create an account</button></div>
   </div>
+ </div>
+</section>
+
+<section id="appScreen" class="hidden">
+ <section id="dashboardPage" class="page active">
+  <div class="page-head"><h1>Driver Dashboard</h1><select class="year-select" id="dashboardYear" aria-label="Select year"></select></div>
+  <div class="grid stats">
+   <div class="card stat"><div class="stat-label">YTD Gross</div><div class="stat-value" id="dashGross">$0.00</div></div>
+   <div class="card stat"><div class="stat-label">Total Deductions</div><div class="stat-value" id="dashDed">$0.00</div></div>
+   <div class="card stat"><div class="stat-label">Net Payout</div><div class="stat-value" id="dashNet">$0.00</div></div>
+   <div class="card stat"><div class="stat-label">Per Diem Nights</div><div class="stat-value" id="dashNights">0</div></div>
+  </div>
+  <h2>What would you like to do?</h2>
+  <div class="grid tiles" style="margin-top:16px">
+   <article class="tile"><div><h3>Settlement Entry</h3><p>Enter a settlement and itemized deductions.</p></div><button class="gold-btn" onclick="showPage('settlementPage')">Add Settlement</button></article>
+   <article class="tile"><div><h3>Spreadsheet</h3><p>View and print your settlement records.</p></div><button class="gold-btn" onclick="showPage('spreadsheetPage')">View Spreadsheet</button></article>
+   <article class="tile"><div><h3>Per Diem Log</h3><p>Record dates and locations away from home.</p></div><button class="gold-btn" onclick="showPage('perDiemPage')">Open Log</button></article>
+   <article class="tile"><div><h3>Bank Ledger</h3><p>Track card purchases, truck expenses, and owner pay.</p></div><button class="gold-btn" onclick="notAvailable('Bank Ledger')">Open Ledger</button></article>
+   <article class="tile"><div><h3>Records</h3><p>Keep receipts and supporting documents.</p></div><button class="gold-btn" onclick="notAvailable('Records')">View Records</button></article>
+   <article class="tile"><div><h3>Tax Form</h3><p>Print or download your records.</p></div><button class="gold-btn" onclick="showPage('taxPage')">View Tax Form</button></article>
+  </div>
+ </section>
+
+ <section id="settlementPage" class="page">
+  <div class="page-head"><div><button class="back" onclick="showPage('dashboardPage')">← Back to Dashboard</button><h1>Settlement Entry</h1></div><select class="year-select" id="settlementYear" aria-label="Settlement year"></select></div>
+  <form id="settlementForm" onsubmit="saveSettlement(event)">
+   <div class="panel gold-edge">
+    <h2>Settlement Details</h2>
+    <div class="form-grid">
+     <div class="field"><label for="settleDate">Date</label><input type="date" id="settleDate" required></div>
+     <div class="field"><label for="settleNumber">Settlement #</label><input id="settleNumber" type="text" placeholder="Enter settlement number"></div>
+     <div class="field"><label for="settleGross">Gross Pay</label><input id="settleGross" type="number" min="0" step="0.01" value="0.00" required></div>
+    </div>
+   </div>
+   <div class="panel" style="border:0;padding-left:0;padding-right:0">
+    <h2>Itemized Deductions</h2><p class="muted" style="margin:0"><em>Use + to name or edit each deduction.</em></p>
+    <div class="deduction-grid" id="deductionInputs"></div>
+   </div>
+   <div class="totals">
+    <div class="total"><strong>Gross Pay</strong><span id="formGross">$0.00</span></div>
+    <div class="total"><strong>Total Deductions</strong><span id="formDed">$0.00</span></div>
+    <div class="total"><strong>Net Payout</strong><span class="gold" id="formNet">$0.00</span></div>
+   </div>
+   <button class="gold-btn full" type="submit" style="font-size:22px">Submit Settlement</button>
+   <p class="muted" style="text-align:center;margin-top:8px">Submitting saves this settlement and adds it to your spreadsheet.</p>
+  </form>
+ </section>
+
+ <section id="spreadsheetPage" class="page">
+  <div class="page-head"><div><button class="back" onclick="showPage('dashboardPage')">← Back to Dashboard</button><h1>Spreadsheet</h1></div><button class="outline" onclick="showHelp('Spreadsheet','Your submitted settlements appear here. Scroll sideways to view all 12 deduction columns. Use Download to save a CSV file, or Print to make a paper copy.')">ⓘ Help</button></div>
+  <div class="table-shell"><table id="settlementTable"><thead id="settlementHead"></thead><tbody id="settlementRows"></tbody><tfoot id="settlementFoot"></tfoot></table></div>
+  <p class="table-help">Scroll sideways to view all 12 deduction columns.</p>
+  <div class="grid stats" style="grid-template-columns:repeat(3,minmax(0,1fr))">
+   <div class="card stat"><div class="stat-label">Gross Pay</div><div class="stat-value" id="sheetGross">$0.00</div></div>
+   <div class="card stat"><div class="stat-label">Total Deductions</div><div class="stat-value" id="sheetDed">$0.00</div></div>
+   <div class="card stat"><div class="stat-label">Net Payout</div><div class="stat-value gold" id="sheetNet">$0.00</div></div>
+  </div>
+  <div class="actions-row no-print"><button class="gold-btn" onclick="window.print()">▣ Print</button><button class="gold-btn" onclick="downloadSpreadsheet()">↓ Download</button></div>
+ </section>
+
+ <section id="perDiemPage" class="page">
+  <div class="page-head">
+   <div><button class="back" onclick="showPage('dashboardPage')">← Back to Dashboard</button><h1>Per Diem Log</h1></div>
+   <button class="outline" onclick="showHelp('Per Diem Log','Only the date is required. Location, description, sleeper berth times, and a supporting photo or log are optional. Your time zone preference is saved to your account.')">? Help</button>
+   <div class="field time-zone"><label for="timeZone">Time Zone</label><select id="timeZone" onchange="saveTimeZone()"><option value="America/New_York">Eastern</option><option value="America/Chicago">Central</option><option value="America/Denver">Mountain</option><option value="America/Los_Angeles">Pacific</option><option value="America/Anchorage">Alaska</option><option value="Pacific/Honolulu">Hawaii</option></select><small class="muted"><em>Saved preference</em></small></div>
+  </div>
+  <form id="perDiemForm" onsubmit="saveStay(event)">
+   <div class="panel">
+    <h2>Add a Stay</h2><p class="muted"><em>Only the date is required.</em></p>
+    <div class="perdiem-form">
+     <div class="field"><label for="stayDate">Date *</label><input id="stayDate" type="date" required></div>
+     <div class="field"><label for="stayLocation">Location (optional)</label><input id="stayLocation" placeholder="City, State"></div>
+     <div class="field wide"><label for="stayDescription">Description (optional)</label><input id="stayDescription" placeholder="Pilot #, yard, rest area, or your own note"></div>
+    </div>
+   </div>
+   <div class="panel">
+    <h2>Sleeper Berth Log (optional)</h2>
+    <div class="sleeper-grid">
+     <div class="field"><label for="sleeperStartDate">Start Date</label><input type="date" id="sleeperStartDate"></div>
+     <div class="field"><label for="sleeperStartTime">Start Time</label><input type="time" id="sleeperStartTime"></div>
+     <button class="gold-btn" type="button" onclick="stampTime('start')">Start Now</button>
+     <div class="field"><label for="sleeperEndDate">End Date</label><input type="date" id="sleeperEndDate"></div>
+     <div class="field"><label for="sleeperEndTime">End Time</label><input type="time" id="sleeperEndTime"></div>
+     <button class="secondary-btn" type="button" onclick="stampTime('end')">Stop Now</button>
+    </div>
+   </div>
+   <div class="panel">
+    <h2>Supporting Photo or Log (optional)</h2>
+    <div class="support-actions">
+     <button class="gold-btn" type="button" onclick="document.getElementById('stayFile').click()">▣ Take Photo</button>
+     <button class="gold-btn" type="button" onclick="document.getElementById('stayFile').click()">↑ Upload File</button>
+    </div>
+    <input id="stayFile" type="file" accept="image/*,.pdf" capture="environment" class="hidden">
+    <div id="stayFileName" class="muted" style="text-align:center;margin-top:8px"></div>
+   </div>
+   <button class="gold-btn full" type="submit">Add Stay</button>
+  </form>
+  <div class="panel" style="padding:0;margin-top:18px">
+   <div class="table-shell" style="border:0"><table style="min-width:760px"><thead><tr><th>Date</th><th>Location</th><th>Description</th><th>Sleeper Berth</th><th>Attachment</th><th>Actions</th></tr></thead><tbody id="perDiemRows"></tbody></table></div>
+  </div>
+  <div class="card stat" style="max-width:470px;margin:18px auto;text-align:center;border:2px solid var(--gold)"><div class="stat-label">Total Nights</div><div class="stat-value gold" id="totalNights">0</div></div>
+  <div class="actions-row no-print"><button class="gold-btn" onclick="window.print()">Print</button><button class="gold-btn" onclick="downloadPerDiem()">Download</button></div>
+ </section>
+
+ <section id="taxPage" class="page">
+  <div class="page-head"><div><button class="back" onclick="showPage('dashboardPage')">← Driver Dashboard</button><h1>Tax Summary</h1><p style="margin:0">Your records, ready for tax time.</p></div><div><select class="year-select" id="taxYear" aria-label="Tax summary year"></select><div style="text-align:right;margin-top:8px"><span class="tag">Record data</span></div></div></div>
+  <div class="grid stats tax-stats">
+   <div class="card stat"><div class="stat-label">Total Gross</div><div class="stat-value" id="taxGross">$0.00</div></div>
+   <div class="card stat"><div class="stat-label">Total Recorded Expenses</div><div class="stat-value" id="taxExpenses">$0.00</div></div>
+   <div class="card stat"><div class="stat-label">AGI (Adjusted Gross Income)</div><div class="stat-value" id="taxAgi">$0.00</div></div>
+  </div>
+  <div class="summary-row">
+   <div class="panel red-edge" style="padding:0;overflow:hidden">
+    <h2 style="padding:15px 18px;margin:0">Expense Breakdown</h2>
+    <div class="table-shell" style="border:0;border-radius:0"><table class="expense-table"><thead><tr><th>Expense</th><th>Amount</th></tr></thead><tbody id="taxExpenseRows"></tbody></table></div>
+   </div>
+   <div class="grid" style="align-content:start">
+    <div class="tax-callout"><h2>Per Diem Log</h2><div id="taxNightsText">0 nights recorded</div><button class="outline full" style="margin-top:14px;border-color:var(--red)" onclick="showPage('perDiemPage')">View Log</button></div>
+    <div class="tax-callout"><h2>Tax Packet</h2><div>Settlements • Expense breakdown • Per diem log • Receipts list</div></div>
+   </div>
+  </div>
+  <div class="tax-actions no-print"><button onclick="window.print()">Print Tax Packet</button><button onclick="window.print()">Download PDF</button><button onclick="showToast('Tax professional sharing is not available yet.')">Share with Tax Professional</button></div>
+  <div class="panel red-edge tax-docs">
+   <div><h2>Tax Documents</h2><p>Keep your tax forms with your records.</p></div>
+   <div><label class="gold-btn full" style="display:block;text-align:center;cursor:pointer">↑ Upload Tax Document<input id="taxFile" type="file" accept=".pdf,.png,.jpg,.jpeg" class="hidden" onchange="uploadTaxDocument(event)"></label><p class="muted" style="text-align:center">1099-NEC • 1099-MISC • W-2 • Other</p><div id="taxDocumentList"></div></div>
+  </div>
+  <footer>Record keeping only. No tax estimates.</footer>
+ </section>
+</section>
 </main>
+<div id="toast" class="hidden" role="status"></div>
+<div id="modal"><div class="modal-card"><h2 id="modalTitle"></h2><div id="modalBody"></div><button class="gold-btn" onclick="closeModal()">Close</button></div></div>
 
 <script>
 const SUPABASE_URL = 'https://pxxikzzfrcncwufpzdfp.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_7yQMjUtCtnHC6jgRF4ROLA_CmgsHaZo';
+const TAX_BUCKET = 'tax-documents';
+const supabaseClient = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+let currentUser = null;
+let selectedRole = 'driver';
+let signUpMode = false;
+let selectedYear = String(new Date().getFullYear());
+let settlements = [];
+let stays = [];
+let taxDocuments = [];
+let deductionLabels = Array.from({length:12},(_,i)=>'Deduction '+(i+1));
+let preferredZone = 'America/New_York';
+let toastTimer;
 
-let isSignUp = false;
-let supabaseClient = null;
-let localSettlements = [];
-let localPerDiem = [];
-
-try {
-  if (window.supabase) {
-    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-  }
-} catch (e) {
-  console.error("Supabase init error:", e);
+function escapeHtml(value){
+ return String(value===null||value===undefined?'':value).replace(/[&<>"']/g,function(ch){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]});
 }
-
-function toggleAuthMode() {
-  isSignUp = !isSignUp;
-  document.getElementById('authTitle').innerText = isSignUp ? 'Create Account' : 'Sign In';
-  document.getElementById('authSubmitBtn').innerText = isSignUp ? 'Sign Up' : 'Sign In';
-  document.getElementById('authSwitchText').innerHTML = isSignUp ?
-    'Already have an account? <span onclick="toggleAuthMode()">Sign In</span>' :
-    'Don\'t have an account? <span onclick="toggleAuthMode()">Sign Up</span>';
+function money(value){return new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(Number(value)||0)}
+function showToast(message){
+ const t=document.getElementById('toast');t.textContent=message;t.classList.remove('hidden');
+ clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.add('hidden'),4200);
 }
-
-async function handleAuthSubmit(e) {
-  e.preventDefault();
-  const email = document.getElementById('authEmail').value.trim();
-  const password = document.getElementById('authPassword').value;
-
-  if (!supabaseClient) {
-    alert("Supabase client not initialized.");
-    return;
-  }
-
-  if (isSignUp) {
-    const { error } = await supabaseClient.auth.signUp({ email, password });
-    if (error) alert(error.message);
-    else alert('Check your email for the confirmation link!');
-  } else {
-    const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
-    if (error) alert(error.message);
-    else checkAuthSession();
-  }
+function showModal(title,body){document.getElementById('modalTitle').textContent=title;document.getElementById('modalBody').textContent=body;document.getElementById('modal').classList.add('open')}
+function closeModal(){document.getElementById('modal').classList.remove('open')}
+function showHelp(title,body){showModal(title,body)}
+function notAvailable(name){showToast(name+' is not available yet.')}
+function showPage(id){
+ document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+ const page=document.getElementById(id);if(page)page.classList.add('active');
+ window.scrollTo({top:0,behavior:'smooth'});
+ if(id==='spreadsheetPage')renderSpreadsheet();
+ if(id==='taxPage')renderTax();
+ if(id==='perDiemPage')renderPerDiem();
 }
-
-async function checkAuthSession() {
-  if (!supabaseClient) return;
-  try {
-    const { data: { session }, error } = await supabaseClient.auth.getSession();
-    if (error) throw error;
-    if (session) {
-      document.getElementById('authScreen').classList.add('hidden');
-      document.getElementById('appScreen').classList.remove('hidden');
-      document.getElementById('userEmailDisplay').innerText = session.user.email;
-      document.getElementById('signOutBtn').classList.remove('hidden');
-      await loadUserData();
-    } else {
-      localSettlements = [];
-      localPerDiem = [];
-      updateDashboard();
-      document.getElementById('authScreen').classList.remove('hidden');
-      document.getElementById('appScreen').classList.add('hidden');
-      document.getElementById('userEmailDisplay').innerText = '';
-      document.getElementById('signOutBtn').classList.add('hidden');
-    }
-  } catch (err) {
-    console.error("Auth session check error:", err);
-    alert('Could not check your sign-in status. Please refresh and try again.');
-  }
+function chooseRole(role,button){
+ selectedRole=role;document.querySelectorAll('.role-tab').forEach(b=>b.classList.remove('active'));button.classList.add('active');
+ if(role!=='driver')showToast(role==='fleet'?'Fleet access is coming later.':'Tax access is available through the secure tax portal later.');
 }
-
-async function handleSignOut() {
-  if (!supabaseClient) return;
-  const { error } = await supabaseClient.auth.signOut();
-  if (error) {
-    alert('Sign out failed: ' + error.message);
-    return;
-  }
-  await checkAuthSession();
+function toggleAuthMode(){
+ signUpMode=!signUpMode;
+ document.getElementById('authHeading').textContent=signUpMode?'Create your account':'Welcome back';
+ document.getElementById('authSubmit').textContent=signUpMode?'Create Account':'Sign In';
+ document.getElementById('authSwitchLabel').textContent=signUpMode?'Already have an account?':'New to RigTracker Pro?';
+ document.getElementById('authSwitch').textContent=signUpMode?'Sign In':'Create an account';
+ document.getElementById('password').autocomplete=signUpMode?'new-password':'current-password';
 }
-
-function switchTab(tabName) {
-  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
-  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-
-  if (tabName === 'settlements') {
-    document.querySelector('[onclick="switchTab(\'settlements\')"]').classList.add('active');
-    document.getElementById('settlementsTab').classList.add('active');
-  } else if (tabName === 'spreadsheet') {
-    document.querySelector('[onclick="switchTab(\'spreadsheet\')"]').classList.add('active');
-    document.getElementById('spreadsheetTab').classList.add('active');
-  } else if (tabName === 'perdiem') {
-    document.querySelector('[onclick="switchTab(\'perdiem\')"]').classList.add('active');
-    document.getElementById('perdiemTab').classList.add('active');
-  } else if (tabName === 'tax') {
-    document.querySelector('[onclick="switchTab(\'tax\')"]').classList.add('active');
-    document.getElementById('taxTab').classList.add('active');
+async function submitAuth(event){
+ event.preventDefault();
+ if(selectedRole!=='driver'){showToast('Driver sign-in is the available account type right now.');return}
+ if(!supabaseClient){showToast('Sign-in could not start. Refresh the page and try again.');return}
+ const email=document.getElementById('email').value.trim();
+ const password=document.getElementById('password').value;
+ const button=document.getElementById('authSubmit');button.disabled=true;
+ try{
+  if(signUpMode){
+   const result=await supabaseClient.auth.signUp({email,password});
+   if(result.error)throw result.error;
+   showToast('Check your email for the confirmation link.');
+  }else{
+   const result=await supabaseClient.auth.signInWithPassword({email,password});
+   if(result.error)throw result.error;
+   await openSignedInApp(result.data.user);
   }
+ }catch(error){showToast(error.message||'Sign-in failed. Please try again.')}
+ finally{button.disabled=false}
 }
-
-function calculateNet() {
-  const gross = parseFloat(document.getElementById('settleGross').value) || 0;
-  const deductionInputs = document.querySelectorAll('.deduction-input');
-  let totalDed = 0;
-  deductionInputs.forEach(input => {
-    totalDed += parseFloat(input.value) || 0;
-  });
-  const net = gross - totalDed;
-  document.getElementById('previewNet').innerText = '$' + net.toFixed(2);
+async function forgotPassword(){
+ if(!supabaseClient){showToast('Sign-in is not available right now.');return}
+ const email=document.getElementById('email').value.trim();
+ if(!email){showToast('Enter your email address first.');return}
+ const result=await supabaseClient.auth.resetPasswordForEmail(email);
+ showToast(result.error?result.error.message:'Password reset link sent. Check your email.');
 }
-
-async function saveSettlement(e) {
-  e.preventDefault();
-  if (!supabaseClient) {
-    alert('Supabase is not available. Please refresh and try again.');
-    return;
-  }
-
-  const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
-  if (sessionError || !session) {
-    alert('Please sign in again before saving this settlement.');
-    await checkAuthSession();
-    return;
-  }
-
-  const date = document.getElementById('settleDate').value;
-  const number = document.getElementById('settleNumber').value.trim();
-  const gross = parseFloat(document.getElementById('settleGross').value) || 0;
-  const deductionInputs = document.querySelectorAll('.deduction-input');
-  let totalDed = 0;
-  deductionInputs.forEach(input => { totalDed += parseFloat(input.value) || 0; });
-  const net = gross - totalDed;
-
-  const { data, error } = await supabaseClient
-    .from('settlements')
-    .insert({
-      user_id: session.user.id,
-      date,
-      settlement_number: number || null,
-      gross,
-      deductions: totalDed,
-      net
-    })
-    .select('id, date, settlement_number, gross, deductions, net')
-    .single();
-
-  if (error) {
-    console.error('Settlement save error:', error);
-    alert('Settlement was not saved: ' + error.message);
-    return;
-  }
-
-  localSettlements.unshift({
-    id: data.id,
-    date: data.date,
-    number: data.settlement_number,
-    gross: Number(data.gross),
-    deductions: Number(data.deductions),
-    net: Number(data.net)
-  });
-  document.getElementById('settlementForm').reset();
-  document.getElementById('previewNet').innerText = '$0.00';
-  updateDashboard();
-  switchTab('spreadsheet');
+async function openSignedInApp(user){
+ currentUser=user;document.getElementById('authScreen').classList.add('hidden');
+ document.getElementById('appScreen').classList.remove('hidden');document.getElementById('appHeader').classList.remove('hidden');
+ await loadUserData();showPage('dashboardPage');
 }
-
-async function savePerDiem(e) {
-  e.preventDefault();
-  if (!supabaseClient) {
-    alert('Supabase is not available. Please refresh and try again.');
-    return;
-  }
-
-  const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
-  if (sessionError || !session) {
-    alert('Please sign in again before saving this per diem entry.');
-    await checkAuthSession();
-    return;
-  }
-
-  const date = document.getElementById('pdDate').value;
-  const location = document.getElementById('pdLocation').value.trim();
-  const { data, error } = await supabaseClient
-    .from('per_diem')
-    .insert({ user_id: session.user.id, date, location })
-    .select('id, date, location')
-    .single();
-
-  if (error) {
-    console.error('Per diem save error:', error);
-    alert('Per diem entry was not saved: ' + error.message);
-    return;
-  }
-
-  localPerDiem.unshift(data);
-  document.getElementById('pdDate').value = '';
-  document.getElementById('pdLocation').value = '';
-  updateDashboard();
+async function signOut(){
+ if(supabaseClient)await supabaseClient.auth.signOut();
+ currentUser=null;settlements=[];stays=[];taxDocuments=[];
+ document.getElementById('appHeader').classList.add('hidden');document.getElementById('appScreen').classList.add('hidden');document.getElementById('authScreen').classList.remove('hidden');
 }
-
-async function deletePerDiem(id) {
-  if (!supabaseClient || !id) return;
-  const { error } = await supabaseClient.from('per_diem').delete().eq('id', id);
-  if (error) {
-    console.error('Per diem delete error:', error);
-    alert('Per diem entry was not deleted: ' + error.message);
-    return;
-  }
-  localPerDiem = localPerDiem.filter(entry => entry.id !== id);
-  updateDashboard();
+function setupYears(){
+ const y=new Date().getFullYear();const ids=['dashboardYear','settlementYear','taxYear'];
+ ids.forEach(id=>{
+  const el=document.getElementById(id);el.innerHTML='';
+  for(let n=y;n>=Math.max(2020,y-10);n--){const o=document.createElement('option');o.value=String(n);o.textContent=String(n);el.appendChild(o)}
+  el.value=selectedYear;
+  el.addEventListener('change',function(){selectedYear=this.value;ids.forEach(other=>document.getElementById(other).value=selectedYear);renderDashboard();renderSpreadsheet();renderTax()});
+ });
 }
-
-function escapeHtml(value) {
-  return String(value ?? '').replace(/[&<>\"']/g, char => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', "'": '&#39;'
-  })[char]);
+function renderDeductionInputs(){
+ const host=document.getElementById('deductionInputs');
+ host.innerHTML='';
+ for(let i=0;i<12;i++){
+  const row=document.createElement('div');row.className='deduction-row';
+  row.innerHTML='<strong>'+escapeHtml(deductionLabels[i])+'</strong><button class="plus" type="button" title="Name or edit deduction" aria-label="Name or edit '+escapeHtml(deductionLabels[i])+'">+</button><input class="deduction-amount" type="number" min="0" step="0.01" value="0.00" aria-label="'+escapeHtml(deductionLabels[i])+' amount">';
+  row.querySelector('.plus').addEventListener('click',()=>renameDeduction(i));
+  row.querySelector('.deduction-amount').addEventListener('input',calculateSettlement);
+  host.appendChild(row);
+ }
+ calculateSettlement();
 }
-
-function updateDashboard() {
-  let totalGross = 0;
-  let totalDed = 0;
-  let totalNet = 0;
-
-  let sheetHtml = '';
-  if (localSettlements.length === 0) {
-    sheetHtml = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted);">No records found.</td></tr>';
-  } else {
-    localSettlements.forEach(s => {
-      const gross = Number(s.gross) || 0;
-      const deductions = Number(s.deductions) || 0;
-      const net = Number(s.net) || 0;
-      totalGross += gross;
-      totalDed += deductions;
-      totalNet += net;
-      sheetHtml += `<tr><td>${escapeHtml(s.date)}</td><td>${escapeHtml(s.number || 'N/A')}</td><td>$${gross.toFixed(2)}</td><td>$${deductions.toFixed(2)}</td><td>$${net.toFixed(2)}</td></tr>`;
-    });
-  }
-  document.getElementById('spreadsheetBody').innerHTML = sheetHtml;
-
-  let pdHtml = '';
-  if (localPerDiem.length === 0) {
-    pdHtml = '<tr><td colspan="3" style="text-align: center; color: var(--text-muted);">No per diem nights logged.</td></tr>';
-  } else {
-    localPerDiem.forEach(pd => {
-      pdHtml += `<tr><td>${escapeHtml(pd.date)}</td><td>${escapeHtml(pd.location)}</td><td><button class="btn-action" style="padding: 0.2rem 0.5rem;" onclick="deletePerDiem('${escapeHtml(pd.id)}')">Delete</button></td></tr>`;
-    });
-  }
-  document.getElementById('perDiemBody').innerHTML = pdHtml;
-
-  document.getElementById('ytdGross').innerText = '$' + totalGross.toFixed(2);
-  document.getElementById('ytdDeductions').innerText = '$' + totalDed.toFixed(2);
-  document.getElementById('ytdNet').innerText = '$' + totalNet.toFixed(2);
-  document.getElementById('ytdPerDiem').innerText = localPerDiem.length;
-
-  document.getElementById('taxGross').innerText = '$' + totalGross.toFixed(2);
-  document.getElementById('taxDeductions').innerText = '$' + totalDed.toFixed(2);
-  document.getElementById('taxNet').innerText = '$' + totalNet.toFixed(2);
+async function renameDeduction(index){
+ const next=window.prompt('Name this deduction',deductionLabels[index]);
+ if(next===null)return;
+ const trimmed=next.trim();if(!trimmed){showToast('Enter a name or cancel to leave the current one.');return}
+ deductionLabels[index]=trimmed;renderDeductionInputs();await savePreferences();
 }
-
-async function loadUserData() {
-  if (!supabaseClient) return;
-  const [settlementResult, perDiemResult] = await Promise.all([
-    supabaseClient
-      .from('settlements')
-      .select('id, date, settlement_number, gross, deductions, net')
-      .order('date', { ascending: false }),
-    supabaseClient
-      .from('per_diem')
-      .select('id, date, location')
-      .order('date', { ascending: false })
-  ]);
-
-  if (settlementResult.error || perDiemResult.error) {
-    const error = settlementResult.error || perDiemResult.error;
-    console.error('User data load error:', error);
-    alert('Could not load your saved records: ' + error.message + '. Check that the Supabase tables are set up.');
-    return;
-  }
-
-  localSettlements = (settlementResult.data || []).map(row => ({
-    id: row.id,
-    date: row.date,
-    number: row.settlement_number,
-    gross: Number(row.gross) || 0,
-    deductions: Number(row.deductions) || 0,
-    net: Number(row.net) || 0
-  }));
-  localPerDiem = perDiemResult.data || [];
-  updateDashboard();
+function calculateSettlement(){
+ const gross=Number(document.getElementById('settleGross').value)||0;
+ let deductions=0;document.querySelectorAll('.deduction-amount').forEach(input=>deductions+=Number(input.value)||0);
+ document.getElementById('formGross').textContent=money(gross);
+ document.getElementById('formDed').textContent=money(deductions);
+ document.getElementById('formNet').textContent=money(gross-deductions);
 }
+document.addEventListener('input',event=>{if(event.target&&event.target.id==='settleGross')calculateSettlement()});
 
-window.addEventListener('DOMContentLoaded', () => {
-  checkAuthSession();
-});
+async function saveSettlement(event){
+ event.preventDefault();
+ if(!currentUser||!supabaseClient){showToast('Sign in again before saving.');return}
+ const date=document.getElementById('settleDate').value;
+ const number=document.getElementById('settleNumber').value.trim();
+ const gross=Number(document.getElementById('settleGross').value)||0;
+ const values=Array.from(document.querySelectorAll('.deduction-amount')).map((input,i)=>({name:deductionLabels[i],amount:Number(input.value)||0}));
+ const deductions=values.reduce((sum,item)=>sum+item.amount,0);
+ const data={user_id:currentUser.id,date:settlementDate(date),settlement_number:number||null,gross:roundMoney(gross),deductions:roundMoney(deductions),net:roundMoney(gross-deductions),deduction_items:values};
+ const result=await supabaseClient.from('settlements').insert(data).select('*').single();
+ if(result.error){showToast('Settlement not saved: '+result.error.message);return}
+ settlements.unshift(result.data);renderDashboard();renderSpreadsheet();renderTax();
+ document.getElementById('settlementForm').reset();document.getElementById('settleDate').value=todayForZone(preferredZone);document.querySelectorAll('.deduction-amount').forEach(i=>i.value='0.00');calculateSettlement();
+ showPage('spreadsheetPage');showToast('Settlement saved to your account.');
+}
+function settlementDate(value){return value||todayForZone(preferredZone)}
+function roundMoney(v){return Math.round((Number(v)||0)*100)/100}
+function rowsForYear(list,field){return list.filter(item=>String(item[field]||'').slice(0,4)===selectedYear)}
+function normalizedItems(settlement){
+ if(Array.isArray(settlement.deduction_items))return settlement.deduction_items;
+ try{return JSON.parse(settlement.deduction_items||'[]')}catch(e){return []}
+}
+function renderDashboard(){
+ const sy=rowsForYear(settlements,'date');const py=rowsForYear(stays,'date');
+ let gross=0,ded=0,net=0;sy.forEach(s=>{gross+=Number(s.gross)||0;ded+=Number(s.deductions)||0;net+=Number(s.net)||0});
+ document.getElementById('dashGross').textContent=money(gross);document.getElementById('dashDed').textContent=money(ded);document.getElementById('dashNet').textContent=money(net);document.getElementById('dashNights').textContent=String(py.length);
+}
+function renderSpreadsheet(){
+ const list=rowsForYear(settlements,'date').slice().sort((a,b)=>String(a.date).localeCompare(String(b.date)));
+ const head=['Date','Settlement #','Gross Pay'];
+ for(let i=0;i<12;i++)head.push(deductionLabels[i]||('Deduction '+(i+1)));
+ head.push('Total Deductions','Net Payout');
+ document.getElementById('settlementHead').innerHTML='<tr>'+head.map(x=>'<th>'+escapeHtml(x)+'</th>').join('')+'</tr>';
+ if(!list.length)document.getElementById('settlementRows').innerHTML='<tr><td colspan="17" style="text-align:center;padding:55px">No settlements yet.<br><span class="muted">Submitted settlements will appear here.</span></td></tr>';
+ else document.getElementById('settlementRows').innerHTML=list.map(s=>{
+  const items=normalizedItems(s);const cols=['<td>'+escapeHtml(s.date)+'</td>','<td>'+escapeHtml(s.settlement_number||'—')+'</td>','<td>'+money(s.gross)+'</td>'];
+  for(let i=0;i<12;i++){const it=items[i];cols.push('<td>'+(it?money(it.amount):money(0))+'</td>')}
+  cols.push('<td>'+money(s.deductions)+'</td>','<td>'+money(s.net)+'</td>');
+  return '<tr>'+cols.join('')+'</tr>';
+ }).join('');
+ let totalGross=0,totalDed=0,totalNet=0;list.forEach(s=>{totalGross+=Number(s.gross)||0;totalDed+=Number(s.deductions)||0;totalNet+=Number(s.net)||0});
+ const totals=['Totals',list.length+' settlements',money(totalGross)];
+ for(let i=0;i<12;i++){let sum=0;list.forEach(s=>{const it=normalizedItems(s)[i];sum+=Number(it&&it.amount)||0});totals.push(money(sum))}
+ totals.push(money(totalDed),money(totalNet));
+ document.getElementById('settlementFoot').innerHTML='<tr class="table-footer">'+totals.map(x=>'<td>'+escapeHtml(x)+'</td>').join('')+'</tr>';
+ document.getElementById('sheetGross').textContent=money(totalGross);document.getElementById('sheetDed').textContent=money(totalDed);document.getElementById('sheetNet').textContent=money(totalNet);
+}
+function csvEscape(value){return '"'+String(value===null||value===undefined?'':value).replace(/"/g,'""')+'"'}
+function downloadFile(name,content,type){
+ const blob=new Blob([content],{type:type});const link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download=name;link.click();setTimeout(()=>URL.revokeObjectURL(link.href),1000)
+}
+function downloadSpreadsheet(){
+ const list=rowsForYear(settlements,'date');const heads=['Date','Settlement #','Gross Pay'].concat(deductionLabels).concat(['Total Deductions','Net Payout']);
+ const lines=[heads.map(csvEscape).join(',')];
+ list.forEach(s=>{const items=normalizedItems(s);const vals=[s.date,s.settlement_number,s.gross];for(let i=0;i<12;i++)vals.push(items[i]?items[i].amount:0);vals.push(s.deductions,s.net);lines.push(vals.map(csvEscape).join(','))});
+ downloadFile('RigTracker-Settlements-'+selectedYear+'.csv','\ufeff'+lines.join('\r\n'),'text/csv;charset=utf-8')
+}
+function downloadPerDiem(){
+ const list=rowsForYear(stays,'date');const heads=['Date','Location','Description','Sleeper Start Date','Sleeper Start Time','Sleeper End Date','Sleeper End Time','Time Zone','Attachment'];
+ const lines=[heads.map(csvEscape).join(',')];list.forEach(s=>lines.push([s.date,s.location,s.description,s.sleeper_start_date,s.sleeper_start_time,s.sleeper_end_date,s.sleeper_end_time,s.time_zone,s.attachment_path].map(csvEscape).join(',')));
+ downloadFile('RigTracker-Per-Diem-'+selectedYear+'.csv','\ufeff'+lines.join('\r\n'),'text/csv;charset=utf-8')
+}
+function renderTax(){
+ const list=rowsForYear(settlements,'date');const nights=rowsForYear(stays,'date').length;
+ let gross=0,expenses=0;const byName=new Map();
+ list.forEach(s=>{gross+=Number(s.gross)||0;expenses+=Number(s.deductions)||0;normalizedItems(s).forEach(it=>{const name=(it.name||'Other').trim()||'Other';byName.set(name,(byName.get(name)||0)+(Number(it.amount)||0))})});
+ document.getElementById('taxGross').textContent=money(gross);document.getElementById('taxExpenses').textContent=money(expenses);document.getElementById('taxAgi').textContent=money(gross-expenses);document.getElementById('taxNightsText').textContent=nights+' nights recorded';
+ const entries=Array.from(byName.entries()).filter(x=>x[1]!==0);
+ document.getElementById('taxExpenseRows').innerHTML=entries.length?entries.map((entry,i)=>'<tr class="'+(i%2?'expense-alt':'')+'"><td>'+escapeHtml(entry[0])+'</td><td style="text-align:right"><span class="amount-box">'+money(entry[1])+'</span></td></tr>').join(''):'<tr><td colspan="2" style="text-align:center;padding:25px">No recorded expenses for '+escapeHtml(selectedYear)+'.</td></tr>';
+}
+function currentTimeParts(zone){
+ const now=new Date();const parts=new Intl.DateTimeFormat('en-US',{timeZone:zone,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(now);
+ const values={};parts.forEach(p=>{values[p.type]=p.value});
+ return {date:values.year+'-'+values.month+'-'+values.day,time:values.hour+':'+values.minute};
+}
+function todayForZone(zone){return currentTimeParts(zone).date}
+function stampTime(which){
+ const p=currentTimeParts(preferredZone);
+ document.getElementById(which==='start'?'sleeperStartDate':'sleeperEndDate').value=p.date;
+ document.getElementById(which==='start'?'sleeperStartTime':'sleeperEndTime').value=p.time;
+}
+document.getElementById('stayFile').addEventListener('change',function(){document.getElementById('stayFileName').textContent=this.files[0]?this.files[0].name:''});
+async function saveStay(event){
+ event.preventDefault();
+ if(!currentUser||!supabaseClient){showToast('Sign in again before saving.');return}
+ const date=document.getElementById('stayDate').value;if(!date){showToast('Choose a date for this stay.');return}
+ const file=document.getElementById('stayFile').files[0];let attachmentPath=null;
+ if(file){
+  const path=currentUser.id+'/'+Date.now()+'-'+file.name.replace(/[^a-zA-Z0-9._-]/g,'_');
+  const upload=await supabaseClient.storage.from(TAX_BUCKET).upload(path,file,{upsert:false});
+  if(upload.error){showToast('Attachment was not uploaded: '+upload.error.message);return}
+  attachmentPath=path;
+ }
+ const row={user_id:currentUser.id,date:date,location:document.getElementById('stayLocation').value.trim()||'',description:document.getElementById('stayDescription').value.trim()||null,sleeper_start_date:document.getElementById('sleeperStartDate').value||null,sleeper_start_time:document.getElementById('sleeperStartTime').value||null,sleeper_end_date:document.getElementById('sleeperEndDate').value||null,sleeper_end_time:document.getElementById('sleeperEndTime').value||null,time_zone:preferredZone,attachment_path:attachmentPath};
+ const result=await supabaseClient.from('per_diem').insert(row).select('*').single();
+ if(result.error){if(attachmentPath)await supabaseClient.storage.from(TAX_BUCKET).remove([attachmentPath]);showToast('Stay not saved: '+result.error.message);return}
+ stays.unshift(result.data);document.getElementById('perDiemForm').reset();document.getElementById('stayFileName').textContent='';document.getElementById('stayDate').value=todayForZone(preferredZone);renderPerDiem();renderDashboard();renderTax();showToast('Stay saved to your account.');
+}
+async function renderPerDiem(){
+ const list=rowsForYear(stays,'date').slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+ const rows=await Promise.all(list.map(async item=>{
+  let attachment='—';
+  if(item.attachment_path){const r=await supabaseClient.storage.from(TAX_BUCKET).createSignedUrl(item.attachment_path,3600);attachment=r.error?'File saved':'<a href="'+escapeHtml(r.data.signedUrl)+'" target="_blank" rel="noopener">View file</a>'}
+  const sleeper=item.sleeper_start_time||item.sleeper_end_time?escapeHtml((item.sleeper_start_time||'—')+' – '+(item.sleeper_end_time||'—')):'—';
+  return '<tr><td>'+escapeHtml(item.date)+'</td><td>'+escapeHtml(item.location||'—')+'</td><td>'+escapeHtml(item.description||'—')+'</td><td>'+sleeper+'</td><td>'+attachment+'</td><td><button class="outline" onclick="deleteStay(\''+escapeHtml(item.id)+'\')">Delete</button></td></tr>';
+ }));
+ document.getElementById('perDiemRows').innerHTML=rows.length?rows.join(''):'<tr><td colspan="6" style="text-align:center;padding:25px">No stays logged.</td></tr>';
+ document.getElementById('totalNights').textContent=String(list.length);
+}
+async function deleteStay(id){
+ const item=stays.find(s=>s.id===id);if(!item)return;
+ const result=await supabaseClient.from('per_diem').delete().eq('id',id).eq('user_id',currentUser.id);
+ if(result.error){showToast('Could not delete entry: '+result.error.message);return}
+ if(item.attachment_path)await supabaseClient.storage.from(TAX_BUCKET).remove([item.attachment_path]);
+ stays=stays.filter(s=>s.id!==id);await renderPerDiem();renderDashboard();renderTax();showToast('Stay deleted.');
+}
+async function saveTimeZone(){
+ preferredZone=document.getElementById('timeZone').value;await savePreferences();
+ document.getElementById('stayDate').value=todayForZone(preferredZone);
+}
+async function savePreferences(){
+ if(!currentUser||!supabaseClient)return;
+ const result=await supabaseClient.from('driver_preferences').upsert({user_id:currentUser.id,deduction_labels:deductionLabels,time_zone:preferredZone},{onConflict:'user_id'});
+ if(result.error)showToast('Preference was not saved: '+result.error.message);
+}
+async function uploadTaxDocument(event){
+ const file=event.target.files[0];event.target.value='';
+ if(!file||!currentUser||!supabaseClient)return;
+ const path=currentUser.id+'/tax-'+Date.now()+'-'+file.name.replace(/[^a-zA-Z0-9._-]/g,'_');
+ const r=await supabaseClient.storage.from(TAX_BUCKET).upload(path,file,{upsert:false});
+ if(r.error){showToast('Document upload failed: '+r.error.message);return}
+ showToast('Tax document uploaded.');await loadTaxDocuments();
+}
+async function loadTaxDocuments(){
+ if(!currentUser||!supabaseClient)return;
+ const r=await supabaseClient.storage.from(TAX_BUCKET).list(currentUser.id,{limit:100,sortBy:{column:'created_at',order:'desc'}});
+ if(r.error){showToast('Could not load documents: '+r.error.message);return}
+ taxDocuments=r.data||[];
+ const links=await Promise.all(taxDocuments.map(async f=>{
+  const path=currentUser.id+'/'+f.name;const signed=await supabaseClient.storage.from(TAX_BUCKET).createSignedUrl(path,3600);
+  return '<div style="display:flex;justify-content:space-between;gap:10px;margin:6px 0"><a href="'+(signed.error?'#':escapeHtml(signed.data.signedUrl))+'" target="_blank" rel="noopener">'+escapeHtml(f.name)+'</a><button class="outline" onclick="deleteTaxDocument(\''+escapeHtml(f.name)+'\')">Delete</button></div>';
+ }));
+ document.getElementById('taxDocumentList').innerHTML=links.join('');
+}
+async function deleteTaxDocument(name){
+ const r=await supabaseClient.storage.from(TAX_BUCKET).remove([currentUser.id+'/'+name]);
+ if(r.error){showToast('Could not delete document: '+r.error.message);return}
+ await loadTaxDocuments();showToast('Document deleted.');
+}
+async function loadUserData(){
+ if(!currentUser||!supabaseClient)return;
+ const [settleResult,stayResult,prefResult]=await Promise.all([
+  supabaseClient.from('settlements').select('*').eq('user_id',currentUser.id).order('date',{ascending:false}),
+  supabaseClient.from('per_diem').select('*').eq('user_id',currentUser.id).order('date',{ascending:false}),
+  supabaseClient.from('driver_preferences').select('deduction_labels,time_zone').eq('user_id',currentUser.id).maybeSingle()
+ ]);
+ const error=settleResult.error||stayResult.error||prefResult.error;
+ if(error){showToast('Could not load records. Run the supplied database setup first. '+error.message);return}
+ settlements=settleResult.data||[];stays=stayResult.data||[];
+ if(prefResult.data){
+  if(Array.isArray(prefResult.data.deduction_labels)&&prefResult.data.deduction_labels.length===12)deductionLabels=prefResult.data.deduction_labels;
+  if(prefResult.data.time_zone)preferredZone=prefResult.data.time_zone;
+ }
+ document.getElementById('timeZone').value=preferredZone;renderDeductionInputs();document.getElementById('settleDate').value=todayForZone(preferredZone);document.getElementById('stayDate').value=todayForZone(preferredZone);
+ await loadTaxDocuments();renderDashboard();renderSpreadsheet();renderTax();await renderPerDiem();
+}
+document.getElementById('settleGross').addEventListener('input',calculateSettlement);
+async function startApp(){
+ setupYears();
+ if(!supabaseClient){showToast('Sign-in is unavailable because the connection did not load.');return}
+ const result=await supabaseClient.auth.getSession();
+ if(result.data&&result.data.session)await openSignedInApp(result.data.session.user);
+}
+startApp();
 </script>
 </body>
 </html>
