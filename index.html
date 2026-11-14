@@ -46,6 +46,11 @@ p{line-height:1.45}
 .panel.gold-edge{border-color:var(--gold)}
 .panel.red-edge{border-color:var(--red)}
 .form-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}
+#settlementPage .form-grid{grid-template-columns:repeat(3,minmax(0,1fr));column-gap:22px}
+#settlementPage .form-grid .field{min-width:0}
+#settlementPage .form-grid input{display:block;width:100%;min-width:0;max-width:280px}
+@media(max-width:850px){#settlementPage .form-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){#settlementPage .form-grid{grid-template-columns:minmax(0,1fr)}}
 .field label{display:block;font-weight:700;margin:0 0 7px;font-size:17px}
 .field input,.field select,.field textarea,.deduction-name{width:100%;border:1px solid #999;border-radius:9px;background:#f7f7f7;color:#111;padding:12px 14px;min-height:48px}
 .field textarea{min-height:62px;resize:vertical}
@@ -423,14 +428,17 @@ function setupYears(){
   el.addEventListener('change',function(){selectedYear=this.value;ids.forEach(other=>document.getElementById(other).value=selectedYear);renderDashboard();renderSpreadsheet();renderTax()});
  });
 }
-function renderDeductionInputs(){
+function renderDeductionInputs(preserveAmounts=false){
  const host=document.getElementById('deductionInputs');
+ const amounts=preserveAmounts?Array.from(host.querySelectorAll('.deduction-amount'),input=>input.value):[];
  host.innerHTML='';
  for(let i=0;i<12;i++){
   const row=document.createElement('div');row.className='deduction-row';
   row.innerHTML='<strong>'+escapeHtml(deductionLabels[i])+'</strong><button class="plus" type="button" title="Name or edit deduction" aria-label="Name or edit '+escapeHtml(deductionLabels[i])+'">+</button><input class="deduction-amount" type="number" min="0" step="0.01" value="0.00" aria-label="'+escapeHtml(deductionLabels[i])+' amount">';
   row.querySelector('.plus').addEventListener('click',()=>renameDeduction(i));
-  row.querySelector('.deduction-amount').addEventListener('input',calculateSettlement);
+  const amount=row.querySelector('.deduction-amount');
+  if(i<amounts.length)amount.value=amounts[i];
+  amount.addEventListener('input',calculateSettlement);
   host.appendChild(row);
  }
  calculateSettlement();
@@ -439,7 +447,7 @@ async function renameDeduction(index){
  const next=window.prompt('Name this deduction',deductionLabels[index]);
  if(next===null)return;
  const trimmed=next.trim();if(!trimmed){showToast('Enter a name or cancel to leave the current one.');return}
- deductionLabels[index]=trimmed;renderDeductionInputs();await savePreferences();
+ deductionLabels[index]=trimmed;renderDeductionInputs(true);await savePreferences();
 }
 function calculateSettlement(){
  const gross=Number(document.getElementById('settleGross').value)||0;
@@ -619,6 +627,7 @@ async function loadUserData(){
 document.getElementById('settleGross').addEventListener('input',calculateSettlement);
 async function startApp(){
  setupYears();
+ renderDeductionInputs();
  if(!supabaseClient){showToast('Sign-in is unavailable because the connection did not load.');return}
  const result=await supabaseClient.auth.getSession();
  if(result.data&&result.data.session)await openSignedInApp(result.data.session.user);
