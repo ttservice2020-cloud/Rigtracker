@@ -26,11 +26,16 @@ create policy fleet_employee_read on public.fleet_employees for select to authen
     user_id = (select auth.uid())
     or exists (
       select 1 from public.fleets f
-      where f.id = fleet_id and f.admin_user_id = (select auth.uid())
+      where f.id = fleet_employees.fleet_id and f.admin_user_id = (select auth.uid())
     )
   );
 
-create function public.register_fleet(requested_id text)
+create schema if not exists fleet_internal;
+revoke all on schema fleet_internal from public, anon, authenticated;
+grant usage on schema fleet_internal to authenticated;
+
+-- Confirmed users may start a new fleet they alone own. Existing fleets can only be read by their owners.
+create function fleet_internal.register_fleet(requested_id text)
 returns text
 language plpgsql
 security definer
@@ -45,10 +50,9 @@ begin
     select 1 from auth.users u
     where u.id = owner_id
       and u.email_confirmed_at is not null
-      and coalesce(u.raw_app_meta_data ->> 'account_type', u.raw_user_meta_data ->> 'account_type') = 'fleet'
       and not exists (select 1 from public.fleet_employees e where e.user_id = u.id)
   ) then
-    raise exception 'A confirmed Fleet Admin account is required.' using errcode = '42501';
+    raise exception 'A confirmed email account is required to register a fleet.' using errcode = '42501';
   end if;
 
   if fleet_id is null or fleet_id !~ '^[a-z0-9]{1,20}$' then
@@ -76,11 +80,20 @@ begin
 end;
 $$;
 
+revoke all on function fleet_internal.register_fleet(text) from public, anon, authenticated;
+grant execute on function fleet_internal.register_fleet(text) to authenticated;
+
+create function public.register_fleet(requested_id text)
+returns text
+language sql
+security invoker
+set search_path = ''
+as $
+  select fleet_internal.register_fleet(requested_id);
+$;
+
 revoke all on function public.register_fleet(text) from public, anon, authenticated;
 grant execute on function public.register_fleet(text) to authenticated;
-
-create schema if not exists fleet_internal;
-revoke all on schema fleet_internal from public, anon, authenticated;
 
 -- Create membership in the same transaction as the Auth account. Only a
 -- trusted Admin API caller can set the Auth app metadata used here.
