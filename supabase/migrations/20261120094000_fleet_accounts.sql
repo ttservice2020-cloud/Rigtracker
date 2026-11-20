@@ -88,9 +88,9 @@ returns text
 language sql
 security invoker
 set search_path = ''
-as $
+as $$
   select fleet_internal.register_fleet(requested_id);
-$;
+$$;
 
 revoke all on function public.register_fleet(text) from public, anon, authenticated;
 grant execute on function public.register_fleet(text) to authenticated;
