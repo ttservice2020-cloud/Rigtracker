@@ -37,11 +37,12 @@
 @media(max-width:880px){
  .dispatch-workspace{grid-template-columns:minmax(115px,25%) minmax(0,1fr);gap:10px}
  .dispatch-nav{grid-template-columns:repeat(3,minmax(0,1fr))}
+ .dispatch-fields{grid-template-columns:minmax(0,1fr)}
 }
 @container dispatch (max-width:510px){
  .dispatch-fields{grid-template-columns:minmax(0,1fr)}
 }
-@media(max-width:740px){
+@media(max-width:1100px) and (pointer:coarse){
  .dispatch-fields{grid-template-columns:minmax(0,1fr)}
 }
 @media(max-width:580px){
