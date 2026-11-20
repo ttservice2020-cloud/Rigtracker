@@ -59,3 +59,6 @@
  .dispatch-actions button{max-width:100%;overflow-wrap:anywhere;padding:7px 9px;font-size:13px}
  .dispatch-subheading h2{font-size:18px;overflow-wrap:anywhere}
 }
+
+#dispatchDriverPay button[aria-pressed="true"]{background:#173a58;border-color:#70b7ff}
+#dispatchDriverPay button:disabled{opacity:.55;cursor:default}

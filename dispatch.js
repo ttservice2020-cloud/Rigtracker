@@ -8,7 +8,7 @@ const fleetDispatchApp = (() => {
   const formDetails = [
     'secondDriverMode', 'commodity', 'commodityOther', 'weightLbs', 'equipmentType', 'equipmentTypeOther',
     'trailerDrop', 'trailerDropNotes', 'trailerPickup', 'trailerPickupNotes',
-    'loadedMiles', 'relayLocation', 'relayDate', 'relayDrop',
+    'payGross', 'loadedMiles', 'relayLocation', 'relayDate', 'relayDrop',
     'relayPickup', 'firstLegMiles', 'driver1Pay', 'driver2Pay', 'emptyMiles', 'emptyRate', 'stopPay'
   ].filter(key => form.elements.namedItem(key));
   const conditionalFreightFields = [
@@ -25,6 +25,10 @@ const fleetDispatchApp = (() => {
   ];
   const loadTable = 'fleet_dispatch_loads';
   const driverTable = 'fleet_dispatch_drivers';
+  const fuelTable = 'fleet_dispatch_fuel_rates';
+  const payLabels = { hourly: 'Hourly', split: 'Split Load', per_mile: 'Flat Rate per Mile' };
+  const payCurrency = new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' });
+  const payRate = new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 4 });
   let state;
   let edit;
   let stopId = 0;
@@ -191,11 +195,16 @@ const fleetDispatchApp = (() => {
       const label = active ? 'On a load · ' + active.join(', ') : availability === 'available' ? 'Available' : 'Off duty';
       info.append(element('strong', driver.name), element('p', label));
       if (driver.equipment) info.append(element('p', driver.equipment));
-      row.append(info);
+      if (driver.driver_type) {
+        info.append(element('p', driver.driver_type === 'owner_op' ? 'Owner Op · ' + payLabels[driver.pay_method] : 'Company Driver'));
+      }
+      const actions = element('div', '', 'dispatch-actions');
+      if (byId('dispatchPayProfileForm')) actions.append(button('Edit Pay Profile', () => editPayProfile(driver)));
+      row.append(info, actions);
       if (!active) {
         const next = availability === 'available' ? 'off-duty' : 'available';
         const control = button(next === 'available' ? 'Set Available' : 'Set Off Duty', () => setAvailability(driver, next, control));
-        row.append(control);
+        actions.append(control);
       }
       rows.push(row);
     }
@@ -211,6 +220,7 @@ const fleetDispatchApp = (() => {
       select.replaceChildren(new Option('Select a driver', ''), ...options);
       select.value = value;
     }
+    paintDriverPay();
   }
 
   async function readRecords(scope, table, sort, ascending) {
@@ -350,6 +360,7 @@ const fleetDispatchApp = (() => {
       byId(id).disabled = edit.saving;
     }
     paintAssignment();
+    paintDriverPay();
   }
 
   function paintAssignment() {
@@ -453,6 +464,7 @@ const fleetDispatchApp = (() => {
     if (!edit || edit.saving) return;
     edit.dirty = true;
     paintAssignment();
+    paintDriverPay();
     if (!edit.failed) void reservePro();
   }
 
@@ -580,6 +592,282 @@ const fleetDispatchApp = (() => {
     }
   }
 
+  function payInputs() {
+    return {
+      pickups: [{ date: stops.pickup.querySelector('[data-stop-field=date]')?.value ?? '' }],
+      ...Object.fromEntries(['loadedMiles', 'firstLegMiles', 'payGross', 'driver1Pay', 'driver2Pay']
+        .map(key => [key, form.elements.namedItem(key)?.value ?? '']))
+    };
+  }
+
+  function assignedDriverIds() {
+    return [form.elements.driver1.value || null,
+      form.elements.secondDriverMode.value === 'assigned' ? form.elements.driver2.value || null : null];
+  }
+
+  function savedPay(drivers, inputs) {
+    const original = edit.row?.details;
+    const result = original?.driverPay;
+    if (!result || (result.pending && edit.row.status !== 'completed')) return null;
+    if (edit.row.driver_id !== drivers[0] || edit.row.second_driver_id !== drivers[1]) return null;
+    if (edit.row.status === 'completed') return result;
+    const matches = Object.keys(inputs).every(key =>
+      key === 'pickups' ? (original.pickups?.[0]?.date || '') === inputs.pickups[0].date
+        : (original[key] || '') === inputs[key]
+    );
+    return matches ? result : null;
+  }
+
+  function paintPayBreakdown(result, owners) {
+    const breakdown = byId('dispatchOwnerPayBreakdown');
+    const lines = [];
+    if (owners.some(driver => driver.method === 'split')) {
+      if (result?.weekStart) lines.push('Pickup week of ' + result.weekStart);
+      if (result?.fuelRateCents != null) lines.push('Weekly fuel surcharge rate: ' + result.fuelRateCents + '¢ per mile');
+      if (result?.fuelSurcharge != null) lines.push('Fuel surcharge total: ' + payCurrency.format(result.fuelSurcharge));
+      if (result?.splitBase != null) lines.push('Gross after fuel surcharge: ' + payCurrency.format(result.splitBase));
+    }
+    for (const driver of owners) {
+      const calculated = result?.drivers.find(entry => entry.slot === driver.slot);
+      const name = driver.name + ' · ' + payLabels[driver.method];
+      if (driver.method === 'hourly') {
+        lines.push(name + ' · Uses time-clock hours');
+        continue;
+      }
+      const terms = driver.method === 'split' ? driver.splitPercent + '% driver split'
+        : payRate.format(driver.mileRate) + ' per loaded mile';
+      lines.push([name, terms, calculated?.amount != null ? payCurrency.format(calculated.amount) : calculated?.pending]
+        .filter(Boolean).join(' · '));
+    }
+    breakdown.replaceChildren(...lines.map(line => element('p', line)));
+  }
+
+  function paintDriverPay({ recalculate = false } = {}) {
+    const panel = byId('dispatchDriverPay');
+    const scope = state;
+    const editor = edit;
+    if (!panel || !scope || !editor) return;
+    const ids = assignedDriverIds();
+    const inputs = payInputs();
+    const saved = savedPay(ids, inputs);
+    const assigned = ids.flatMap((id, index) => {
+      const profile = scope.drivers.find(driver => driver.id === id);
+      if (!profile) return [];
+      const terms = saved?.drivers.find(entry => entry.slot === index + 1);
+      return [{
+        slot: index + 1, name: profile.name, type: terms ? terms.type : profile.driver_type,
+        method: terms ? terms.method : profile.pay_method,
+        splitPercent: terms ? terms.splitPercent : profile.split_percent,
+        mileRate: terms ? terms.mileRate : profile.mile_rate
+      }];
+    });
+    const owners = assigned.filter(driver => driver.type === 'owner_op');
+    const manual = assigned.filter(driver => driver.type !== 'owner_op');
+    let category = editor.payCategory;
+    if ((category === 'owner' && !owners.length) || (category === 'company' && !manual.length) || !category) {
+      category = owners.length ? 'owner' : manual.length ? 'company' : null;
+    }
+    for (const [kind, drivers, control, section] of [
+      ['owner', owners, 'dispatchOwnerPayTab', 'dispatchOwnerPayPanel'],
+      ['company', manual, 'dispatchCompanyPayTab', 'dispatchCompanyPayPanel']
+    ]) {
+      byId(control).disabled = !drivers.length;
+      byId(control).setAttribute('aria-pressed', String(category === kind));
+      toggle(section, category === kind);
+    }
+    for (const slot of [1, 2]) {
+      const visible = manual.some(driver => driver.slot === slot);
+      toggle('dispatchDriver' + slot + 'PayField', visible);
+      form.elements['driver' + slot + 'Pay'].disabled = !visible;
+    }
+    const split = owners.some(driver => driver.method === 'split');
+    toggle('dispatchPayGrossField', split);
+    form.elements.payGross.disabled = !split;
+    const unconfigured = manual.some(driver => !driver.type);
+    const legacy = editor.row?.status === 'completed' && !editor.row.details.driverPay;
+    const status = byId('dispatchPayStatus');
+    status.textContent = !assigned.length ? 'Select a driver to see their pay setup.'
+      : legacy ? 'This load was completed before pay profiles were added.'
+      : unconfigured ? 'Set the driver type in Drivers to use a pay profile.' : '';
+    if (saved || legacy || !owners.some(driver => driver.method !== 'hourly') || !panel.open) {
+      editor.payPreview = null;
+      paintPayBreakdown(saved, owners);
+      return;
+    }
+
+    const key = JSON.stringify([ids, inputs, owners]);
+    if (!recalculate && editor.payPreview?.key === key) {
+      if (!status.textContent) status.textContent = editor.payPreview.message || '';
+      paintPayBreakdown(editor.payPreview.result, owners);
+      return;
+    }
+    const request = { key, message: 'Calculating driver pay…' };
+    editor.payPreview = request;
+    if (!status.textContent) status.textContent = request.message;
+    paintPayBreakdown(null, owners);
+    const active = () => state === scope && edit === editor && editor.payPreview === request;
+    window.setTimeout(async () => {
+      if (!active()) return;
+      try {
+        const { data, error } = await scope.client.rpc('calculate_dispatch_driver_pay', {
+          requested_fleet_id: scope.fleetId, first_driver_id: ids[0],
+          second_driver_id: ids[1], requested_details: inputs
+        });
+        if (error) throw error;
+        request.result = data;
+        request.message = '';
+      } catch {
+        request.message = 'Driver pay preview unavailable. Reopen Driver Pay to retry.';
+      }
+      if (active()) paintDriverPay();
+    }, 170);
+  }
+
+  function paintPayProfileFields() {
+    const form = byId('dispatchPayProfileForm');
+    const owner = form.elements.driverType.value === 'owner_op';
+    const method = form.elements.payMethod.value;
+    for (const [field, input, visible] of [
+      ['dispatchProfileMethodField', form.elements.payMethod, owner],
+      ['dispatchProfileSplitField', form.elements.splitPercent, owner && method === 'split'],
+      ['dispatchProfileMileField', form.elements.mileRate, owner && method === 'per_mile']
+    ]) {
+      toggle(field, visible);
+      input.disabled = !visible;
+      input.required = visible;
+    }
+  }
+
+  function editPayProfile(driver) {
+    const form = byId('dispatchPayProfileForm');
+    if (form.querySelector('button[type=submit]').disabled) return;
+    state.payProfileId = driver.id;
+    const { driverType, payMethod, splitPercent, mileRate } = form.elements;
+    driverType.value = driver.driver_type ?? '';
+    payMethod.value = driver.pay_method ?? '';
+    splitPercent.value = driver.split_percent ?? '';
+    mileRate.value = driver.mile_rate ?? '';
+    byId('dispatchPayProfileHeading').textContent = driver.name + ' pay profile';
+    toggle('dispatchPayProfile', true);
+    paintPayProfileFields();
+    driverType.focus();
+  }
+
+  async function savePayProfile(event) {
+    event.preventDefault();
+    const scope = state;
+    const form = event.currentTarget;
+    const control = form.querySelector('button[type=submit]');
+    if (!scope?.payProfileId || control.disabled) return;
+    const data = new FormData(form);
+    const profile = {
+      driver_type: data.get('driverType'), pay_method: data.get('payMethod'),
+      split_percent: data.get('splitPercent'), mile_rate: data.get('mileRate')
+    };
+    control.disabled = true;
+    try {
+      const { data: driver, error } = await scope.client.from(driverTable).update(profile)
+        .eq('fleet_id', scope.fleetId).eq('id', scope.payProfileId).select().single();
+      if (error) throw error;
+      if (state !== scope) return;
+      scope.drivers = scope.drivers.map(entry => entry.id === driver.id ? driver : entry);
+      scope.payProfileId = null;
+      toggle('dispatchPayProfile', false);
+      paintDrivers();
+      paintDriverPay({ recalculate: true });
+      showToast('Driver pay profile saved.');
+      void refresh();
+    } catch {
+      if (state === scope) showToast('Could not save the driver pay profile.');
+    } finally {
+      control.disabled = false;
+    }
+  }
+
+  function thisMonday() {
+    const now = new Date();
+    const day = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+    day.setUTCDate(day.getUTCDate() - (day.getUTCDay() + 6) % 7);
+    return day.toISOString().slice(0, 10);
+  }
+
+  async function readFuelRate() {
+    const scope = state;
+    const week = byId('dispatchFuelWeek');
+    const rate = byId('dispatchFuelRate');
+    const status = byId('dispatchFuelStatus');
+    if (!scope) return;
+    const request = {};
+    scope.fuelRequest = request;
+    if (!week.value) week.value = thisMonday();
+    rate.value = '';
+    if (!week.validity.valid) {
+      status.textContent = 'Choose a Monday to set the rate for that week.';
+      return;
+    }
+    status.textContent = 'Loading weekly rate…';
+    rate.disabled = true;
+    try {
+      const { data, error } = await scope.client.from(fuelTable).select('cents_per_mile')
+        .eq('fleet_id', scope.fleetId).eq('week_start', week.value).maybeSingle();
+      if (error) throw error;
+      if (state !== scope || scope.fuelRequest !== request) return;
+      rate.value = data?.cents_per_mile ?? '';
+      status.textContent = data ? 'This week’s rate is saved.' : 'No rate set for this week.';
+    } catch {
+      if (state === scope && scope.fuelRequest === request) status.textContent = 'Could not load this week’s rate.';
+    } finally {
+      if (state === scope && scope.fuelRequest === request) rate.disabled = false;
+    }
+  }
+
+  async function saveFuelRate(event) {
+    event.preventDefault();
+    const scope = state;
+    const form = event.currentTarget;
+    const control = form.querySelector('button[type=submit]');
+    if (!scope || control.disabled || form.elements.rate.disabled) return;
+    const data = new FormData(form);
+    control.disabled = true;
+    try {
+      const { error } = await scope.client.from(fuelTable).upsert({
+        fleet_id: scope.fleetId, week_start: data.get('week'), cents_per_mile: data.get('rate')
+      }, { onConflict: 'fleet_id,week_start' });
+      if (error) throw error;
+      if (state === scope) {
+        paintDriverPay({ recalculate: true });
+        showToast('Weekly fuel surcharge saved.');
+        void readFuelRate();
+      }
+    } catch {
+      if (state === scope) showToast('Could not save the weekly fuel surcharge.');
+    } finally {
+      control.disabled = false;
+    }
+  }
+
+  if (byId('dispatchDriverPay')) {
+    byId('dispatchDriverPay').addEventListener('toggle', () => paintDriverPay({ recalculate: true }));
+    byId('dispatchOwnerPayTab').addEventListener('click', () => {
+      edit.payCategory = 'owner';
+      paintDriverPay();
+    });
+    byId('dispatchCompanyPayTab').addEventListener('click', () => {
+      edit.payCategory = 'company';
+      paintDriverPay();
+    });
+    byId('dispatchPayProfileForm').addEventListener('input', paintPayProfileFields);
+    byId('dispatchPayProfileForm').addEventListener('submit', savePayProfile);
+    byId('dispatchPayProfileCancel').addEventListener('click', () => {
+      toggle('dispatchPayProfile', false);
+    });
+    byId('dispatchFuelSettings').addEventListener('toggle', event => {
+      if (event.target.open) void readFuelRate();
+    });
+    byId('dispatchFuelWeek').addEventListener('change', readFuelRate);
+    byId('dispatchFuelForm').addEventListener('submit', saveFuelRate);
+  }
+
   form.addEventListener('input', markEdited);
   form.addEventListener('invalid', event => {
     const panel = event.target.closest('details');
@@ -617,6 +905,12 @@ const fleetDispatchApp = (() => {
     selectedTab = 'current';
     form.reset();
     driverForm.reset();
+    if (byId('dispatchFuelForm')) {
+      byId('dispatchFuelForm').reset();
+      byId('dispatchFuelRate').disabled = false;
+      byId('dispatchFuelSettings').open = false;
+      toggle('dispatchPayProfile', false);
+    }
     byId('dispatchLoadSearch').value = '';
     byId('dispatchDriverSearch').value = '';
     byId('dispatchDriverFilter').value = '';

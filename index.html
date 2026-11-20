@@ -215,7 +215,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 #fleetEmployeeTable table{min-width:0}
 @media(max-width:600px){.fleet-account-fields{grid-template-columns:1fr}}
 </style>
-<link rel="stylesheet" href="./dispatch.css?v=split-view-2">
+<link rel="stylesheet" href="./dispatch.css?v=driver-pay-1">
 </head>
 <body>
 <header class="brandbar hidden" id="appHeader">
@@ -506,12 +506,21 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
            </div>
            <p id="dispatchLegAllocation" class="muted dispatch-compact" role="status"></p>
           </details>
-          <details class="panel">
+          <details class="panel" id="dispatchDriverPay">
            <summary>Driver Pay</summary>
-           <div class="dispatch-fields">
-            <div class="field"><label for="dispatchDriver1Pay">Driver 1 pay</label><input id="dispatchDriver1Pay" name="driver1Pay" type="number" min="0" step="0.01" inputmode="decimal"></div>
-            <div class="field"><label for="dispatchDriver2Pay">Driver 2 pay</label><input id="dispatchDriver2Pay" name="driver2Pay" type="number" min="0" step="0.01" inputmode="decimal"></div>
+           <div class="dispatch-actions" role="group" aria-label="Driver pay categories">
+            <button class="outline" id="dispatchOwnerPayTab" type="button" aria-controls="dispatchOwnerPayPanel" aria-pressed="false">Owner Op</button>
+            <button class="outline" id="dispatchCompanyPayTab" type="button" aria-controls="dispatchCompanyPayPanel" aria-pressed="false">Company Driver</button>
            </div>
+           <p id="dispatchPayStatus" class="muted" role="status">Select a driver to see their pay setup.</p>
+           <section id="dispatchOwnerPayPanel" class="hidden">
+            <div class="field hidden" id="dispatchPayGrossField"><label for="dispatchPayGross">Gross load amount ($)</label><input id="dispatchPayGross" name="payGross" type="number" min="0" step="0.01" max="999999999999.99" inputmode="decimal"></div>
+            <div id="dispatchOwnerPayBreakdown" aria-live="polite"></div>
+           </section>
+           <section id="dispatchCompanyPayPanel" class="hidden dispatch-fields">
+            <div class="field" id="dispatchDriver1PayField"><label for="dispatchDriver1Pay">Driver 1 pay ($)</label><input id="dispatchDriver1Pay" name="driver1Pay" type="number" min="0" step="0.01" inputmode="decimal"></div>
+            <div class="field" id="dispatchDriver2PayField"><label for="dispatchDriver2Pay">Driver 2 pay ($)</label><input id="dispatchDriver2Pay" name="driver2Pay" type="number" min="0" step="0.01" inputmode="decimal"></div>
+           </section>
           </details>
           <details class="panel">
            <summary>Empty Miles</summary>
@@ -585,6 +594,36 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
           <button class="primary-btn" type="submit">Add driver</button>
          </form>
         </details>
+        <details class="panel" id="dispatchFuelSettings">
+         <summary>Weekly Fuel Surcharge</summary>
+         <form id="dispatchFuelForm">
+          <div class="dispatch-fields">
+           <div class="field"><label for="dispatchFuelWeek">Week starting Monday</label><input id="dispatchFuelWeek" name="week" type="date" min="2000-01-03" step="7" required></div>
+           <div class="field"><label for="dispatchFuelRate">Fuel surcharge (¢ per mile)</label><input id="dispatchFuelRate" name="rate" type="number" min="0" max="9999" step="0.0001" inputmode="decimal" required></div>
+          </div>
+          <p id="dispatchFuelStatus" class="muted" role="status"></p>
+          <button class="primary-btn" type="submit">Save Weekly Rate</button>
+         </form>
+        </details>
+        <section class="panel hidden" id="dispatchPayProfile">
+         <h2 id="dispatchPayProfileHeading">Driver pay profile</h2>
+         <form id="dispatchPayProfileForm">
+          <div class="dispatch-fields">
+           <div class="field"><label for="dispatchProfileDriverType">Driver type</label>
+            <select id="dispatchProfileDriverType" name="driverType" required><option value="">Select a driver type</option><option value="owner_op">Owner Op</option><option value="company">Company Driver</option></select>
+           </div>
+           <div class="field hidden" id="dispatchProfileMethodField"><label for="dispatchProfilePayMethod">Owner Op pay method</label>
+            <select id="dispatchProfilePayMethod" name="payMethod"><option value="">Select a pay method</option><option value="hourly">Hourly</option><option value="split">Split Load</option><option value="per_mile">Flat Rate per Mile</option></select>
+           </div>
+           <div class="field hidden" id="dispatchProfileSplitField"><label for="dispatchProfileSplit">Driver split (%)</label><input id="dispatchProfileSplit" name="splitPercent" type="number" min="0" max="100" step="0.01" inputmode="decimal"></div>
+           <div class="field hidden" id="dispatchProfileMileField"><label for="dispatchProfileMile">Flat rate ($ per loaded mile)</label><input id="dispatchProfileMile" name="mileRate" type="number" min="0" max="9999" step="0.0001" inputmode="decimal"></div>
+          </div>
+          <div class="dispatch-actions">
+           <button class="primary-btn" type="submit">Save Pay Profile</button>
+           <button class="outline" id="dispatchPayProfileCancel" type="button">Cancel</button>
+          </div>
+         </form>
+        </section>
         <p id="dispatchDriversEmpty" class="muted" role="status"></p>
         <div id="dispatchDriversList" class="dispatch-load-list"></div>
        </section>
@@ -645,7 +684,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 <div id="toast" class="hidden" role="status"></div>
 <div id="modal"><div class="modal-card"><h2 id="modalTitle"></h2><div id="modalBody"></div><button class="primary-btn" onclick="closeModal()">Close</button></div></div>
 
-<script src="./dispatch.js?v=trailer-1"></script>
+<script src="./dispatch.js?v=driver-pay-1"></script>
 <script>
 const SUPABASE_URL = 'https://pxxikzzfrcncwufpzdfp.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_7yQMjUtCtnHC6jgRF4ROLA_CmgsHaZo';
