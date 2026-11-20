@@ -84,9 +84,8 @@ tbody tr:nth-child(odd){background:#0a111b}
 .login-hero p{font-size:clamp(18px,2.6vw,28px);margin:8px}
 .login-card{background:linear-gradient(145deg,#142238,#080d15);border:1px solid #263e5b;border-radius:28px;padding:clamp(24px,5vw,56px);box-shadow:0 10px 45px #000}
 .login-card h2{text-align:center;font-size:clamp(34px,5vw,54px);margin-bottom:30px}
-.role-tabs{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid #2b4059;border-radius:15px;overflow:hidden;margin-bottom:28px}
-.role-tab{background:transparent;color:#fff;border:0;border-right:1px solid #2b4059;padding:16px 8px;font-size:20px;font-weight:800}
-.role-tab:last-child{border:0}
+.role-tabs{display:flex;flex-wrap:wrap;gap:1px;background:#2b4059;border:1px solid #2b4059;border-radius:15px;overflow:hidden;margin-bottom:28px}
+.role-tab{flex:1 1 95px;background:#101824;color:#fff;border:0;padding:16px 8px;font-size:clamp(16px,2.4vw,19px);font-weight:800}
 .role-tab.active{background:linear-gradient(180deg,#43a2ff,#176bc1);color:#fff}
 .login-field{margin:18px 0}
 .login-field label{display:block;font-size:18px;font-weight:700;margin-bottom:8px}
@@ -183,7 +182,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
   <svg class="truck" viewBox="0 0 160 80" aria-hidden="true"><g fill="none" stroke="#2f8ff0" stroke-width="4" stroke-linejoin="round"><path d="M8 54h96V19H40L8 40z"/><path d="M104 32h25l19 20v12h-44z"/><path d="M124 34v17h24"/><path d="M17 40h24M49 19v35"/><circle cx="42" cy="63" r="10" fill="#050505"/><circle cx="42" cy="63" r="4" fill="#2f8ff0"/><circle cx="123" cy="63" r="10" fill="#050505"/><circle cx="123" cy="63" r="4" fill="#2f8ff0"/><path d="M149 53h8v8h-8"/></g></svg>
   <span>RigTracker Pro</span>
  </div>
- <div class="top-actions"><span id="accountLabel">Driver account</span><button onclick="signOut()">Sign Out</button></div>
+ <div class="top-actions"><span id="accountLabel">Owner Op</span><button onclick="signOut()">Sign Out</button></div>
 </header>
 
 <main>
@@ -196,10 +195,13 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
   <div class="login-card">
    <h2 id="authHeading">Welcome back</h2>
    <div class="role-tabs">
-    <button class="role-tab active" data-role="driver" onclick="chooseRole('driver')">Driver</button>
+    <button class="role-tab active" data-role="driver" onclick="chooseRole('driver')">Owner Op</button>
+    <button class="role-tab" data-role="company" onclick="chooseRole('company')">Company</button>
     <button class="role-tab" data-role="fleet" onclick="chooseRole('fleet')">Fleet Admin</button>
     <button class="role-tab" data-role="employee" onclick="chooseRole('employee')">Employee</button>
+    <button class="role-tab" data-role="mechanic" onclick="chooseRole('mechanic')">Mechanic</button>
    </div>
+   <p id="signInUnavailable" class="muted hidden" role="status">Sign-in is coming later.</p>
    <form id="authForm" onsubmit="submitAuth(event)">
     <div class="login-field"><label for="email">Email address</label><input id="email" type="email" autocomplete="username" placeholder="Enter your email address" required></div>
     <div class="login-field hidden"><label for="employeeUsername">Username</label><input id="employeeUsername" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="tts-106106" maxlength="27" required disabled></div>
@@ -428,15 +430,19 @@ function accountTypeFor(user){
  if(trustedType==='fleet_employee')return 'employee';
  return (trustedType||user?.user_metadata?.account_type)==='fleet'?'fleet':'driver';
 }
-const accountLabels={driver:'Driver',fleet:'Fleet Admin',employee:'Employee'};
+const accountLabels={driver:'Owner Op',company:'Company',fleet:'Fleet Admin',employee:'Employee',mechanic:'Mechanic'};
+const pendingSignInRoles=new Set(['company','mechanic']);
 let adminFleetId=null;
 let authBusy=false;
 let signingOut=false;
 
 function updateAuthForm(){
  const employee=selectedRole==='employee';
+ const pending=pendingSignInRoles.has(selectedRole);
  const fleetSignup=selectedRole==='fleet'&&signUpMode;
- document.getElementById('authHeading').textContent=fleetSignup?'Create your Fleet Admin account'
+ document.getElementById('authForm').classList.toggle('hidden',pending);
+ document.getElementById('signInUnavailable').classList.toggle('hidden',!pending);
+ document.getElementById('authHeading').textContent=pending?accountLabels[selectedRole]:fleetSignup?'Create your Fleet Admin account'
   :signUpMode?'Create your account':selectedRole==='fleet'?'Fleet Admin sign-in':employee?'Employee sign-in':'Welcome back';
  document.getElementById('authSubmit').textContent=signUpMode?'Create Account':'Sign In';
  document.getElementById('authSwitchLabel').textContent=signUpMode?'Already have an account?':'New to RigTracker Pro?';
@@ -447,8 +453,8 @@ function updateAuthForm(){
   field.closest('.login-field').classList.toggle('hidden',!visible);
   field.disabled=!visible;
  }
- document.getElementById('authForgotRow').classList.toggle('hidden',employee);
- document.getElementById('authSwitchRow').classList.toggle('hidden',employee);
+ document.getElementById('authForgotRow').classList.toggle('hidden',employee||pending);
+ document.getElementById('authSwitchRow').classList.toggle('hidden',employee||pending);
 }
 function chooseRole(role){
  if(authBusy)return;
@@ -458,13 +464,13 @@ function chooseRole(role){
  updateAuthForm();
 }
 function toggleAuthMode(){
- if(authBusy||selectedRole==='employee')return;
+ if(authBusy||selectedRole==='employee'||pendingSignInRoles.has(selectedRole))return;
  signUpMode=!signUpMode;
  updateAuthForm();
 }
 async function submitAuth(event){
  event.preventDefault();
- if(authBusy)return;
+ if(authBusy||pendingSignInRoles.has(selectedRole))return;
  if(!supabaseClient){showToast('Sign-in could not start. Refresh the page and try again.');return}
  const role=selectedRole;
  let email=document.getElementById('email').value.trim();
@@ -503,7 +509,7 @@ async function submitAuth(event){
  }
 }
 async function forgotPassword(){
- if(selectedRole==='employee')return;
+ if(selectedRole==='employee'||pendingSignInRoles.has(selectedRole))return;
  if(!supabaseClient){showToast('Sign-in is not available right now.');return}
  const email=document.getElementById('email').value.trim();
  if(!email){showToast('Enter your email address first.');return}
