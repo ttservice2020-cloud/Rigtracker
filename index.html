@@ -250,7 +250,6 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
     <button class="role-tab" data-role="employee" onclick="chooseRole('employee')">Office</button>
     <button class="role-tab" data-role="mechanic" onclick="chooseRole('mechanic')">Mechanic</button>
    </div>
-   <p id="signInUnavailable" class="muted hidden" role="status">Sign-in is coming later.</p>
    <form id="authForm" onsubmit="submitAuth(event)">
     <div class="login-field"><label for="email">Email address</label><input id="email" type="email" autocomplete="username" placeholder="Enter your email address" required></div>
     <div class="login-field hidden"><label for="employeeUsername">Username</label><input id="employeeUsername" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="tts-106106" maxlength="27" required disabled></div>
@@ -258,6 +257,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
     <div class="login-field"><label for="password">Password</label><input id="password" type="password" autocomplete="current-password" placeholder="Enter your password" required></div>
     <div class="login-actions"><button id="authSubmit" class="primary-btn full" type="submit">Sign In</button></div>
    </form>
+   <div class="link-row hidden" id="companyConfirmRow"><button class="link-btn" type="button" onclick="sendCompanyEmailConfirmation(this)">Send confirmation email</button></div>
    <div class="link-row" id="authForgotRow"><button class="link-btn" onclick="forgotPassword()">Forgot password?</button></div>
    <div class="login-bottom" id="authSwitchRow"><span id="authSwitchLabel">New to RigTracker Pro?</span> <button class="inline-link" id="authSwitch" onclick="toggleAuthMode()">Create an account</button></div>
   </div>
@@ -265,7 +265,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 </section>
 
 <section id="appScreen" class="hidden">
- <section id="dashboardPage" class="page active">
+ <section id="dashboardPage" class="page">
   <div class="page-head"><h1>Driver Dashboard</h1><select class="year-select" id="dashboardYear" aria-label="Select year"></select></div>
   <div class="grid stats">
    <div class="card stat"><div class="stat-label">YTD Gross</div><div class="stat-value" id="dashGross">$0.00</div></div>
@@ -273,7 +273,8 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
    <div class="card stat"><div class="stat-label">Net Payout</div><div class="stat-value" id="dashNet">$0.00</div></div>
    <div class="card stat"><div class="stat-label">Per Diem Nights</div><div class="stat-value" id="dashNights">0</div></div>
   </div>
-  <h2>What would you like to do?</h2>
+  <button class="outline" type="button" onclick="openOwnRigTrackerProfile()">RigTracker Profile</button>
+   <h2>What would you like to do?</h2>
   <div class="grid tiles" style="margin-top:16px">
    <article class="tile"><div><h3>Settlement Entry</h3><p>Enter a settlement and itemized deductions.</p></div><button class="primary-btn" onclick="showPage('settlementPage')">Add Settlement</button></article>
    <article class="tile"><div><h3>Spreadsheet</h3><p>View and print your settlement records.</p></div><button class="primary-btn" onclick="showPage('spreadsheetPage')">View Spreadsheet</button></article>
@@ -423,6 +424,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
        <div class="fleet-tools-grid">
         <button class="card fleet-tool" type="button" onclick="showFleetSection('dispatch')">Dispatch <span aria-hidden="true">›</span></button>
         <button class="card fleet-tool" type="button" onclick="showFleetSection('dispatch','drivers')">Drivers <span aria-hidden="true">›</span></button>
+         <button class="card fleet-tool" type="button" onclick="showFleetSection('links')">Linked Profiles <span aria-hidden="true">›</span></button>
         <button class="card fleet-tool" type="button" onclick="showFleetSection('assets')">Assets <span aria-hidden="true">›</span></button>
         <button class="card fleet-tool" type="button" onclick="showFleetSection('messages')">Messages <span aria-hidden="true">›</span></button>
        </div>
@@ -728,7 +730,42 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
       <button class="primary-btn" type="submit">Save Fleet ID</button>
      </form>
     </div>
-    <div class="hidden" id="fleetProfiles">
+    <div class="hidden" id="fleetLinkedProfiles">
+      <p class="panel hidden" id="fleetLinksNeedsId">Save your Fleet ID in Fleet Settings to manage links.</p>
+      <div id="fleetLinksContent">
+       <form class="panel" id="linkExistingProfileForm" onsubmit="saveRigTrackerLink(event)">
+        <h2>Link an existing profile</h2>
+        <div class="form-grid fleet-account-fields">
+         <div class="field"><label for="linkProfileId">RigTracker Profile ID</label><input id="linkProfileId" name="profileId" inputmode="numeric" pattern="[0-9]{16}" maxlength="16" required></div>
+         <div class="field"><label for="linkEmployeeNumber">Employee number (Company Driver, optional)</label><input id="linkEmployeeNumber" name="employeeNumber" inputmode="numeric" pattern="[0-9]{1,6}" maxlength="6" placeholder="Generated if blank"></div>
+        </div>
+        <div class="employee-setup-actions"><button class="primary-btn" type="submit">Link profile</button></div>
+       </form>
+       <form class="panel" id="companyDriverForm" onsubmit="createCompanyDriver(event)">
+        <h2>Create a Company Driver account</h2>
+        <div class="form-grid fleet-account-fields">
+         <div class="field"><label for="companyFirstName">First name</label><input id="companyFirstName" name="firstName" maxlength="100" required></div>
+         <div class="field"><label for="companyLastName">Last name</label><input id="companyLastName" name="lastName" maxlength="100" required></div>
+         <div class="field"><label for="companyEmail">Driver’s email</label><input id="companyEmail" name="email" type="email" maxlength="254" required></div>
+         <div class="field"><label for="companyPhone">Phone number</label><input id="companyPhone" name="phone" type="tel" maxlength="40" required></div>
+         <div class="field"><label for="companyLicense">Driver’s license number</label><input id="companyLicense" name="licenseNumber" maxlength="80" required></div>
+         <div class="field"><label for="companyEmployeeNumber">Employee number (optional)</label><input id="companyEmployeeNumber" name="employeeNumber" inputmode="numeric" pattern="[0-9]{1,6}" maxlength="6" placeholder="Generated if blank"></div>
+         <div class="field"><label for="companyTempPassword">Temporary password</label><input id="companyTempPassword" name="password" type="password" autocomplete="new-password" minlength="8" maxlength="72" required></div>
+        </div>
+        <p class="muted">Give the driver their temporary password. They can confirm their email from the Company Driver sign-in tab.</p>
+        <button class="primary-btn" type="submit">Create and link driver</button>
+       </form>
+       <section class="panel">
+        <h2>Linked profiles</h2>
+        <p id="fleetLinksStatus" class="muted" role="status"></p>
+        <div class="table-shell hidden" id="fleetLinkTable"><table>
+         <thead><tr><th scope="col">Name</th><th scope="col">Account</th><th scope="col">RigTracker ID</th><th scope="col">Employee number</th><th scope="col">Link</th></tr></thead>
+         <tbody id="fleetLinkRows"></tbody>
+        </table></div>
+       </section>
+      </div>
+     </div>
+     <div class="hidden" id="fleetProfiles">
      <div class="panel hidden" id="fleetProfilesNeedsId">
       <p>Set a Fleet ID before creating an employee profile.</p>
       <button class="outline" type="button" onclick="showFleetSection('settings')">Open Fleet Settings</button>
@@ -789,7 +826,48 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
    </div>
   </div>
  </section>
- <section id="fleetEmployeePage" class="page fleet-account-page">
+ <section id="rigTrackerProfilePage" class="page fleet-account-page">
+   <div class="page-head"><div>
+    <button class="back hidden" id="rigTrackerProfileBack" type="button" onclick="showPage('dashboardPage')">← Back to Dashboard</button>
+    <h1 id="rigTrackerProfileTitle">RigTracker Profile</h1>
+   </div></div>
+   <div id="rigTrackerProfileStatus" class="panel" role="status"></div>
+   <div class="hidden" id="rigTrackerProfileDetails">
+    <section class="panel">
+     <h2>RigTracker Profile ID</h2>
+     <div class="field"><input id="ownRigTrackerId" aria-label="RigTracker Profile ID" readonly></div>
+     <p class="muted">Share this ID to link your account with a fleet.</p>
+    </section>
+    <form class="panel" id="ownRigTrackerProfileForm" onsubmit="saveOwnRigTrackerProfile(event)">
+     <h2>My profile</h2>
+     <div class="form-grid fleet-account-fields">
+      <div class="field"><label for="ownProfileEmail">Sign-in email</label><input id="ownProfileEmail" type="email" readonly></div>
+      <div class="field"><label for="ownProfileFirstName">First name</label><input id="ownProfileFirstName" name="first_name" maxlength="100"></div>
+      <div class="field"><label for="ownProfileLastName">Last name</label><input id="ownProfileLastName" name="last_name" maxlength="100"></div>
+      <div class="field"><label for="ownProfilePhone">Phone number</label><input id="ownProfilePhone" name="phone" type="tel" maxlength="40"></div>
+      <div class="field hidden" id="ownProfileLicenseField"><label for="ownProfileLicense">Driver’s license number</label><input id="ownProfileLicense" name="license_number" maxlength="80" disabled></div>
+     </div>
+     <div class="employee-setup-actions"><button class="primary-btn" type="submit">Save profile</button></div>
+    </form>
+    <section class="panel">
+     <h2>Linked fleets</h2>
+     <p class="muted" id="ownRigTrackerLinksStatus" role="status"></p>
+     <ul id="ownRigTrackerLinks"></ul>
+    </section>
+   </div>
+  </section>
+  <section id="rigTrackerPasswordPage" class="page fleet-account-page">
+   <div class="page-head"><h1>Set Your Password</h1></div>
+   <form class="panel" id="rigTrackerPasswordForm" onsubmit="saveRigTrackerPassword(event)">
+    <div class="form-grid fleet-account-fields">
+     <div class="field" id="rigTrackerCurrentPasswordField"><label for="rigTrackerCurrentPassword">Temporary password</label><input id="rigTrackerCurrentPassword" name="currentPassword" type="password" autocomplete="current-password" required></div>
+     <div class="field"><label for="rigTrackerNewPassword">New password</label><input id="rigTrackerNewPassword" name="password" type="password" autocomplete="new-password" minlength="8" maxlength="72" required></div>
+     <div class="field"><label for="rigTrackerConfirmPassword">Confirm new password</label><input id="rigTrackerConfirmPassword" name="confirmPassword" type="password" autocomplete="new-password" minlength="8" maxlength="72" required></div>
+    </div>
+    <div class="employee-setup-actions"><button class="primary-btn" type="submit">Save password</button></div>
+   </form>
+  </section>
+  <section id="fleetEmployeePage" class="page fleet-account-page">
   <div class="page-head"><h1>Office Account</h1></div>
   <div class="panel"><p id="employeeAccountSummary" role="status">Loading your profile…</p></div>
  </section>
@@ -799,7 +877,8 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 <div id="modal"><div class="modal-card"><h2 id="modalTitle"></h2><div id="modalBody"></div><button class="primary-btn" onclick="closeModal()">Close</button></div></div>
 
 <script src="./dispatch-progress.js?v=progress-1"></script>
-<script src="./dispatch.js?v=progress-1"></script>
+<script src="./dispatch.js?v=linked-accounts-1"></script>
+<script src="./linked-profiles.js?v=1"></script>
 <script>
 const SUPABASE_URL = 'https://pxxikzzfrcncwufpzdfp.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_7yQMjUtCtnHC6jgRF4ROLA_CmgsHaZo';
@@ -842,10 +921,13 @@ function showPage(id){
 function accountTypeFor(user){
  const trustedType=user?.app_metadata?.account_type;
  if(trustedType==='fleet_employee')return 'employee';
+ if(trustedType==='company_driver')return 'company';
+ if(trustedType==='mechanic')return 'mechanic';
  return (trustedType||user?.user_metadata?.account_type)==='fleet'?'fleet':'driver';
 }
 const accountLabels={driver:'Owner Op',company:'Company Driver',fleet:'Fleet Admin',employee:'Office',mechanic:'Mechanic'};
-const pendingSignInRoles=new Set(['company','mechanic']);
+const fleetManagedSignInRoles=new Set(['company','employee']);
+let passwordRecoveryRequested=new URLSearchParams(window.location.hash.slice(1)).get('type')==='recovery';
 let adminFleetId=null;
 let fleetSection='dashboard';
 let fleetLoadState='loading';
@@ -858,12 +940,9 @@ let signingOut=false;
 
 function updateAuthForm(){
  const employee=selectedRole==='employee';
- const pending=pendingSignInRoles.has(selectedRole);
  const fleetSignup=selectedRole==='fleet'&&signUpMode;
- document.getElementById('authForm').classList.toggle('hidden',pending);
- document.getElementById('signInUnavailable').classList.toggle('hidden',!pending);
- document.getElementById('authHeading').textContent=pending?accountLabels[selectedRole]:fleetSignup?'Create your Fleet Admin account'
-  :signUpMode?'Create your account':selectedRole==='fleet'?'Fleet Admin sign-in':employee?'Office sign-in':'Welcome back';
+ document.getElementById('authHeading').textContent=fleetSignup?'Create your Fleet Admin account'
+  :signUpMode?'Create your '+accountLabels[selectedRole]+' account':accountLabels[selectedRole]+' sign-in';
  document.getElementById('authSubmit').textContent=signUpMode?'Create Account':'Sign In';
  document.getElementById('authSwitchLabel').textContent=signUpMode?'Already have an account?':'New to RigTracker Pro?';
  document.getElementById('authSwitch').textContent=signUpMode?'Sign In':'Create an account';
@@ -873,8 +952,9 @@ function updateAuthForm(){
   field.closest('.login-field').classList.toggle('hidden',!visible);
   field.disabled=!visible;
  }
- document.getElementById('authForgotRow').classList.toggle('hidden',employee||pending);
- document.getElementById('authSwitchRow').classList.toggle('hidden',employee||pending);
+ document.getElementById('authForgotRow').classList.toggle('hidden',employee);
+ document.getElementById('authSwitchRow').classList.toggle('hidden',fleetManagedSignInRoles.has(selectedRole));
+ document.getElementById('companyConfirmRow').classList.toggle('hidden',selectedRole!=='company');
 }
 function chooseRole(role){
  if(authBusy)return;
@@ -884,13 +964,13 @@ function chooseRole(role){
  updateAuthForm();
 }
 function toggleAuthMode(){
- if(authBusy||selectedRole==='employee'||pendingSignInRoles.has(selectedRole))return;
+ if(authBusy||fleetManagedSignInRoles.has(selectedRole))return;
  signUpMode=!signUpMode;
  updateAuthForm();
 }
 async function submitAuth(event){
  event.preventDefault();
- if(authBusy||pendingSignInRoles.has(selectedRole))return;
+ if(authBusy)return;
  if(!supabaseClient){showToast('Sign-in could not start. Refresh the page and try again.');return}
  const role=selectedRole;
  let email=document.getElementById('email').value.trim();
@@ -905,10 +985,10 @@ async function submitAuth(event){
  authBusy=true;
  button.disabled=true;
  try{
-  if(signUpMode){
+  if(signUpMode&&!fleetManagedSignInRoles.has(role)){
    const data={account_type:role};
    if(role==='fleet')data.requested_fleet_id=document.getElementById('signupFleetId').value.trim().toLowerCase();
-   const result=await supabaseClient.auth.signUp({email,password,options:{data}});
+   const result=await supabaseClient.auth.signUp({email,password,options:{data,emailRedirectTo:window.location.origin}});
    if(result.error)throw result.error;
    passwordField.value='';
    signUpMode=false;
@@ -922,18 +1002,20 @@ async function submitAuth(event){
    await openSignedInApp(result.data.user);
   }
  }catch(error){
-  showToast(role==='employee'?'Sign-in failed. Check your username and password.':error.message||'Sign-in failed. Please try again.');
+  showToast(role==='employee'?'Sign-in failed. Check your username and password.'
+   :role==='company'&&error.code==='email_not_confirmed'?'Confirm your email first. Tap Send confirmation email.'
+   :error.message||'Sign-in failed. Please try again.');
  }finally{
   authBusy=false;
   button.disabled=false;
  }
 }
 async function forgotPassword(){
- if(selectedRole==='employee'||pendingSignInRoles.has(selectedRole))return;
+ if(selectedRole==='employee')return;
  if(!supabaseClient){showToast('Sign-in is not available right now.');return}
  const email=document.getElementById('email').value.trim();
  if(!email){showToast('Enter your email address first.');return}
- const result=await supabaseClient.auth.resetPasswordForEmail(email);
+ const result=await supabaseClient.auth.resetPasswordForEmail(email,{redirectTo:window.location.origin});
  showToast(result.error?result.error.message:'Password reset link sent. Check your email.');
 }
 async function openSignedInApp(user){
@@ -951,6 +1033,10 @@ async function openSignedInApp(user){
  header.classList.remove('hidden');
  header.classList.toggle('fleet-header',accountType==='fleet');
  document.getElementById('accountLabel').textContent=accountLabels[accountType];
+ if(passwordRecoveryRequested){
+  openRigTrackerPasswordChange(false);
+  return;
+ }
  if(accountType==='fleet'){
   startFleetPresenceTimer(loadFleetOnlineCount,30000);
   showFleetSection('dashboard');
@@ -958,6 +1044,7 @@ async function openSignedInApp(user){
   return;
  }
  if(accountType==='employee'){await loadEmployeeAccount();return}
+ if(accountType==='company'||accountType==='mechanic'){await openOwnRigTrackerProfile();return}
  await loadUserData();
  if(currentUser===user)showPage('dashboardPage');
 }
@@ -981,6 +1068,7 @@ async function signOut(){
   showEmployeeSetupStep(false);
   updateEmployeeUsername();
   document.getElementById('fleetEmployeeRows').replaceChildren();
+  resetLinkedProfileScreens();
   document.querySelectorAll('.page').forEach(page=>page.classList.remove('active'));
   resetSettlementForm();
   document.getElementById('appHeader').classList.add('hidden');
@@ -1345,7 +1433,7 @@ async function loadUserData(){
  document.getElementById('timeZone').value=preferredZone;renderDeductionInputs();document.getElementById('settleDate').value=todayForZone(preferredZone);document.getElementById('stayDate').value=todayForZone(preferredZone);
  await loadTaxDocuments();renderDashboard();renderSpreadsheet();renderTax();await renderPerDiem();
 }
-const fleetSectionTitles={dashboard:'Fleet Admin Dashboard',dispatch:'Dispatch',settings:'Fleet Settings',profiles:'Employee Profiles'};
+const fleetSectionTitles={dashboard:'Fleet Admin Dashboard',dispatch:'Dispatch',settings:'Fleet Settings',profiles:'Employee Profiles',links:'Linked Profiles'};
 const fleetTools={
  "assets":{"title":"Assets","status":"Truck and trailer management is coming later."},
  "messages":{"title":"Messages","status":"Fleet messaging is coming later."},
@@ -1360,7 +1448,7 @@ function renderFleetSections(){
  const dashboard=fleetSection==='dashboard';
  const dispatch=fleetSection==='dispatch';
  const tool=Object.hasOwn(fleetTools,fleetSection)?fleetTools[fleetSection]:null;
- const operation=dispatch||Boolean(tool);
+ const operation=dispatch||fleetSection==='links'||Boolean(tool);
  const ready=fleetLoadState==='ready';
  const hasFleet=Boolean(adminFleetId);
  const visible={
@@ -1369,14 +1457,17 @@ function renderFleetSections(){
   fleetToolPanel:Boolean(tool),
   fleetToolBack:operation,
   fleetIdBadge:hasFleet&&fleetSection==='profiles',
-  fleetLoading:!dashboard&&!operation&&fleetLoadState==='loading',
-  fleetUnavailable:!operation&&fleetLoadState==='error',
+  fleetLoading:!dashboard&&(!operation||fleetSection==='links')&&fleetLoadState==='loading',
+  fleetUnavailable:(!operation||fleetSection==='links')&&fleetLoadState==='error',
   fleetSettings:fleetSection==='settings'&&ready,
   fleetSettingsSaved:hasFleet,
   fleetSetupForm:!hasFleet,
   fleetProfiles:fleetSection==='profiles'&&ready,
   fleetProfilesNeedsId:!hasFleet,
-  fleetManagement:hasFleet
+  fleetManagement:hasFleet,
+  fleetLinkedProfiles:fleetSection==='links'&&ready,
+  fleetLinksNeedsId:!hasFleet,
+  fleetLinksContent:hasFleet
  };
  for(const [id,show] of Object.entries(visible)){
   document.getElementById(id).classList.toggle('hidden',!show);
@@ -1419,6 +1510,7 @@ function loadFleetSectionData(dispatchTab){
  if(fleetLoadState!=='ready'||!adminFleetId)return;
  if(fleetSection==='dashboard')return Promise.all([loadFleetEmployeeCount(),loadFleetOnlineCount()]);
  if(fleetSection==='profiles')return loadFleetEmployees();
+ if(fleetSection==='links')return loadFleetProfileLinks();
 }
 async function loadFleetAdmin(useSignupId=false){
  const owner=currentUser;
@@ -1569,12 +1661,15 @@ async function generateEmployeeId(button){
 
  button.disabled=true;
  try{
-  const {data,error}=await supabaseClient.from('fleet_employees').select('employee_id')
-   .eq('fleet_id',fleetId).in('employee_id',candidates);
+  const [office,drivers]=await Promise.all([
+   supabaseClient.from('fleet_employees').select('employee_id').eq('fleet_id',fleetId).in('employee_id',candidates),
+   supabaseClient.from('rigtracker_fleet_links').select('employee_number').eq('fleet_id',fleetId)
+    .is('unlinked_at',null).in('employee_number',candidates)
+  ]);
   if(currentUser!==owner||adminFleetId!==fleetId||input.value!==previousId||submitButton.disabled
    ||document.getElementById('employeeDetailsStep').disabled)return;
-  if(error)throw error;
-  const usedIds=new Set(data.map(row=>row.employee_id));
+  if(office.error||drivers.error)throw office.error||drivers.error;
+  const usedIds=new Set([...office.data.map(row=>row.employee_id),...drivers.data.map(row=>row.employee_number)]);
   const availableId=candidates.find(id=>!usedIds.has(id));
   if(!availableId){
    showToast('Could not find an available ID. Generate again or enter one manually.');
@@ -1652,8 +1747,9 @@ async function loadEmployeeAccount(){
  const summary=document.getElementById('employeeAccountSummary');
  summary.textContent='Loading your profile…';
  showPage('fleetEmployeePage');
- const {data,error}=await supabaseClient.from('fleet_employees').select('fleet_id,employee_id').eq('user_id',employee.id).maybeSingle();
+ const {data,error}=await supabaseClient.from('fleet_employees').select('fleet_id,employee_id,password_required').eq('user_id',employee.id).maybeSingle();
  if(currentUser!==employee)return;
+ if(data?.password_required){openRigTrackerPasswordChange(true);return}
  summary.textContent=error||!data?'Could not load your employee profile. Contact your Fleet Admin.':
   'Signed in as '+data.fleet_id+'-'+data.employee_id+'.';
  if(data&&!error){
@@ -1673,6 +1769,7 @@ async function startApp(){
  if(!supabaseClient){showToast('Sign-in is unavailable because the connection did not load.');return}
  supabaseClient.auth.onAuthStateChange(event=>{
   if(event==='SIGNED_OUT')stopFleetPresenceTimer();
+  if(event==='PASSWORD_RECOVERY')passwordRecoveryRequested=true;
  });
  const result=await supabaseClient.auth.getSession();
  if(result.data&&result.data.session){
