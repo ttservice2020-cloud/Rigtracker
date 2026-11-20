@@ -1,5 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.4";
 
+const officePermissions = new Set(["dispatch", "drivers", "assets", "messages", "hr", "payroll", "settlements", "hourly", "bank_ledger", "payments", "policies", "activity"]);
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, apikey, x-client-info, content-type",
@@ -39,6 +41,23 @@ Deno.serve(async (request) => {
   const payload = await request.json().catch(() => null);
   const employeeId = typeof payload?.employeeId === "string" ? payload.employeeId.trim() : "";
   const password = typeof payload?.password === "string" ? payload.password : "";
+  const firstName = typeof payload?.firstName === "string" ? payload.firstName.trim() : "";
+  const lastName = typeof payload?.lastName === "string" ? payload.lastName.trim() : "";
+  const officeRole = typeof payload?.officeRole === "string" ? payload.officeRole.trim() : "";
+  const permissions = payload?.permissions;
+  const hasOfficeSetup = ["firstName", "lastName", "officeRole", "permissions"]
+    .some((key) => Object.hasOwn(payload ?? {}, key));
+  if (hasOfficeSetup) {
+    if (!firstName || !lastName || firstName.length > 100 || lastName.length > 100) {
+      return reply(400, { message: "Enter a first and last name, up to 100 characters each." });
+    }
+    if (!officeRole || officeRole.length > 100) {
+      return reply(400, { message: "Enter an Office role, up to 100 characters." });
+    }
+    if (!Array.isArray(permissions) || permissions.some((value) => !officePermissions.has(value))) {
+      return reply(400, { message: "Select valid Office access options." });
+    }
+  }
   if (!/^[0-9]{1,6}$/.test(employeeId)) {
     return reply(400, { message: "Use 1–6 digits for the Employee ID." });
   }
@@ -52,7 +71,11 @@ Deno.serve(async (request) => {
     email: username + "@fleet-login.rigtrackerpro.com",
     password,
     email_confirm: true,
-    app_metadata: { account_type: "fleet_employee", fleet_id: fleet.id, employee_id: employeeId },
+    user_metadata: hasOfficeSetup ? { first_name: firstName, last_name: lastName } : {},
+    app_metadata: {
+      account_type: "fleet_employee", fleet_id: fleet.id, employee_id: employeeId,
+      ...(hasOfficeSetup ? { office_role: officeRole, office_permissions: [...new Set(permissions)] } : {}),
+    },
   });
   if (error) {
     const { data: existing } = await client.from("fleet_employees").select("employee_id")
