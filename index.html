@@ -521,6 +521,14 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
             <div class="field" id="dispatchDriver1PayField"><label for="dispatchDriver1Pay">Driver 1 pay ($)</label><input id="dispatchDriver1Pay" name="driver1Pay" type="number" min="0" step="0.01" inputmode="decimal"></div>
             <div class="field" id="dispatchDriver2PayField"><label for="dispatchDriver2Pay">Driver 2 pay ($)</label><input id="dispatchDriver2Pay" name="driver2Pay" type="number" min="0" step="0.01" inputmode="decimal"></div>
            </section>
+           <section id="dispatchAdditionalPay" class="panel hidden">
+            <h3>Additional Pay</h3>
+            <div class="dispatch-fields">
+             <div class="field hidden" id="dispatchDriver1AdditionalPayField"><label for="dispatchDriver1AdditionalPay">Driver 1 Additional Pay ($)</label><input id="dispatchDriver1AdditionalPay" name="driver1AdditionalPay" type="number" min="0" max="999999999999.99" step="0.01" inputmode="decimal" disabled></div>
+             <div class="field hidden" id="dispatchDriver2AdditionalPayField"><label for="dispatchDriver2AdditionalPay">Driver 2 Additional Pay ($)</label><input id="dispatchDriver2AdditionalPay" name="driver2AdditionalPay" type="number" min="0" max="999999999999.99" step="0.01" inputmode="decimal" disabled></div>
+            </div>
+            <div id="dispatchAdditionalPayTotals" aria-live="polite"></div>
+           </section>
           </details>
           <details class="panel">
            <summary>Empty Miles</summary>
@@ -684,7 +692,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 <div id="toast" class="hidden" role="status"></div>
 <div id="modal"><div class="modal-card"><h2 id="modalTitle"></h2><div id="modalBody"></div><button class="primary-btn" onclick="closeModal()">Close</button></div></div>
 
-<script src="./dispatch.js?v=driver-pay-1"></script>
+<script src="./dispatch.js?v=additional-pay-1"></script>
 <script>
 const SUPABASE_URL = 'https://pxxikzzfrcncwufpzdfp.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_7yQMjUtCtnHC6jgRF4ROLA_CmgsHaZo';

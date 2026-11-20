@@ -8,7 +8,7 @@ const fleetDispatchApp = (() => {
   const formDetails = [
     'secondDriverMode', 'commodity', 'commodityOther', 'weightLbs', 'equipmentType', 'equipmentTypeOther',
     'trailerDrop', 'trailerDropNotes', 'trailerPickup', 'trailerPickupNotes',
-    'payGross', 'loadedMiles', 'relayLocation', 'relayDate', 'relayDrop',
+    'payGross', 'driver1AdditionalPay', 'driver2AdditionalPay', 'loadedMiles', 'relayLocation', 'relayDate', 'relayDrop',
     'relayPickup', 'firstLegMiles', 'driver1Pay', 'driver2Pay', 'emptyMiles', 'emptyRate', 'stopPay'
   ].filter(key => form.elements.namedItem(key));
   const conditionalFreightFields = [
@@ -473,10 +473,15 @@ const fleetDispatchApp = (() => {
     const draft = edit;
     if (!scope || draft.saving || draft.row?.status === 'completed') return;
     if (status === 'completed' && !form.reportValidity()) return;
-    const weightField = form.elements.namedItem('weightLbs');
-    if (weightField && !weightField.reportValidity()) return;
+    for (const name of ['weightLbs', 'driver1AdditionalPay', 'driver2AdditionalPay']) {
+      const field = form.elements.namedItem(name);
+      if (field && !field.reportValidity()) return;
+    }
     const data = new FormData(form);
     const details = Object.fromEntries(formDetails.map(key => [key, data.get(key)?.trim() ?? '']));
+    for (const key of ['driver1AdditionalPay', 'driver2AdditionalPay']) {
+      if (details[key]) details[key] = Number(details[key]).toFixed(2);
+    }
     details.pickups = getStops('pickup');
     details.receivers = getStops('receiver');
     const driver1 = data.get('driver1') || null;
@@ -618,7 +623,7 @@ const fleetDispatchApp = (() => {
     return matches ? result : null;
   }
 
-  function paintPayBreakdown(result, owners) {
+  function paintPayBreakdown(result, owners, assigned) {
     const breakdown = byId('dispatchOwnerPayBreakdown');
     const lines = [];
     if (owners.some(driver => driver.method === 'split')) {
@@ -640,6 +645,25 @@ const fleetDispatchApp = (() => {
         .filter(Boolean).join(' · '));
     }
     breakdown.replaceChildren(...lines.map(line => element('p', line)));
+
+    const totals = byId('dispatchAdditionalPayTotals');
+    if (!totals) return;
+    const summaries = [];
+    for (const driver of assigned) {
+      const extra = form.elements['driver' + driver.slot + 'AdditionalPay'];
+      if (!extra.validity.valid || !(extra.valueAsNumber > 0)) continue;
+      const calculated = result?.drivers.find(entry => entry.slot === driver.slot);
+      const manual = form.elements['driver' + driver.slot + 'Pay'];
+      const base = driver.type === 'owner_op' ? calculated?.amount
+        : manual.value !== '' && manual.validity.valid ? manual.valueAsNumber : null;
+      const additional = Math.round(extra.valueAsNumber * 100);
+      const parts = [driver.name, payCurrency.format(additional / 100) + ' additional pay'];
+      if (base != null) {
+        parts.push(payCurrency.format((Math.round(base * 100) + additional) / 100) + ' total pay');
+      }
+      summaries.push(element('p', parts.join(' · ')));
+    }
+    totals.replaceChildren(...summaries);
   }
 
   function paintDriverPay({ recalculate = false } = {}) {
@@ -680,6 +704,14 @@ const fleetDispatchApp = (() => {
       toggle('dispatchDriver' + slot + 'PayField', visible);
       form.elements['driver' + slot + 'Pay'].disabled = !visible;
     }
+    if (byId('dispatchAdditionalPay')) {
+      toggle('dispatchAdditionalPay', assigned.length > 0);
+      for (const slot of [1, 2]) {
+        const visible = assigned.some(driver => driver.slot === slot);
+        toggle('dispatchDriver' + slot + 'AdditionalPayField', visible);
+        form.elements['driver' + slot + 'AdditionalPay'].disabled = !visible;
+      }
+    }
     const split = owners.some(driver => driver.method === 'split');
     toggle('dispatchPayGrossField', split);
     form.elements.payGross.disabled = !split;
@@ -691,20 +723,20 @@ const fleetDispatchApp = (() => {
       : unconfigured ? 'Set the driver type in Drivers to use a pay profile.' : '';
     if (saved || legacy || !owners.some(driver => driver.method !== 'hourly') || !panel.open) {
       editor.payPreview = null;
-      paintPayBreakdown(saved, owners);
+      paintPayBreakdown(saved, owners, assigned);
       return;
     }
 
     const key = JSON.stringify([ids, inputs, owners]);
     if (!recalculate && editor.payPreview?.key === key) {
       if (!status.textContent) status.textContent = editor.payPreview.message || '';
-      paintPayBreakdown(editor.payPreview.result, owners);
+      paintPayBreakdown(editor.payPreview.result, owners, assigned);
       return;
     }
     const request = { key, message: 'Calculating driver pay…' };
     editor.payPreview = request;
     if (!status.textContent) status.textContent = request.message;
-    paintPayBreakdown(null, owners);
+    paintPayBreakdown(null, owners, assigned);
     const active = () => state === scope && edit === editor && editor.payPreview === request;
     window.setTimeout(async () => {
       if (!active()) return;
@@ -868,7 +900,14 @@ const fleetDispatchApp = (() => {
     byId('dispatchFuelForm').addEventListener('submit', saveFuelRate);
   }
 
-  form.addEventListener('input', markEdited);
+  form.addEventListener('input', event => {
+    const name = event.target.name;
+    const slot = name === 'driver1' ? 1
+      : name === 'driver2' || (name === 'secondDriverMode' && event.target.value !== 'assigned') ? 2 : null;
+    const additionalPay = slot && form.elements.namedItem('driver' + slot + 'AdditionalPay');
+    if (additionalPay) additionalPay.value = '';
+    markEdited();
+  });
   form.addEventListener('invalid', event => {
     const panel = event.target.closest('details');
     if (panel) panel.open = true;
