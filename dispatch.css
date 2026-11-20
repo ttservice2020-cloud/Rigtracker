@@ -1,0 +1,53 @@
+.dispatch-workspace{display:grid;grid-template-columns:minmax(155px,230px) minmax(0,1fr);gap:16px;align-items:start}
+.dispatch-rail{position:sticky;top:12px;min-width:0;max-height:calc(100vh - 24px);overflow:auto;margin:0;padding:12px}
+.dispatch-rail h2{font-size:18px;margin-bottom:10px}
+.dispatch-rail-list,.dispatch-load-list{display:grid;gap:8px}
+.dispatch-rail-list button{display:grid;gap:3px;width:100%;text-align:left;padding:8px;border:1px solid #2b4059;border-radius:8px;background:#0e1927;color:var(--white);overflow-wrap:anywhere}
+.dispatch-rail-list button:hover,.dispatch-rail-list button:focus-visible{border-color:var(--accent)}
+.dispatch-rail-list small{color:var(--muted);font-size:12px}
+.dispatch-center{min-width:0}
+.dispatch-nav{grid-template-columns:repeat(5,minmax(0,1fr))}
+.dispatch-nav button[aria-selected="true"]{background:#173a58;border-color:#358ce0;color:#edf6ff}
+.dispatch-subheading{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+.dispatch-subheading h2{margin:0}
+.dispatch-panel{margin-top:14px}
+.dispatch-panel .panel{margin:10px 0;padding:14px}
+.dispatch-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.dispatch-fields .field,.dispatch-fields input,.dispatch-fields select,.dispatch-fields textarea{min-width:0}
+.dispatch-fields .field input,.dispatch-fields .field select,.dispatch-fields .field textarea{min-height:42px;padding:8px 10px}
+.dispatch-fields .field label{font-size:14px}
+.dispatch-wide{grid-column:1/-1}
+.dispatch-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.dispatch-actions button{min-height:42px}
+.dispatch-stop{min-width:0;margin:10px 0;padding:12px;border:1px solid #2b4059;border-radius:12px}
+.dispatch-stop legend{padding:0 5px;font-weight:700}
+.dispatch-stop .dispatch-remove{margin-top:10px}
+.dispatch-load-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:8px;padding:10px 12px;background:#0e1927;border:1px solid #263e5b;border-radius:10px}
+.dispatch-load-row p{margin:2px 0;color:var(--muted)}
+.dispatch-load-row strong,.dispatch-load-row p{overflow-wrap:anywhere}
+.dispatch-load-row button{margin:0}
+.dispatch-fields .dispatch-checkbox{display:flex;align-items:center;gap:8px}
+.dispatch-fields .dispatch-checkbox label{margin:0}
+.dispatch-fields .dispatch-checkbox input{order:-1;width:18px;height:18px;min-height:0;margin:0;accent-color:var(--accent)}
+.dispatch-compact{font-size:14px}
+.dispatch-panel details summary{cursor:pointer;font-weight:700}
+.dispatch-panel details[open] summary{margin-bottom:10px}
+@media(max-width:880px){
+ .dispatch-workspace{grid-template-columns:minmax(115px,25%) minmax(0,1fr);gap:10px}
+ .dispatch-nav{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+@media(max-width:580px){
+ .dispatch-workspace{grid-template-columns:minmax(86px,29%) minmax(0,1fr);gap:7px}
+ .dispatch-rail{padding:7px}
+ .dispatch-rail h2{font-size:14px;overflow-wrap:anywhere}
+ .dispatch-rail-list button{padding:6px;font-size:12px}
+ .dispatch-rail-list small{font-size:11px}
+ .dispatch-nav{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .dispatch-nav button{overflow-wrap:anywhere}
+ .dispatch-fields .field label{font-size:13px}
+ .dispatch-panel .panel,.dispatch-stop{padding:9px}
+ .dispatch-fields{grid-template-columns:minmax(0,1fr)}
+ .dispatch-load-row{grid-template-columns:minmax(0,1fr);padding:8px;font-size:13px}
+ .dispatch-actions button{max-width:100%;overflow-wrap:anywhere;padding:7px 9px;font-size:13px}
+ .dispatch-subheading h2{font-size:18px;overflow-wrap:anywhere}
+}
