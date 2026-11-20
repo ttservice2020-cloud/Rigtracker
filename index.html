@@ -215,6 +215,11 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 .fleet-employee-id-control{display:flex;flex-wrap:wrap;gap:8px}
 .fleet-employee-id-control input{flex:1 1 8rem;min-width:0}
 .fleet-employee-id-control button{flex:none}
+.employee-setup-step{border:0;padding:0;margin:0;min-width:0}
+.employee-access-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,10rem),1fr));gap:12px;margin:12px 0}
+.employee-access-list label{display:flex;align-items:center;gap:8px}
+.employee-access-list input{accent-color:var(--accent);width:18px;height:18px;flex:none}
+.employee-setup-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
 #fleetEmployeeTable table{min-width:0}
 @media(max-width:600px){.fleet-account-fields{grid-template-columns:1fr}}
 </style>
@@ -730,8 +735,11 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
      </div>
      <div class="hidden" id="fleetManagement">
       <form class="panel" id="newEmployeeForm" onsubmit="createFleetEmployee(event)">
-       <h2>Create employee profile</h2>
+       <h2 id="employeeSetupHeading">Create Office employee</h2>
+       <fieldset class="employee-setup-step" id="employeeDetailsStep">
        <div class="form-grid fleet-account-fields">
+        <div class="field"><label for="newEmployeeFirstName">First name</label><input id="newEmployeeFirstName" type="text" autocomplete="off" maxlength="100" required></div>
+        <div class="field"><label for="newEmployeeLastName">Last name</label><input id="newEmployeeLastName" type="text" autocomplete="off" maxlength="100" required></div>
         <div class="field">
          <label for="newEmployeeId">Employee ID</label>
          <div class="fleet-employee-id-control">
@@ -742,14 +750,38 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
         </div>
         <div class="field"><label for="newEmployeePassword">Password</label><input id="newEmployeePassword" type="password" autocomplete="new-password" minlength="8" maxlength="72" required></div>
        </div>
+       </fieldset>
+       <fieldset class="employee-setup-step hidden" id="employeeAccessStep" disabled>
+        <div class="field"><label for="newEmployeeOfficeRole">Office role</label><input id="newEmployeeOfficeRole" type="text" autocomplete="off" maxlength="100" placeholder="Dispatcher" required></div>
+        <fieldset class="employee-setup-step">
+         <legend>Access</legend>
+         <div class="employee-access-list">
+          <label><input type="checkbox" name="officePermission" value="dispatch"> Dispatch</label>
+          <label><input type="checkbox" name="officePermission" value="drivers"> Drivers</label>
+          <label><input type="checkbox" name="officePermission" value="assets"> Assets</label>
+          <label><input type="checkbox" name="officePermission" value="messages"> Messages</label>
+          <label><input type="checkbox" name="officePermission" value="hr"> HR</label>
+          <label><input type="checkbox" name="officePermission" value="payroll"> Payroll</label>
+          <label><input type="checkbox" name="officePermission" value="settlements"> Pay Settlements</label>
+          <label><input type="checkbox" name="officePermission" value="hourly"> Hourly Time</label>
+          <label><input type="checkbox" name="officePermission" value="bank_ledger"> Bank Ledger</label>
+          <label><input type="checkbox" name="officePermission" value="payments"> Send Payments</label>
+          <label><input type="checkbox" name="officePermission" value="policies"> Policies</label>
+          <label><input type="checkbox" name="officePermission" value="activity"> Activity Log</label>
+         </div>
+        </fieldset>
+       </fieldset>
        <p>Username <output id="newEmployeeUsername" for="newEmployeeId">—</output></p>
-       <button class="primary-btn" type="submit">Create profile</button>
+       <div class="employee-setup-actions">
+        <button class="outline hidden" id="employeeSetupBack" type="button" onclick="showEmployeeSetupStep(false, true)">Back</button>
+        <button class="primary-btn" id="employeeSetupSubmit" type="submit">Next</button>
+       </div>
       </form>
       <section class="panel">
        <h2>Employee roster</h2>
        <p id="fleetEmployeeStatus" role="status">Loading profiles…</p>
        <div class="table-shell hidden" id="fleetEmployeeTable">
-        <table><thead><tr><th scope="col">Employee ID</th><th scope="col">Username</th></tr></thead><tbody id="fleetEmployeeRows"></tbody></table>
+        <table><thead><tr><th scope="col">Name</th><th scope="col">Employee ID</th><th scope="col">Username</th><th scope="col">Office role</th></tr></thead><tbody id="fleetEmployeeRows"></tbody></table>
        </div>
       </section>
      </div>
@@ -946,6 +978,7 @@ async function signOut(){
   fleetLoadState='loading';
   document.getElementById('fleetSetupForm').reset();
   document.getElementById('newEmployeeForm').reset();
+  showEmployeeSetupStep(false);
   updateEmployeeUsername();
   document.getElementById('fleetEmployeeRows').replaceChildren();
   document.querySelectorAll('.page').forEach(page=>page.classList.remove('active'));
@@ -1501,15 +1534,17 @@ async function loadFleetEmployees(){
  status.textContent='Loading profiles…';
  status.classList.remove('hidden');
  table.classList.add('hidden');
- const {data,error}=await supabaseClient.from('fleet_employees').select('employee_id')
+ const {data,error}=await supabaseClient.from('fleet_employees').select('employee_id,first_name,last_name,office_role')
   .eq('fleet_id',fleetId).order('created_at',{ascending:false}).order('employee_id');
  if(currentUser!==owner||adminFleetId!==fleetId)return;
  if(error){status.textContent='Could not load employee profiles.';return}
  if(!data.length){status.textContent='No employee profiles yet.';return}
- const rows=data.map(({employee_id})=>{
+ const rows=data.map(({employee_id,first_name,last_name,office_role})=>{
   const row=document.createElement('tr');
+  row.insertCell().textContent=[first_name,last_name].filter(Boolean).join(' ')||'—';
   row.insertCell().textContent=employee_id;
   row.insertCell().textContent=fleetId+'-'+employee_id;
+  row.insertCell().textContent=office_role||'—';
   return row;
  });
  document.getElementById('fleetEmployeeRows').replaceChildren(...rows);
@@ -1536,7 +1571,8 @@ async function generateEmployeeId(button){
  try{
   const {data,error}=await supabaseClient.from('fleet_employees').select('employee_id')
    .eq('fleet_id',fleetId).in('employee_id',candidates);
-  if(currentUser!==owner||adminFleetId!==fleetId||input.value!==previousId||submitButton.disabled)return;
+  if(currentUser!==owner||adminFleetId!==fleetId||input.value!==previousId||submitButton.disabled
+   ||document.getElementById('employeeDetailsStep').disabled)return;
   if(error)throw error;
   const usedIds=new Set(data.map(row=>row.employee_id));
   const availableId=candidates.find(id=>!usedIds.has(id));
@@ -1552,6 +1588,18 @@ async function generateEmployeeId(button){
   }
  }finally{button.disabled=false}
 }
+function showEmployeeSetupStep(access,focus=false){
+ const detailsStep=document.getElementById('employeeDetailsStep');
+ const accessStep=document.getElementById('employeeAccessStep');
+ detailsStep.disabled=access;
+ detailsStep.classList.toggle('hidden',access);
+ accessStep.disabled=!access;
+ accessStep.classList.toggle('hidden',!access);
+ document.getElementById('employeeSetupHeading').textContent=access?'Role and access':'Create Office employee';
+ document.getElementById('employeeSetupBack').classList.toggle('hidden',!access);
+ document.getElementById('employeeSetupSubmit').textContent=access?'Submit profile':'Next';
+ if(focus)document.getElementById(access?'newEmployeeOfficeRole':'newEmployeeFirstName').focus();
+}
 async function createFleetEmployee(event){
  event.preventDefault();
  if(!adminFleetId||accountTypeFor(currentUser)!=='fleet'||!currentUser)return;
@@ -1561,22 +1609,43 @@ async function createFleetEmployee(event){
  if(button.disabled)return;
  const employeeId=document.getElementById('newEmployeeId').value;
  const password=document.getElementById('newEmployeePassword').value;
+ const firstName=document.getElementById('newEmployeeFirstName').value.trim();
+ const lastName=document.getElementById('newEmployeeLastName').value.trim();
+ if(!firstName||!lastName){showToast('Enter the employee’s first and last name.');return}
  if(!/^[0-9]{1,6}$/.test(employeeId)){showToast('Use 1–6 digits for the Employee ID.');return}
  if(new TextEncoder().encode(password).length>72){showToast('Choose a shorter password.');return}
+ if(document.getElementById('employeeAccessStep').disabled){
+  showEmployeeSetupStep(true,true);
+  return;
+ }
+ const officeRole=document.getElementById('newEmployeeOfficeRole').value.trim();
+ if(!officeRole){showToast('Enter an Office role.');return}
+ const permissions=Array.from(form.querySelectorAll('[name="officePermission"]:checked'),input=>input.value);
+ const backButton=document.getElementById('employeeSetupBack');
  button.disabled=true;
+ backButton.disabled=true;
  try{
-  const {data,error}=await supabaseClient.functions.invoke('create-fleet-employee',{body:{employeeId,password}});
+  const {data,error}=await supabaseClient.functions.invoke('create-fleet-employee',{
+   body:{employeeId,password,firstName,lastName,officeRole,permissions}
+  });
   if(currentUser!==owner)return;
   if(error){
    const serverError=await error.context?.json?.().catch(()=>null);
-   if(currentUser===owner)showToast(serverError?.message||'Could not create the profile. Try again.');
+   if(currentUser===owner){
+    if(error.context?.status===409)showEmployeeSetupStep(false,true);
+    showToast(serverError?.message||'Could not create the profile. Try again.');
+   }
    return;
   }
   form.reset();
+  showEmployeeSetupStep(false);
   updateEmployeeUsername();
   showToast('Employee account created for '+data.username+'.');
   await loadFleetSectionData();
- }finally{button.disabled=false}
+ }finally{
+  backButton.disabled=false;
+  button.disabled=false;
+ }
 }
 async function loadEmployeeAccount(){
  const employee=currentUser;
