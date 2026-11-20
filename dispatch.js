@@ -81,6 +81,13 @@ const fleetDispatchApp = (() => {
       .filter(Boolean).join(' / ');
   }
 
+  function lastContractAssignment(contract) {
+    return state.loads.reduce((last, load) => {
+      if (load.contract_load_id !== contract.id || !load.assigned_at) return last;
+      return !last || load.assigned_at > last.assigned_at ? load : last;
+    }, null);
+  }
+
   function deliverySchedule(load) {
     const stop = load.details.receivers?.[0];
     if (!stop) return '';
@@ -102,7 +109,11 @@ const fleetDispatchApp = (() => {
     const row = element('article', '', 'dispatch-load-row');
     const info = element('div');
     info.append(element('strong', proLabel(load.pro_number)));
-    const label = [route(load), loadDrivers(load)].filter(Boolean).join(' · ');
+    const lastRun = load.status === 'contract' ? lastContractAssignment(load) : null;
+    const drivers = loadDrivers(lastRun || load);
+    const driverLabel = load.status === 'contract' && drivers
+      ? (lastRun ? 'Last assigned: ' : 'Saved driver: ') + drivers : drivers;
+    const label = [route(load), driverLabel].filter(Boolean).join(' · ');
     if (label) info.append(element('p', label));
     const schedule = deliverySchedule(load);
     if (schedule) info.append(element('p', schedule));
@@ -343,17 +354,21 @@ const fleetDispatchApp = (() => {
 
   function installEditor(row = null, fromContract = false) {
     const data = row?.details ?? {};
-    edit = { row: fromContract ? null : row, id: fromContract ? null : row?.id, pro: fromContract ? null : row?.pro_number };
+    edit = {
+      row: fromContract ? null : row,
+      id: fromContract ? null : row?.id,
+      pro: fromContract ? null : row?.pro_number,
+      contractId: fromContract ? row.id : row?.contract_load_id
+    };
     form.reset();
     for (const key of formDetails) {
       if (typeof data[key] === 'string') form.elements[key].value = data[key];
     }
-    const driver1 = fromContract ? '' : row?.driver_id ?? '';
-    const driver2 = fromContract ? '' : row?.second_driver_id ?? '';
-    form.elements.driver1.value = driver1;
-    form.elements.driver2.value = driver2;
-    if (fromContract) form.elements.secondDriverMode.value = 'none';
-    else if (driver2) form.elements.secondDriverMode.value = 'assigned';
+    const assignment = fromContract ? lastContractAssignment(row) || row : row;
+    form.elements.driver1.value = assignment?.driver_id ?? '';
+    form.elements.driver2.value = assignment?.second_driver_id ?? '';
+    form.elements.secondDriverMode.value = assignment?.second_driver_id ? 'assigned'
+      : assignment?.details?.secondDriverMode === 'unknown' ? 'unknown' : 'none';
     for (const [kind, source] of [['pickup', data.pickups], ['receiver', data.receivers]]) {
       stops[kind].replaceChildren();
       for (const stop of source?.length ? source : [{}]) addStop(kind, stop);
@@ -447,8 +462,9 @@ const fleetDispatchApp = (() => {
       if (!number || state !== scope || edit !== draft) return;
       const payload = {
         details, status,
-        driver_id: status === 'contract' ? null : driver1,
-        second_driver_id: status === 'contract' ? null : driver2
+        driver_id: driver1,
+        second_driver_id: driver2,
+        contract_load_id: status === 'contract' ? null : draft.contractId || null
       };
       let result;
       if (draft.row) {
