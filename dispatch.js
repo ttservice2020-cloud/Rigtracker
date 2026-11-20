@@ -6,7 +6,7 @@ const fleetDispatchApp = (() => {
   const tabs = [...byId('dispatchTabs').querySelectorAll('[role=tab]')];
   const stops = { pickup: byId('dispatchPickups'), receiver: byId('dispatchReceivers') };
   const formDetails = [
-    'secondDriverMode', 'commodity', 'commodityOther', 'weightLbs', 'equipmentType', 'equipmentTypeOther',
+    'secondDriverMode', 'routeNumber', 'pickupNumber', 'commodity', 'commodityOther', 'weightLbs', 'equipmentType', 'equipmentTypeOther',
     'trailerDrop', 'trailerDropNotes', 'trailerPickup', 'trailerPickupNotes',
     'payGross', 'driver1AdditionalPay', 'driver2AdditionalPay', 'loadedMiles', 'relayLocation', 'relayDate', 'relayDrop',
     'relayPickup', 'firstLegMiles', 'driver1Pay', 'driver2Pay', 'emptyMiles', 'emptyRate', 'stopPay'
@@ -33,6 +33,10 @@ const fleetDispatchApp = (() => {
   let edit;
   let stopId = 0;
   let selectedTab = 'current';
+  let progressView;
+  const progressEnabled = typeof dispatchProgress !== 'undefined' && Boolean(byId('dispatchLoadDetail'));
+  const militaryTime = value => progressEnabled ? dispatchProgress.time(value) : value;
+  const militaryPattern = '(?:[01][0-9]|2[0-3]):?[0-5][0-9]';
 
   function element(tag, text, className) {
     const node = document.createElement(tag);
@@ -48,13 +52,14 @@ const fleetDispatchApp = (() => {
     return node;
   }
 
-  function selectTab(tab, focus = false) {
+  function selectTab(tab, focus = false, showDetail = false) {
     selectedTab = tab;
+    if (!showDetail) progressView?.close();
     for (const node of tabs) {
       const selected = node.dataset.dispatchTab === tab;
       node.setAttribute('aria-selected', String(selected));
       node.tabIndex = selected ? 0 : -1;
-      toggle(node.getAttribute('aria-controls'), selected);
+      toggle(node.getAttribute('aria-controls'), selected && !showDetail);
       if (selected && focus) node.focus();
     }
   }
@@ -105,12 +110,12 @@ const fleetDispatchApp = (() => {
     if (!stop) return '';
     const location = cityState(stop);
     const zone = zones.find(([value]) => value === stop.zone)?.[1];
-    const schedule = [stop.date, stop.from, zone].filter(Boolean).join(' ');
+    const schedule = [stop.date, militaryTime(stop.from), zone].filter(Boolean).join(' ');
     return [location && 'Delivery: ' + location, schedule].filter(Boolean).join(' · ');
   }
 
   function matchesLoad(load, search) {
-    const words = [proLabel(load.pro_number), loadDrivers(load)];
+    const words = [proLabel(load.pro_number), loadDrivers(load), getRouteNumber(load), load.details.pickupNumber];
     for (const stop of [...(load.details.pickups || []), ...(load.details.receivers || [])]) {
       words.push(stop.company, stop.address, cityState(stop), stop.zip);
     }
@@ -120,12 +125,14 @@ const fleetDispatchApp = (() => {
   function loadRow(load, actionLabel, action) {
     const row = element('article', '', 'dispatch-load-row');
     const info = element('div');
-    info.append(element('strong', proLabel(load.pro_number)));
+    info.append(element('strong', load.status === 'contract'
+      ? 'Route ' + getRouteNumber(load) : proLabel(load.pro_number)));
     const lastRun = load.status === 'contract' ? lastContractAssignment(load) : null;
     const drivers = loadDrivers(lastRun || load);
     const driverLabel = load.status === 'contract' && drivers
       ? (lastRun ? 'Last assigned: ' : 'Saved driver: ') + drivers : drivers;
-    const label = [route(load), driverLabel].filter(Boolean).join(' · ');
+    const number = getRouteNumber(load);
+    const label = [load.status !== 'contract' && number && 'Route ' + number, route(load), driverLabel].filter(Boolean).join(' · ');
     if (label) info.append(element('p', label));
     const { commodity, commodityOther, weightLbs, equipmentType, equipmentTypeOther, trailerDrop, trailerPickup } = load.details;
     const weight = Number(weightLbs);
@@ -139,7 +146,10 @@ const fleetDispatchApp = (() => {
     if (freight) info.append(element('p', freight));
     const schedule = deliverySchedule(load);
     if (schedule) info.append(element('p', schedule));
-    row.append(info, button(actionLabel, action));
+    const actions = element('div', '', 'dispatch-actions');
+    actions.append(button(actionLabel, action));
+    if (load.status === 'contract' && progressEnabled) actions.append(button('Route History', () => viewLoad(load)));
+    row.append(info, actions);
     return row;
   }
 
@@ -155,23 +165,38 @@ const fleetDispatchApp = (() => {
       ? (current.length ? current.length + ' active' : 'No current loads')
       : (state.failed ? 'Loads unavailable' : 'Loading loads…');
     byId('dispatchRailList').replaceChildren(...current.map(load => {
-      const row = button('', () => openLoad(load));
+      const row = button('', () => viewLoad(load));
       row.className = '';
+      row.dataset.loadId = load.id;
+      row.setAttribute('aria-current', String(progressView?.id() === load.id));
       row.append(element('strong', proLabel(load.pro_number)));
-      for (const detail of [route(load), loadDrivers(load), deliverySchedule(load)].filter(Boolean)) {
-        row.append(element('small', detail));
+      if (!progressEnabled) {
+        for (const detail of [route(load), loadDrivers(load), deliverySchedule(load)].filter(Boolean)) row.append(element('small', detail));
+        return row;
       }
+      const number = getRouteNumber(load);
+      const { next, status } = dispatchProgress.summarize(load);
+      const arrival = next?.progress.arrivalAt
+        ? 'Arrived · ' + dispatchProgress.recordedTime(next.progress.arrivalAt, next.zone)
+        : next ? 'Next arrival · ' + dispatchProgress.appointment(next) : 'All stops complete';
+      const badge = element('small', status[0], 'dispatch-status');
+      badge.dataset.tone = status[1];
+      row.dataset.tone = status[1];
+      row.dataset.updated = String(state.updates.has(load.id));
+      row.append(element('small', number ? 'Route ' + number : 'Route not set', 'dispatch-rail-route'),
+        element('small', loadDrivers(load) || 'Driver not assigned'),
+        element('small', arrival, 'dispatch-rail-arrival'), badge);
       return row;
     }));
     byId('dispatchCurrentEmpty').textContent = matching.length || !state.loaded
       ? '' : (search ? 'No active loads match your search.' : 'No active loads.');
-    byId('dispatchCurrentList').replaceChildren(...matching.map(load => loadRow(load, 'Open', () => openLoad(load))));
+    byId('dispatchCurrentList').replaceChildren(...matching.map(load => loadRow(load, 'Open', () => viewLoad(load))));
     toggle('dispatchDraftSection', drafts.length > 0);
     byId('dispatchDraftList').replaceChildren(...drafts.map(load => loadRow(load, 'Open Draft', () => openLoad(load))));
     byId('dispatchContractEmpty').textContent = contracts.length || !state.loaded ? '' : 'No contract loads.';
     byId('dispatchContractList').replaceChildren(...contracts.map(load => loadRow(load, 'Use Contract', () => openLoad(load, true))));
     byId('dispatchHistoryEmpty').textContent = history.length || !state.loaded ? '' : 'No completed loads.';
-    byId('dispatchHistoryList').replaceChildren(...history.map(load => loadRow(load, 'View', () => openLoad(load))));
+    byId('dispatchHistoryList').replaceChildren(...history.map(load => loadRow(load, 'View', () => viewLoad(load))));
   }
 
   function paintDrivers() {
@@ -241,13 +266,26 @@ const fleetDispatchApp = (() => {
     if (!scope) return;
     const request = {};
     scope.readRequest = request;
+    const beforeRead = new Map(scope.loads.map(load => [load.id, load]));
     try {
       const [loads, drivers] = await Promise.all([
         readRecords(scope, loadTable, 'updated_at', false),
         readRecords(scope, driverTable, 'name', true)
       ]);
       if (state !== scope || scope.readRequest !== request) return;
-      Object.assign(scope, { loads, drivers, loaded: true, failed: false });
+      const previous = new Map(scope.loads.map(load => [load.id, load]));
+      const visibleLoads = loads.map(load => {
+        const existing = previous.get(load.id);
+        if (existing && revision(existing) > revision(load)) return existing;
+        if (scope.loaded && (!existing || revision(existing) !== revision(load)) && load.status === 'current') pulse(load.id);
+        return load;
+      });
+      const readIds = new Set(visibleLoads.map(load => load.id));
+      for (const load of scope.loads) {
+        if (!readIds.has(load.id) && beforeRead.get(load.id) !== load) visibleLoads.push(load);
+      }
+      visibleLoads.sort((a, b) => revision(b) - revision(a));
+      Object.assign(scope, { loads: visibleLoads, drivers, loaded: true, failed: false });
       toggle('dispatchReadError', false);
     } catch (error) {
       if (state !== scope || scope.readRequest !== request) return;
@@ -256,6 +294,7 @@ const fleetDispatchApp = (() => {
     }
     paintLoads();
     paintDrivers();
+    progressView?.paint();
   }
 
   function addStop(kind, data = {}) {
@@ -265,6 +304,7 @@ const fleetDispatchApp = (() => {
       return;
     }
     const group = element('fieldset', '', 'dispatch-stop');
+    group.dataset.stopId = data.stopId || crypto.randomUUID();
     const fields = element('div', '', 'dispatch-fields');
     const prefix = 'dispatch-stop-' + (++stopId) + '-';
     const field = (key, label, input, { required = false, wide = false } = {}) => {
@@ -292,8 +332,16 @@ const fleetDispatchApp = (() => {
     const zone = element('select');
     zone.append(new Option('Select time zone', ''), ...zones.map(([value, label]) => new Option(label, value)));
     field('zone', 'Time zone', zone, required);
-    field('from', 'From time', input('time'), required);
-    field('to', 'To time (optional)', input('time'));
+    const timeInput = () => {
+      if (!progressEnabled) return input('time');
+      const node = input('text', 5);
+      node.inputMode = 'numeric';
+      node.pattern = militaryPattern;
+      node.placeholder = 'HHMM';
+      return node;
+    };
+    field('from', progressEnabled ? 'From time (HHMM)' : 'From time', timeInput(), required);
+    field('to', progressEnabled ? 'To time (HHMM, optional)' : 'To time (optional)', timeInput());
     field('address', 'Street address', input('text', 180), { required: true, wide: true });
     field('city', 'City', input('text', 80), required);
     const region = input('text', 2);
@@ -327,18 +375,22 @@ const fleetDispatchApp = (() => {
     [...stops[kind].children].forEach((group, index, groups) => {
       const title = kind === 'pickup' ? 'Pickup ' + (index + 1) + ' / Shipper ' : 'Receiver ';
       group.querySelector('legend').textContent = title + (index + 1);
-      group.querySelector('.dispatch-remove').classList.toggle('hidden', groups.length === 1);
+      const recorded = edit?.row?.progress?.stops?.[group.dataset.stopId];
+      group.querySelector('.dispatch-remove').classList.toggle('hidden', groups.length === 1 || Boolean(recorded));
     });
   }
 
   function getStops(kind) {
-    return [...stops[kind].children].map(group => Object.fromEntries(
-      [...group.querySelectorAll('[data-stop-field]')].map(input => {
+    return [...stops[kind].children].map(group => ({
+      stopId: group.dataset.stopId,
+      ...Object.fromEntries([...group.querySelectorAll('[data-stop-field]')].map(input => {
+        const key = input.dataset.stopField;
         let value = input.type === 'checkbox' ? input.checked : input.value.trim();
-        if (input.dataset.stopField === 'state') value = value.toUpperCase();
-        return [input.dataset.stopField, value];
-      })
-    ));
+        if (key === 'state') value = value.toUpperCase();
+        if (key === 'from' || key === 'to') value = militaryTime(value) || value;
+        return [key, value];
+      }))
+    }));
   }
 
   function paintEditor() {
@@ -408,8 +460,15 @@ const fleetDispatchApp = (() => {
       : assignment?.details?.secondDriverMode === 'unknown' ? 'unknown' : 'none';
     for (const [kind, source] of [['pickup', data.pickups], ['receiver', data.receivers]]) {
       stops[kind].replaceChildren();
-      for (const stop of source?.length ? source : [{}]) addStop(kind, stop);
+      (source?.length ? source : [{}]).forEach((stop, index) => addStop(kind, {
+        ...stop, stopId: !fromContract && row ? stop.stopId || kind + '-' + index : null
+      }));
     }
+    if (form.elements.routeNumber) {
+      form.elements.routeNumber.readOnly = Boolean(edit.contractId);
+      if (edit.contractId) form.elements.routeNumber.value = getRouteNumber(getLoad(edit.contractId)) || '';
+    }
+    if (fromContract && form.elements.pickupNumber) form.elements.pickupNumber.value = '';
     for (const details of form.querySelectorAll('details')) {
       details.open = details.id !== 'dispatchFreightDetails' &&
         Boolean(row && [...details.querySelectorAll('input')].some(input => input.value));
@@ -482,6 +541,8 @@ const fleetDispatchApp = (() => {
     for (const key of ['driver1AdditionalPay', 'driver2AdditionalPay']) {
       if (details[key]) details[key] = Number(details[key]).toFixed(2);
     }
+    details.relayDrop = militaryTime(details.relayDrop) || details.relayDrop;
+    details.relayPickup = militaryTime(details.relayPickup) || details.relayPickup;
     details.pickups = getStops('pickup');
     details.receivers = getStops('receiver');
     const driver1 = data.get('driver1') || null;
@@ -506,6 +567,10 @@ const fleetDispatchApp = (() => {
     try {
       const number = await reservePro();
       if (!number || state !== scope || edit !== draft) return;
+      if (status === 'contract') {
+        details.routeNumber ||= 'R-' + number;
+        details.pickupNumber = '';
+      }
       const payload = {
         details, status,
         driver_id: driver1,
@@ -532,7 +597,7 @@ const fleetDispatchApp = (() => {
         return;
       }
       const saved = result.data;
-      scope.loads = [saved, ...scope.loads.filter(load => load.id !== saved.id)];
+      mergeLoad(saved, true);
       const tab = status === 'contract' ? 'contract' : status === 'completed' ? 'history' : 'current';
       const message = status === 'current' ? ' saved to Current Loads.' : status === 'draft' ? ' saved as a draft.'
         : status === 'contract' ? ' saved to Contract Loads.' : ' moved to Load History.';
@@ -543,7 +608,7 @@ const fleetDispatchApp = (() => {
       selectTab(tab, true);
       void refresh();
     } catch (error) {
-      if (state === scope && edit === draft) showToast('Could not save the load. Try again.');
+      if (state === scope && edit === draft) showToast(error.code === '22023' ? error.message : 'Could not save the load. Try again.');
     } finally {
       draft.saving = false;
       if (state === scope && edit === draft) paintEditor();
@@ -938,7 +1003,159 @@ const fleetDispatchApp = (() => {
   byId('dispatchDriverFilter').addEventListener('change', paintDrivers);
   driverForm.addEventListener('submit', addDriver);
 
+  function getLoad(id) {
+    return state?.loads.find(load => load.id === id);
+  }
+
+  function getRouteNumber(load) {
+    if (!load) return '';
+    const contract = load.contract_load_id ? getLoad(load.contract_load_id) : load.status === 'contract' ? load : null;
+    if (contract) return contract.details.routeNumber || 'R-' + contract.pro_number;
+    return load.details.routeNumber || '';
+  }
+
+  function viewLoad(load) {
+    const latest = getLoad(load.id) || load;
+    if (!progressView) {
+      openLoad(latest);
+      return;
+    }
+    const tab = latest.status === 'contract' ? 'contract' : latest.status === 'completed' ? 'history' : 'current';
+    selectTab(tab, false, true);
+    progressView.show(latest.id);
+    paintLoads();
+  }
+
+  function pulse(id) {
+    const scope = state;
+    clearTimeout(scope.updates.get(id));
+    const timer = setTimeout(() => {
+      if (state !== scope || scope.updates.get(id) !== timer) return;
+      scope.updates.delete(id);
+      const row = [...byId('dispatchRailList').children].find(button => button.dataset.loadId === id);
+      if (row) row.dataset.updated = 'false';
+      if (progressView?.id() === id) {
+        byId('dispatchLoadDetail').dataset.updated = 'false';
+        toggle('dispatchLiveUpdate', false);
+      }
+    }, 2800);
+    scope.updates.set(id, timer);
+  }
+
+  function revision(load) {
+    const fractions = /\.([0-9]+)/.exec(load.updated_at)?.[1] || '';
+    return Date.parse(load.updated_at) * 1_000 + Number(fractions.padEnd(6, '0').slice(3, 6));
+  }
+
+  function mergeLoad(load, animate = false) {
+    if (!state || load.fleet_id !== state.fleetId) return false;
+    const existing = getLoad(load.id);
+    if (existing && revision(existing) >= revision(load)) return false;
+    state.loads = [load, ...state.loads.filter(item => item.id !== load.id)];
+    if (animate && (load.status === 'current' || progressView?.id() === load.id)) pulse(load.id);
+    return true;
+  }
+
+  async function recordProgress(load, action, key, instant) {
+    const scope = state;
+    if (!scope) return false;
+    try {
+      const { data, error } = await scope.client.rpc('record_dispatch_progress', {
+        requested_load_id: load.id, expected_updated_at: load.updated_at, requested_action: action,
+        requested_stop_key: key, requested_arrival_at: instant
+      });
+      if (state !== scope) return false;
+      if (error) throw error;
+      if (!data) throw new Error('Missing saved progress');
+      mergeLoad(data, true);
+      paintLoads();
+      paintDrivers();
+      if (action === 'complete') {
+        showToast(proLabel(load.pro_number) + ' moved to Load History.');
+        if (progressView?.id() === load.id) viewLoad(data);
+      }
+      return true;
+    } catch (error) {
+      if (state === scope) {
+        showToast(error.code === '22023' || error.code === '40001' ? error.message : 'Could not record load progress.');
+        if (error.code === '40001') await refresh();
+      }
+      return false;
+    }
+  }
+
+  function visible() {
+    return !document.hidden && Boolean(byId('dispatchWorkspace').getClientRects().length);
+  }
+
+  function updateClock() {
+    if (!progressEnabled || !visible()) return;
+    const now = Date.now();
+    const clock = byId('dispatchClock');
+    clock.textContent = dispatchProgress.clockText(now, undefined, true);
+    clock.dateTime = new Date(now).toISOString();
+    const minute = Math.floor(now / 60_000);
+    if (state?.clockMinute === minute || !state) return;
+    state.clockMinute = minute;
+    for (const row of byId('dispatchRailList').children) {
+      const load = getLoad(row.dataset.loadId);
+      if (!load) continue;
+      const { status } = dispatchProgress.summarize(load, now);
+      const badge = row.querySelector('.dispatch-status');
+      if (badge.textContent !== status[0]) badge.textContent = status[0];
+      badge.dataset.tone = row.dataset.tone = status[1];
+    }
+    const current = getLoad(progressView?.id());
+    if (current && current.status !== 'contract') {
+      const status = dispatchProgress.summarize(current, now).status;
+      const badge = byId('dispatchDetailStatus');
+      if (badge.textContent !== status[0]) badge.textContent = status[0];
+      badge.dataset.tone = status[1];
+    }
+  }
+
+  function watch(scope) {
+    if (!progressEnabled) return;
+    if (typeof scope.client.channel === 'function') {
+      const target = { schema: 'public', table: loadTable, filter: 'fleet_id=eq.' + scope.fleetId };
+      const applied = event => {
+        if (state !== scope || !event.new?.id || !mergeLoad(event.new, scope.loaded && visible())) return;
+        if (!visible()) return;
+        paintLoads();
+        paintDrivers();
+        progressView?.paint();
+      };
+      scope.channel = scope.client.channel('dispatch-loads-' + scope.fleetId)
+        .on('postgres_changes', { ...target, event: 'UPDATE' }, applied)
+        .on('postgres_changes', { ...target, event: 'INSERT' }, applied)
+        .subscribe();
+    }
+    scope.poll = setInterval(() => { if (visible()) void refresh(); }, 30_000);
+    scope.clock = setInterval(updateClock, 1_000);
+  }
+
+  if (progressEnabled) {
+    progressView = dispatchProgress.bind({
+      byId, toggle, element, button, getLoad, getLoads: () => state?.loads || [], getRouteNumber,
+      loadDrivers, proLabel, describeRoute: route, editLoad: load => openLoad(load), back: () => selectTab(selectedTab, true),
+      setProgress: recordProgress, hasUpdate: id => Boolean(state?.updates.has(id))
+    });
+    document.addEventListener('visibilitychange', () => {
+      if (state && visible()) {
+        updateClock();
+        void refresh();
+      }
+    });
+  }
+
   function reset() {
+    if (state) {
+      if (state.channel) void state.client.removeChannel(state.channel);
+      clearInterval(state.poll);
+      clearInterval(state.clock);
+      for (const timer of state.updates.values()) clearTimeout(timer);
+    }
+    progressView?.reset();
     state = null;
     edit = null;
     selectedTab = 'current';
@@ -975,7 +1192,8 @@ const fleetDispatchApp = (() => {
     if (state?.fleetId !== fleetId || state.client !== client) {
       const destination = tab || selectedTab;
       reset();
-      state = { client, fleetId, loads: [], drivers: [], loaded: false, failed: false };
+      state = { client, fleetId, loads: [], drivers: [], updates: new Map(), loaded: false, failed: false };
+      watch(state);
       paintLoads();
       paintDrivers();
       installEditor();
@@ -983,6 +1201,7 @@ const fleetDispatchApp = (() => {
     } else if (tab) {
       selectTab(tab);
     }
+    updateClock();
     return refresh();
   }
 

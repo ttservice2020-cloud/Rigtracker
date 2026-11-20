@@ -215,7 +215,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 #fleetEmployeeTable table{min-width:0}
 @media(max-width:600px){.fleet-account-fields{grid-template-columns:1fr}}
 </style>
-<link rel="stylesheet" href="./dispatch.css?v=driver-pay-1">
+<link rel="stylesheet" href="./dispatch.css?v=progress-1">
 </head>
 <body>
 <header class="brandbar hidden" id="appHeader">
@@ -450,6 +450,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
        <div class="dispatch-rail-list" id="dispatchRailList"></div>
       </aside>
       <div class="dispatch-center">
+       <div class="dispatch-clock"><span>Dispatch clock</span> <time id="dispatchClock" role="timer"></time></div>
        <div class="fleet-dashboard-nav dispatch-nav" id="dispatchTabs" role="tablist" aria-label="Dispatch">
         <button id="dispatch-tab-current" type="button" role="tab" aria-selected="true" aria-controls="dispatch-panel-current" data-dispatch-tab="current">Current Loads</button>
         <button id="dispatch-tab-create" type="button" role="tab" aria-selected="false" aria-controls="dispatch-panel-create" data-dispatch-tab="create" tabindex="-1">Create a Load</button>
@@ -461,6 +462,65 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
         <p role="status">Could not load Dispatch records.</p>
         <button class="outline" type="button" id="dispatchReload">Try again</button>
        </div>
+       <section class="hidden dispatch-panel dispatch-detail" id="dispatchLoadDetail" aria-label="Load Details">
+        <button class="back" id="dispatchDetailBack" type="button">← Back to loads</button>
+        <header class="dispatch-detail-header">
+         <div>
+          <div class="dispatch-detail-title"><h2 id="dispatchDetailPro" tabindex="-1"></h2><span class="dispatch-status" id="dispatchDetailStatus"></span></div>
+          <p class="muted" id="dispatchDetailRoute"></p>
+         </div>
+         <div class="dispatch-actions">
+          <button class="outline" id="dispatchDetailEdit" type="button">Edit Load</button>
+          <button class="outline" id="dispatchDetailComplete" type="button">Mark Completed</button>
+         </div>
+        </header>
+        <p role="status" id="dispatchLiveUpdate" class="dispatch-live-update hidden">Load updated</p>
+        <dl class="panel dispatch-detail-facts" id="dispatchDetailAssignment"></dl>
+        <section class="panel" id="dispatchDetailProgress">
+         <h3>Current Load Progress</h3>
+         <ol id="dispatchMilestones" class="dispatch-milestones"></ol>
+         <button class="outline hidden" id="dispatchDetailStart" type="button">Start Toward Pickup</button>
+         <div id="dispatchDetailArrival">
+          <div class="dispatch-arrival-header">
+           <div><h3 id="dispatchArrivalHeading"></h3><p id="dispatchArrivalNote" class="muted"></p></div>
+           <div class="dispatch-actions">
+            <button class="primary-btn" id="dispatchArrivedNow" type="button">Arrived Now</button>
+            <button class="outline" id="dispatchManualArrival" type="button">Enter Time Manually</button>
+            <button class="outline" id="dispatchFinishStop" type="button">Complete Stop</button>
+           </div>
+          </div>
+         </div>
+         <form class="hidden dispatch-arrival-form" id="dispatchArrivalForm">
+          <h3 id="dispatchArrivalFormHeading"></h3>
+          <div class="dispatch-fields">
+           <div class="field"><label for="dispatchArrivalDate">Arrival date</label><input id="dispatchArrivalDate" name="date" type="date" required></div>
+           <div class="field"><label id="dispatchArrivalTimeLabel" for="dispatchArrivalTime">Arrival time (HHMM)</label><input id="dispatchArrivalTime" name="time" inputmode="numeric" maxlength="5" pattern="(?:[01][0-9]|2[0-3]):?[0-5][0-9]" placeholder="HHMM" required></div>
+          </div>
+          <p role="alert" class="hidden" id="dispatchArrivalError">Enter a valid local arrival time at or before the current time.</p>
+          <div class="dispatch-actions">
+           <button class="outline" id="dispatchArrivalCancel" type="button">Cancel</button>
+           <button class="primary-btn" type="submit">Record Arrival</button>
+          </div>
+         </form>
+        </section>
+        <div class="dispatch-detail-grid">
+         <section class="panel">
+          <h3>Stops</h3>
+          <ol id="dispatchDetailStops" class="dispatch-detail-stops"></ol>
+         </section>
+         <section class="panel">
+          <h3>Freight Details</h3>
+          <dl id="dispatchDetailFreight" class="dispatch-detail-facts"></dl>
+         </section>
+        </div>
+        <section class="panel hidden" id="dispatchDetailHistory">
+         <h3>Route History</h3>
+         <p class="muted" id="dispatchHistoryRoute"></p>
+         <div class="field dispatch-history-filter"><label for="dispatchHistoryDate">Run date</label><select id="dispatchHistoryDate"></select></div>
+         <ol class="dispatch-contract-runs" id="dispatchContractRuns"></ol>
+         <p class="muted hidden" id="dispatchContractRunsEmpty">No completed runs for this contract yet.</p>
+        </section>
+       </section>
        <section id="dispatch-panel-current" class="dispatch-panel" role="tabpanel" aria-labelledby="dispatch-tab-current" tabindex="0">
         <div class="field"><label for="dispatchLoadSearch">Search loads</label><input id="dispatchLoadSearch" type="search" placeholder="PRO, driver, or location"></div>
         <section class="panel">
@@ -488,6 +548,10 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
            <div class="field"><label for="dispatchSecondDriverMode">Second driver</label><select id="dispatchSecondDriverMode" name="secondDriverMode"><option value="none">No second driver</option><option value="unknown">Assign later</option><option value="assigned">Choose Driver 2</option></select></div>
            <div class="field hidden" id="dispatchDriver2Field"><label for="dispatchDriver2">Driver 2</label><select id="dispatchDriver2" name="driver2"><option value="">Select a driver</option></select></div>
           </div>
+          <div class="dispatch-fields">
+           <div class="field"><label for="dispatchRouteNumber">Route number (optional)</label><input id="dispatchRouteNumber" name="routeNumber" maxlength="40" autocapitalize="characters"></div>
+           <div class="field"><label for="dispatchPickupNumber">Pickup number (optional)</label><input id="dispatchPickupNumber" name="pickupNumber" maxlength="60"></div>
+          </div>
           <div id="dispatchPickups"></div>
           <div class="dispatch-actions"><button class="outline" type="button" data-dispatch-add-stop="pickup">Add another shipper</button></div>
           <div id="dispatchReceivers"></div>
@@ -500,8 +564,8 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
            <div class="dispatch-fields">
             <div class="field"><label for="dispatchRelayLocation">Relay location</label><input id="dispatchRelayLocation" name="relayLocation" maxlength="180"></div>
             <div class="field"><label for="dispatchRelayDate">Relay date</label><input id="dispatchRelayDate" name="relayDate" type="date"></div>
-            <div class="field"><label for="dispatchRelayDrop">Driver 1 drop time</label><input id="dispatchRelayDrop" name="relayDrop" type="time"></div>
-            <div class="field"><label for="dispatchRelayPickup">Driver 2 pickup time</label><input id="dispatchRelayPickup" name="relayPickup" type="time"></div>
+            <div class="field"><label for="dispatchRelayDrop">Driver 1 drop time (HHMM)</label><input id="dispatchRelayDrop" name="relayDrop" inputmode="numeric" maxlength="5" pattern="(?:[01][0-9]|2[0-3]):?[0-5][0-9]" placeholder="HHMM"></div>
+            <div class="field"><label for="dispatchRelayPickup">Driver 2 pickup time (HHMM)</label><input id="dispatchRelayPickup" name="relayPickup" inputmode="numeric" maxlength="5" pattern="(?:[01][0-9]|2[0-3]):?[0-5][0-9]" placeholder="HHMM"></div>
             <div class="field"><label for="dispatchFirstLegMiles">Driver 1 leg miles</label><input id="dispatchFirstLegMiles" name="firstLegMiles" type="number" min="0" step="0.1" inputmode="decimal"></div>
            </div>
            <p id="dispatchLegAllocation" class="muted dispatch-compact" role="status"></p>
@@ -692,7 +756,8 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 <div id="toast" class="hidden" role="status"></div>
 <div id="modal"><div class="modal-card"><h2 id="modalTitle"></h2><div id="modalBody"></div><button class="primary-btn" onclick="closeModal()">Close</button></div></div>
 
-<script src="./dispatch.js?v=additional-pay-1"></script>
+<script src="./dispatch-progress.js?v=progress-1"></script>
+<script src="./dispatch.js?v=progress-1"></script>
 <script>
 const SUPABASE_URL = 'https://pxxikzzfrcncwufpzdfp.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_7yQMjUtCtnHC6jgRF4ROLA_CmgsHaZo';

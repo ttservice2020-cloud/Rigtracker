@@ -62,3 +62,60 @@
 
 #dispatchDriverPay button[aria-pressed="true"]{background:#173a58;border-color:#70b7ff}
 #dispatchDriverPay button:disabled{opacity:.55;cursor:default}
+
+.dispatch-clock{display:flex;flex-wrap:wrap;align-items:baseline;gap:7px;margin-bottom:8px;color:var(--muted);font-size:13px}
+.dispatch-clock time{color:#9dceff;font-weight:700;font-variant-numeric:tabular-nums}
+.dispatch-rail-list button[data-tone="warning"]{border-color:#926434;background:#252018}
+.dispatch-rail-list button[data-tone="late"]{border-color:#ad4c5b;background:#2c1820}
+.dispatch-rail-list button[data-updated="true"],.dispatch-detail[data-updated="true"] .dispatch-live-update{
+ animation:dispatch-update-sweep 1.7s ease-out 1;
+ background-image:linear-gradient(105deg,transparent 35%,#3888ff46 51%,transparent 67%);
+ background-size:300% 100%;background-position:100% 0
+}
+@keyframes dispatch-update-sweep{from{background-position:0 0}to{background-position:100% 0}}
+@media(prefers-reduced-motion:reduce){
+ .dispatch-rail-list button[data-updated="true"],.dispatch-detail[data-updated="true"] .dispatch-live-update{animation:none;background-image:none}
+}
+.dispatch-status{display:inline-flex;width:fit-content;max-width:100%;padding:3px 8px;border-radius:20px;background:#1a3453;color:#b6dcff;font-size:12px;font-weight:700}
+.dispatch-status[data-tone="assigned"]{background:#263246;color:#c7d4e6}
+.dispatch-status[data-tone="warning"]{background:#483318;color:#ffda96}
+.dispatch-status[data-tone="late"]{background:#55262d;color:#ffc7cd}
+.dispatch-rail-list small.dispatch-status{color:#b6dcff}
+.dispatch-rail-list small[data-tone="assigned"]{color:#c7d4e6}
+.dispatch-rail-list small[data-tone="warning"]{color:#ffda96}
+.dispatch-rail-list small[data-tone="late"]{color:#ffc7cd}
+.dispatch-rail-list button[aria-current="true"]{box-shadow:inset 2px 0 #569bfa}
+.dispatch-rail-route{color:#a5d0ff!important}
+.dispatch-rail-arrival{font-variant-numeric:tabular-nums}
+.dispatch-detail-header,.dispatch-detail-title,.dispatch-arrival-header{display:flex;align-items:center;flex-wrap:wrap;gap:8px}
+.dispatch-detail-header,.dispatch-arrival-header{justify-content:space-between}
+.dispatch-detail-header h2,.dispatch-arrival-header h3{margin:0}
+.dispatch-detail p{margin:4px 0}
+.dispatch-live-update{padding:7px 10px;background-color:#152a45;color:#b7dcff;border-left:2px solid #529bff;font-size:13px}
+.dispatch-detail-facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(125px,100%),1fr));gap:8px;margin:0}
+.dispatch-detail-facts dt{color:var(--muted);font-size:13px}
+.dispatch-detail-facts dd{margin:0;overflow-wrap:anywhere;font-weight:700}
+.dispatch-detail-grid{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:10px}
+.dispatch-detail-grid>section{min-width:0}
+.dispatch-milestones{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));list-style:none;gap:7px;padding:0;margin:12px 0 16px}
+.dispatch-milestones li{display:grid;justify-items:center;align-content:start;position:relative;min-width:0;gap:4px;text-align:center;font-size:12px;color:var(--muted)}
+.dispatch-milestones li:not(:last-child)::after{content:"";position:absolute;height:1px;top:12px;left:calc(50% + 14px);right:calc(-50% + 6px);background:#38516d}
+.dispatch-milestones li span{width:25px;height:25px;display:grid;place-items:center;border:1px solid #476483;border-radius:50%;background:#101824}
+.dispatch-milestones li[data-phase="done"] span,.dispatch-milestones li[aria-current="step"] span{background:#174780;border-color:#5a9bef;color:#edf7ff}
+.dispatch-milestones li[aria-current="step"]{color:#acd6ff}
+.dispatch-milestones li[aria-current="step"] span{background:#1e68bd;box-shadow:0 0 0 3px #358cff40}
+.dispatch-arrival-header,.dispatch-arrival-form{border-top:1px solid #2b4059;padding-top:10px;margin-top:10px}
+.dispatch-arrival-header .dispatch-actions{margin-top:0}
+.dispatch-arrival-form [role="alert"]{color:#ffc7cd}
+.dispatch-detail-stops,.dispatch-contract-runs{list-style:none;margin:0;padding:0}
+.dispatch-detail-stop,.dispatch-history-run{display:grid;gap:3px;padding:8px 0;overflow-wrap:anywhere}
+.dispatch-detail-stop+.dispatch-detail-stop,.dispatch-history-run+.dispatch-history-run{border-top:1px solid #2b4059}
+.dispatch-detail-stop[data-stop-state="next"]>small:first-child{color:#a6d2ff}
+.dispatch-detail-stop>.outline,.dispatch-history-run>.outline{justify-self:start}
+.dispatch-load-row .dispatch-actions{margin:0}
+@container dispatch (max-width:530px){
+ .dispatch-detail-grid{grid-template-columns:minmax(0,1fr)}
+ .dispatch-milestones{grid-template-columns:repeat(3,minmax(0,1fr))}
+ .dispatch-milestones li:nth-child(3)::after{display:none}
+}
+.dispatch-history-filter{max-width:180px;margin:8px 0}
