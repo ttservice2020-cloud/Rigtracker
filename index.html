@@ -196,7 +196,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
    <h2 id="authHeading">Welcome back</h2>
    <div class="role-tabs">
     <button class="role-tab active" data-role="driver" onclick="chooseRole('driver')">Owner Op</button>
-    <button class="role-tab" data-role="company" onclick="chooseRole('company')">Company</button>
+    <button class="role-tab" data-role="company" onclick="chooseRole('company')">Company Driver</button>
     <button class="role-tab" data-role="fleet" onclick="chooseRole('fleet')">Fleet Admin</button>
     <button class="role-tab" data-role="employee" onclick="chooseRole('employee')">Employee</button>
     <button class="role-tab" data-role="mechanic" onclick="chooseRole('mechanic')">Mechanic</button>
@@ -430,7 +430,7 @@ function accountTypeFor(user){
  if(trustedType==='fleet_employee')return 'employee';
  return (trustedType||user?.user_metadata?.account_type)==='fleet'?'fleet':'driver';
 }
-const accountLabels={driver:'Owner Op',company:'Company',fleet:'Fleet Admin',employee:'Employee',mechanic:'Mechanic'};
+const accountLabels={driver:'Owner Op',company:'Company Driver',fleet:'Fleet Admin',employee:'Employee',mechanic:'Mechanic'};
 const pendingSignInRoles=new Set(['company','mechanic']);
 let adminFleetId=null;
 let authBusy=false;
