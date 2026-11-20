@@ -211,6 +211,7 @@ const fleetDispatchApp = (() => {
     }
     const rows = [];
     for (const driver of state.drivers) {
+      if (driver.link_active === false) continue;
       const active = assignments.get(driver.id);
       const availability = active ? 'assigned' : driver.availability;
       if (filter && filter !== availability) continue;
@@ -234,18 +235,26 @@ const fleetDispatchApp = (() => {
       rows.push(row);
     }
     byId('dispatchDriversEmpty').textContent = rows.length || !state.loaded ? ''
-      : (state.drivers.length ? 'No drivers match this filter.' : 'No drivers yet. Add a driver to assign a load.');
+      : (state.drivers.some(driver => driver.link_active !== false)
+        ? 'No drivers match this filter.' : 'No drivers yet. Link a driver or add a dispatch entry.');
     byId('dispatchDriversList').replaceChildren(...rows);
 
-    for (const id of ['dispatchDriver1', 'dispatchDriver2']) {
+    paintDriverOptions();
+    paintDriverPay();
+  }
+
+  function paintDriverOptions() {
+    const active = state.drivers.filter(driver => driver.link_active !== false);
+    for (const [id, field] of [['dispatchDriver1', 'driver_id'], ['dispatchDriver2', 'second_driver_id']]) {
       const select = byId(id);
       const value = select.value;
-      const options = state.drivers.map(driver => new Option(driver.name, driver.id));
-      if (value && !state.drivers.some(driver => driver.id === value)) options.push(new Option('Driver unavailable', value));
+      const options = active.map(driver => new Option(driver.name, driver.id));
+      const existingId = edit?.row?.status === 'current' ? edit.row[field] : null;
+      const existing = state.drivers.find(driver => driver.id === existingId && driver.link_active === false);
+      if (existing) options.push(new Option(existing.name + ' (unlinked)', existing.id));
       select.replaceChildren(new Option('Select a driver', ''), ...options);
       select.value = value;
     }
-    paintDriverPay();
   }
 
   async function readRecords(scope, table, sort, ascending) {
@@ -454,6 +463,7 @@ const fleetDispatchApp = (() => {
       else if (typeof data[key] === 'string') field.value = data[key];
     }
     const assignment = fromContract ? lastContractAssignment(row) || row : row;
+    paintDriverOptions();
     form.elements.driver1.value = assignment?.driver_id ?? '';
     form.elements.driver2.value = assignment?.second_driver_id ?? '';
     form.elements.secondDriverMode.value = assignment?.second_driver_id ? 'assigned'
