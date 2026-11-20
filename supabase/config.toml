@@ -3,3 +3,7 @@ project_id = "rigtracker"
 [functions.create-fleet-employee]
 # The function verifies each bearer token with Supabase Auth, then checks fleet ownership.
 verify_jwt = false
+
+[functions.fleet-profile-links]
+# The function authenticates the bearer token and checks fleet ownership.
+verify_jwt = false
