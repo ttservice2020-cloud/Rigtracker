@@ -436,14 +436,6 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
        </div>
       </section>
      </div>
-     <section class="panel">
-      <h2>Recent employee profiles</h2>
-      <p id="fleetDashboardStatus" role="status">Loading your fleet…</p>
-      <button class="outline hidden" id="fleetDashboardRetry" type="button" onclick="loadFleetOverview()">Try again</button>
-      <div class="table-shell hidden" id="fleetDashboardTable">
-       <table><thead><tr><th scope="col">Username</th><th scope="col">Date added</th></tr></thead><tbody id="fleetDashboardRows"></tbody></table>
-      </div>
-     </section>
     </div>
     <div class="hidden" id="fleetDispatch">
      <div class="panel hidden" id="dispatchGate">
@@ -805,7 +797,6 @@ async function signOut(){
   document.getElementById('fleetSetupForm').reset();
   document.getElementById('newEmployeeForm').reset();
   document.getElementById('fleetEmployeeRows').replaceChildren();
-  document.getElementById('fleetDashboardRows').replaceChildren();
   document.querySelectorAll('.page').forEach(page=>page.classList.remove('active'));
   resetSettlementForm();
   document.getElementById('appHeader').classList.add('hidden');
@@ -1227,11 +1218,6 @@ function renderFleetSections(){
  if(dashboard&&(!ready||!hasFleet)){
   document.getElementById('fleetDashboardOnlineCount').textContent=ready?'0':'—';
   document.getElementById('fleetDashboardEmployeeCount').textContent=ready?'0':'—';
-  document.getElementById('fleetDashboardStatus').textContent=ready?'Set your Fleet ID in Fleet Settings to start creating profiles.':
-   fleetLoadState==='error'?'Employee profiles unavailable.':'Loading your fleet…';
-  document.getElementById('fleetDashboardStatus').classList.remove('hidden');
-  document.getElementById('fleetDashboardTable').classList.add('hidden');
-  document.getElementById('fleetDashboardRetry').classList.add('hidden');
  }
  document.getElementById('fleetIdBadge').textContent=hasFleet?'Fleet ID '+adminFleetId:'';
  document.getElementById('fleetSettingsId').textContent=hasFleet?'Fleet ID '+adminFleetId:'';
@@ -1247,7 +1233,7 @@ function showFleetSection(section,dispatchTab='current'){
 function loadFleetSectionData(dispatchTab){
  if(fleetSection==='dispatch')return fleetDispatchApp.open(supabaseClient,adminFleetId,fleetLoadState,dispatchTab);
  if(fleetLoadState!=='ready'||!adminFleetId)return;
- if(fleetSection==='dashboard')return Promise.all([loadFleetOverview(),loadFleetOnlineCount()]);
+ if(fleetSection==='dashboard')return Promise.all([loadFleetEmployeeCount(),loadFleetOnlineCount()]);
  if(fleetSection==='profiles')return loadFleetEmployees();
 }
 async function loadFleetAdmin(useSignupId=false){
@@ -1344,41 +1330,17 @@ async function loadFleetOnlineCount(){
   document.getElementById('fleetDashboardOnlineCount').textContent=Number.isInteger(count)?String(count):'—';
  }
 }
-async function loadFleetOverview(){
+async function loadFleetEmployeeCount(){
  const owner=currentUser;
  const fleetId=adminFleetId;
  if(!owner||!fleetId||fleetLoadState!=='ready')return;
  const request=++fleetOverviewRequest;
  const countField=document.getElementById('fleetDashboardEmployeeCount');
- const status=document.getElementById('fleetDashboardStatus');
- const retry=document.getElementById('fleetDashboardRetry');
- const table=document.getElementById('fleetDashboardTable');
  countField.textContent='—';
- status.textContent='Loading employee profiles…';
- status.classList.remove('hidden');
- retry.classList.add('hidden');
- table.classList.add('hidden');
- const {data,count,error}=await supabaseClient.from('fleet_employees')
-  .select('employee_id,created_at',{count:'exact'}).eq('fleet_id',fleetId)
-  .order('created_at',{ascending:false}).order('employee_id').limit(5);
+ const {count,error}=await supabaseClient.from('fleet_employees')
+  .select('employee_id',{count:'exact',head:true}).eq('fleet_id',fleetId);
  if(currentUser!==owner||adminFleetId!==fleetId||request!==fleetOverviewRequest)return;
- if(error){
-  status.textContent='Could not load employee profiles.';
-  retry.classList.remove('hidden');
-  return;
- }
- countField.textContent=String(count);
- if(!data.length){status.textContent='No employee profiles yet.';return}
- const dateFormat=new Intl.DateTimeFormat(undefined,{dateStyle:'medium'});
- const rows=data.map(({employee_id,created_at})=>{
-  const row=document.createElement('tr');
-  row.insertCell().textContent=fleetId+'-'+employee_id;
-  row.insertCell().textContent=dateFormat.format(new Date(created_at));
-  return row;
- });
- document.getElementById('fleetDashboardRows').replaceChildren(...rows);
- status.classList.add('hidden');
- table.classList.remove('hidden');
+ if(!error&&Number.isInteger(count))countField.textContent=String(count);
 }
 async function loadFleetEmployees(){
  const owner=currentUser;
