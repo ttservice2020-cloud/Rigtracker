@@ -172,8 +172,28 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 }
 .fleet-account-page{max-width:880px;margin:0 auto}
 .fleet-account-page form button{margin-top:14px}
-.fleet-dashboard-nav{display:flex;flex-wrap:wrap;gap:12px}
-.fleet-dashboard-nav button{min-height:48px}
+.fleet-workspace{max-width:1180px;margin:0 auto}
+.fleet-dashboard-layout{display:grid;grid-template-columns:minmax(176px,220px) minmax(0,1fr);gap:24px;align-items:start}
+.fleet-dashboard-nav{display:grid;gap:6px;padding:10px;background:#101824;border:1px solid #263e5b;border-radius:16px}
+.fleet-dashboard-nav button{min-width:0;min-height:48px;padding:12px;color:var(--white);background:none;border:1px solid transparent;border-radius:9px;text-align:left;font-weight:700}
+.fleet-dashboard-nav button:hover{background:#14263b}
+.fleet-dashboard-nav button[aria-current="page"]{background:#173a58;border-color:#358ce0;color:#edf6ff}
+.fleet-dashboard-nav button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.fleet-dashboard-content{min-width:0}
+.fleet-dashboard-content .page-head{margin-top:0}
+.fleet-dashboard-content .page-head h1{margin-top:0}
+.fleet-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.fleet-summary h2{margin:0;font-size:16px;color:var(--muted)}
+.fleet-summary-value{margin:8px 0 0;font-size:clamp(21px,3vw,30px);font-weight:800;overflow-wrap:anywhere}
+.fleet-dashboard-content .table-shell table{min-width:0}
+.fleet-dashboard-content .table-shell th,.fleet-dashboard-content .table-shell td{white-space:normal;overflow-wrap:anywhere}
+@media(max-width:700px){
+ .fleet-dashboard-layout{grid-template-columns:minmax(0,1fr);gap:18px}
+ .fleet-dashboard-nav{grid-template-columns:repeat(3,minmax(0,1fr));padding:6px}
+ .fleet-dashboard-nav button{padding:8px 4px;text-align:center;font-size:clamp(13px,3.4vw,16px)}
+ .fleet-summary{gap:10px}
+ .fleet-summary .card{padding:14px}
+}
 .fleet-account-fields{grid-template-columns:repeat(2,minmax(0,1fr));margin-top:18px}
 #fleetEmployeeTable table{min-width:0}
 @media(max-width:600px){.fleet-account-fields{grid-template-columns:1fr}}
@@ -345,54 +365,76 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
   <footer>Record keeping only. No tax estimates.</footer>
  </section>
 
- <section id="fleetWorkspace" class="page fleet-account-page">
-  <div class="page-head">
-   <div>
-    <button class="back hidden" id="fleetDashboardBack" type="button" onclick="showFleetSection('dashboard')">← Back to Fleet Admin</button>
-    <h1 id="fleetPageTitle">Fleet Admin Dashboard</h1>
-   </div>
-   <div class="tag hidden" id="fleetIdBadge"></div>
-  </div>
-  <nav class="fleet-dashboard-nav" id="fleetDashboard" aria-label="Fleet Admin">
-   <button class="primary-btn" type="button" onclick="showFleetSection('profiles')">Employee Profiles</button>
-   <button class="outline" type="button" onclick="showFleetSection('settings')">Fleet Settings</button>
-  </nav>
-  <div class="panel hidden" id="fleetLoading" role="status">Loading your fleet…</div>
-  <div class="panel hidden" id="fleetUnavailable">
-   <p role="status">Could not load your fleet.</p>
-   <button class="outline" type="button" onclick="loadFleetAdmin()">Try again</button>
-  </div>
-  <div class="hidden" id="fleetSettings">
-   <div class="panel hidden" id="fleetSettingsSaved"><p id="fleetSettingsId"></p></div>
-   <form class="panel hidden" id="fleetSetupForm" onsubmit="saveFleetId(event)">
-    <h2>Set your Fleet ID</h2>
-    <p>This ID is the first part of every employee username.</p>
-    <div class="field"><label for="setupFleetId">Fleet ID</label><input id="setupFleetId" required maxlength="20" pattern="[A-Za-z0-9]{1,20}" autocapitalize="none" placeholder="tts"></div>
-    <button class="primary-btn" type="submit">Save Fleet ID</button>
-   </form>
-  </div>
-  <div class="hidden" id="fleetProfiles">
-   <div class="panel hidden" id="fleetProfilesNeedsId">
-    <p>Set a Fleet ID before creating an employee profile.</p>
-    <button class="outline" type="button" onclick="showFleetSection('settings')">Open Fleet Settings</button>
-   </div>
-   <div class="hidden" id="fleetManagement">
-    <form class="panel" id="newEmployeeForm" onsubmit="createFleetEmployee(event)">
-     <h2>Create employee profile</h2>
-     <div class="form-grid fleet-account-fields">
-      <div class="field"><label for="newEmployeeId">Employee ID</label><input id="newEmployeeId" type="text" inputmode="numeric" pattern="[0-9]{1,6}" maxlength="6" required aria-describedby="employeeIdHelp" oninput="updateEmployeeUsername()"><small class="muted" id="employeeIdHelp">1–6 digits. Leading zeros are kept.</small></div>
-      <div class="field"><label for="newEmployeePassword">Password</label><input id="newEmployeePassword" type="password" autocomplete="new-password" minlength="8" maxlength="72" required></div>
+ <section id="fleetWorkspace" class="page fleet-workspace">
+  <div class="fleet-dashboard-layout">
+   <nav class="fleet-dashboard-nav" aria-label="Fleet Admin navigation">
+    <button type="button" data-fleet-section="dashboard" aria-current="page" onclick="showFleetSection('dashboard')">Dashboard</button>
+    <button type="button" data-fleet-section="profiles" onclick="showFleetSection('profiles')">Employee Profiles</button>
+    <button type="button" data-fleet-section="settings" onclick="showFleetSection('settings')">Fleet Settings</button>
+   </nav>
+   <div class="fleet-dashboard-content">
+    <div class="page-head">
+     <h1 id="fleetPageTitle">Fleet Admin Dashboard</h1>
+     <div class="tag hidden" id="fleetIdBadge"></div>
+    </div>
+    <div id="fleetDashboard">
+     <div class="fleet-summary">
+      <div class="card">
+       <h2>Fleet ID</h2>
+       <p class="fleet-summary-value" id="fleetDashboardId">—</p>
+      </div>
+      <div class="card">
+       <h2>Employee profiles</h2>
+       <p class="fleet-summary-value" id="fleetDashboardEmployeeCount">—</p>
+      </div>
      </div>
-     <p>Username <output id="newEmployeeUsername" for="newEmployeeId">—</output></p>
-     <button class="primary-btn" type="submit">Create profile</button>
-    </form>
-    <section class="panel">
-     <h2>Employee roster</h2>
-     <p id="fleetEmployeeStatus" role="status">Loading profiles…</p>
-     <div class="table-shell hidden" id="fleetEmployeeTable">
-      <table><thead><tr><th scope="col">Employee ID</th><th scope="col">Username</th></tr></thead><tbody id="fleetEmployeeRows"></tbody></table>
+     <section class="panel">
+      <h2>Recent employee profiles</h2>
+      <p id="fleetDashboardStatus" role="status">Loading your fleet…</p>
+      <button class="outline hidden" id="fleetDashboardRetry" type="button" onclick="loadFleetOverview()">Try again</button>
+      <div class="table-shell hidden" id="fleetDashboardTable">
+       <table><thead><tr><th scope="col">Username</th><th scope="col">Date added</th></tr></thead><tbody id="fleetDashboardRows"></tbody></table>
+      </div>
+     </section>
+    </div>
+    <div class="panel hidden" id="fleetLoading" role="status">Loading your fleet…</div>
+    <div class="panel hidden" id="fleetUnavailable">
+     <p role="status">Could not load your fleet.</p>
+     <button class="outline" type="button" onclick="loadFleetAdmin()">Try again</button>
+    </div>
+    <div class="hidden" id="fleetSettings">
+     <div class="panel hidden" id="fleetSettingsSaved"><p id="fleetSettingsId"></p></div>
+     <form class="panel hidden" id="fleetSetupForm" onsubmit="saveFleetId(event)">
+      <h2>Set your Fleet ID</h2>
+      <p>This ID is the first part of every employee username.</p>
+      <div class="field"><label for="setupFleetId">Fleet ID</label><input id="setupFleetId" required maxlength="20" pattern="[A-Za-z0-9]{1,20}" autocapitalize="none" placeholder="tts"></div>
+      <button class="primary-btn" type="submit">Save Fleet ID</button>
+     </form>
+    </div>
+    <div class="hidden" id="fleetProfiles">
+     <div class="panel hidden" id="fleetProfilesNeedsId">
+      <p>Set a Fleet ID before creating an employee profile.</p>
+      <button class="outline" type="button" onclick="showFleetSection('settings')">Open Fleet Settings</button>
      </div>
-    </section>
+     <div class="hidden" id="fleetManagement">
+      <form class="panel" id="newEmployeeForm" onsubmit="createFleetEmployee(event)">
+       <h2>Create employee profile</h2>
+       <div class="form-grid fleet-account-fields">
+        <div class="field"><label for="newEmployeeId">Employee ID</label><input id="newEmployeeId" type="text" inputmode="numeric" pattern="[0-9]{1,6}" maxlength="6" required aria-describedby="employeeIdHelp" oninput="updateEmployeeUsername()"><small class="muted" id="employeeIdHelp">1–6 digits. Leading zeros are kept.</small></div>
+        <div class="field"><label for="newEmployeePassword">Password</label><input id="newEmployeePassword" type="password" autocomplete="new-password" minlength="8" maxlength="72" required></div>
+       </div>
+       <p>Username <output id="newEmployeeUsername" for="newEmployeeId">—</output></p>
+       <button class="primary-btn" type="submit">Create profile</button>
+      </form>
+      <section class="panel">
+       <h2>Employee roster</h2>
+       <p id="fleetEmployeeStatus" role="status">Loading profiles…</p>
+       <div class="table-shell hidden" id="fleetEmployeeTable">
+        <table><thead><tr><th scope="col">Employee ID</th><th scope="col">Username</th></tr></thead><tbody id="fleetEmployeeRows"></tbody></table>
+       </div>
+      </section>
+     </div>
+    </div>
    </div>
   </div>
  </section>
@@ -454,6 +496,7 @@ const pendingSignInRoles=new Set(['company','mechanic']);
 let adminFleetId=null;
 let fleetSection='dashboard';
 let fleetLoadState='loading';
+let fleetOverviewRequest=0;
 let authBusy=false;
 let signingOut=false;
 
@@ -571,6 +614,7 @@ async function signOut(){
   document.getElementById('fleetSetupForm').reset();
   document.getElementById('newEmployeeForm').reset();
   document.getElementById('fleetEmployeeRows').replaceChildren();
+  document.getElementById('fleetDashboardRows').replaceChildren();
   document.querySelectorAll('.page').forEach(page=>page.classList.remove('active'));
   resetSettlementForm();
   document.getElementById('appHeader').classList.add('hidden');
@@ -942,10 +986,9 @@ function renderFleetSections(){
  const hasFleet=Boolean(adminFleetId);
  const visible={
   fleetDashboard:dashboard,
-  fleetDashboardBack:!dashboard,
-  fleetIdBadge:hasFleet&&fleetSection!=='settings',
+  fleetIdBadge:hasFleet&&fleetSection==='profiles',
   fleetLoading:!dashboard&&fleetLoadState==='loading',
-  fleetUnavailable:!dashboard&&fleetLoadState==='error',
+  fleetUnavailable:fleetLoadState==='error',
   fleetSettings:fleetSection==='settings'&&ready,
   fleetSettingsSaved:hasFleet,
   fleetSetupForm:!hasFleet,
@@ -956,7 +999,20 @@ function renderFleetSections(){
  for(const [id,show] of Object.entries(visible)){
   document.getElementById(id).classList.toggle('hidden',!show);
  }
+ for(const button of document.querySelectorAll('[data-fleet-section]')){
+  if(button.dataset.fleetSection===fleetSection)button.setAttribute('aria-current','page');
+  else button.removeAttribute('aria-current');
+ }
  document.getElementById('fleetPageTitle').textContent=fleetSectionTitles[fleetSection];
+ document.getElementById('fleetDashboardId').textContent=adminFleetId||(ready?'Not set':'—');
+ if(dashboard&&(!ready||!hasFleet)){
+  document.getElementById('fleetDashboardEmployeeCount').textContent=ready?'0':'—';
+  document.getElementById('fleetDashboardStatus').textContent=ready?'Set your Fleet ID in Fleet Settings to start creating profiles.':
+   fleetLoadState==='error'?'Employee profiles unavailable.':'Loading your fleet…';
+  document.getElementById('fleetDashboardStatus').classList.remove('hidden');
+  document.getElementById('fleetDashboardTable').classList.add('hidden');
+  document.getElementById('fleetDashboardRetry').classList.add('hidden');
+ }
  document.getElementById('fleetIdBadge').textContent=hasFleet?'Fleet ID '+adminFleetId:'';
  document.getElementById('fleetSettingsId').textContent=hasFleet?'Fleet ID '+adminFleetId:'';
 }
@@ -965,7 +1021,12 @@ function showFleetSection(section){
  fleetSection=section;
  renderFleetSections();
  showPage('fleetWorkspace');
- if(section==='profiles'&&fleetLoadState==='ready'&&adminFleetId)return loadFleetEmployees();
+ return loadFleetSectionData();
+}
+function loadFleetSectionData(){
+ if(fleetLoadState!=='ready'||!adminFleetId)return;
+ if(fleetSection==='dashboard')return loadFleetOverview();
+ if(fleetSection==='profiles')return loadFleetEmployees();
 }
 async function loadFleetAdmin(useSignupId=false){
  const owner=currentUser;
@@ -979,9 +1040,8 @@ async function loadFleetAdmin(useSignupId=false){
   renderFleetSections();
   return;
  }
- if(data){
-  adminFleetId=data.id;
- }else{
+ adminFleetId=data?.id??null;
+ if(!adminFleetId){
   const signupId=owner.user_metadata?.requested_fleet_id;
   if(typeof signupId==='string'&&/^[a-z0-9]{1,20}$/.test(signupId)){
    const field=document.getElementById('setupFleetId');
@@ -992,7 +1052,7 @@ async function loadFleetAdmin(useSignupId=false){
  if(currentUser!==owner)return;
  fleetLoadState='ready';
  renderFleetSections();
- if(fleetSection==='profiles'&&adminFleetId)await loadFleetEmployees();
+ await loadFleetSectionData();
 }
 async function registerFleetId(id){
  const owner=currentUser;
@@ -1018,6 +1078,42 @@ async function saveFleetId(event){
  event.preventDefault();
  const saved=await registerFleetId(document.getElementById('setupFleetId').value.trim().toLowerCase());
  if(saved)showToast('Fleet ID saved.');
+}
+async function loadFleetOverview(){
+ const owner=currentUser;
+ const fleetId=adminFleetId;
+ if(!owner||!fleetId||fleetLoadState!=='ready')return;
+ const request=++fleetOverviewRequest;
+ const countField=document.getElementById('fleetDashboardEmployeeCount');
+ const status=document.getElementById('fleetDashboardStatus');
+ const retry=document.getElementById('fleetDashboardRetry');
+ const table=document.getElementById('fleetDashboardTable');
+ countField.textContent='—';
+ status.textContent='Loading employee profiles…';
+ status.classList.remove('hidden');
+ retry.classList.add('hidden');
+ table.classList.add('hidden');
+ const {data,count,error}=await supabaseClient.from('fleet_employees')
+  .select('employee_id,created_at',{count:'exact'}).eq('fleet_id',fleetId)
+  .order('created_at',{ascending:false}).order('employee_id').limit(5);
+ if(currentUser!==owner||adminFleetId!==fleetId||request!==fleetOverviewRequest)return;
+ if(error){
+  status.textContent='Could not load employee profiles.';
+  retry.classList.remove('hidden');
+  return;
+ }
+ countField.textContent=String(count);
+ if(!data.length){status.textContent='No employee profiles yet.';return}
+ const dateFormat=new Intl.DateTimeFormat(undefined,{dateStyle:'medium'});
+ const rows=data.map(({employee_id,created_at})=>{
+  const row=document.createElement('tr');
+  row.insertCell().textContent=fleetId+'-'+employee_id;
+  row.insertCell().textContent=dateFormat.format(new Date(created_at));
+  return row;
+ });
+ document.getElementById('fleetDashboardRows').replaceChildren(...rows);
+ status.classList.add('hidden');
+ table.classList.remove('hidden');
 }
 async function loadFleetEmployees(){
  const owner=currentUser;
@@ -1070,7 +1166,7 @@ async function createFleetEmployee(event){
   form.reset();
   updateEmployeeUsername();
   showToast('Employee account created for '+data.username+'.');
-  await loadFleetEmployees();
+  await loadFleetSectionData();
  }finally{button.disabled=false}
 }
 async function loadEmployeeAccount(){
