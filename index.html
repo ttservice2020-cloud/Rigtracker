@@ -212,6 +212,9 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
  .fleet-tool{padding:10px;font-size:14px}
 }
 .fleet-account-fields{grid-template-columns:repeat(2,minmax(0,1fr));margin-top:18px}
+.fleet-employee-id-control{display:flex;flex-wrap:wrap;gap:8px}
+.fleet-employee-id-control input{flex:1 1 8rem;min-width:0}
+.fleet-employee-id-control button{flex:none}
 #fleetEmployeeTable table{min-width:0}
 @media(max-width:600px){.fleet-account-fields{grid-template-columns:1fr}}
 </style>
@@ -729,7 +732,14 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
       <form class="panel" id="newEmployeeForm" onsubmit="createFleetEmployee(event)">
        <h2>Create employee profile</h2>
        <div class="form-grid fleet-account-fields">
-        <div class="field"><label for="newEmployeeId">Employee ID</label><input id="newEmployeeId" type="text" inputmode="numeric" pattern="[0-9]{1,6}" maxlength="6" required aria-describedby="employeeIdHelp" oninput="updateEmployeeUsername()"><small class="muted" id="employeeIdHelp">1–6 digits. Leading zeros are kept.</small></div>
+        <div class="field">
+         <label for="newEmployeeId">Employee ID</label>
+         <div class="fleet-employee-id-control">
+          <input id="newEmployeeId" type="text" inputmode="numeric" pattern="[0-9]{1,6}" maxlength="6" required aria-describedby="employeeIdHelp" oninput="updateEmployeeUsername()">
+          <button class="outline" type="button" onclick="generateEmployeeId(this)">Generate ID</button>
+         </div>
+         <small class="muted" id="employeeIdHelp">Generate a 6-digit ID or enter 1–6 digits. Leading zeros are kept.</small>
+        </div>
         <div class="field"><label for="newEmployeePassword">Password</label><input id="newEmployeePassword" type="password" autocomplete="new-password" minlength="8" maxlength="72" required></div>
        </div>
        <p>Username <output id="newEmployeeUsername" for="newEmployeeId">—</output></p>
@@ -936,6 +946,7 @@ async function signOut(){
   fleetLoadState='loading';
   document.getElementById('fleetSetupForm').reset();
   document.getElementById('newEmployeeForm').reset();
+  updateEmployeeUsername();
   document.getElementById('fleetEmployeeRows').replaceChildren();
   document.querySelectorAll('.page').forEach(page=>page.classList.remove('active'));
   resetSettlementForm();
@@ -1510,12 +1521,43 @@ function updateEmployeeUsername(){
  document.getElementById('newEmployeeUsername').textContent=adminFleetId&&/^[0-9]{1,6}$/.test(employeeId)
   ?adminFleetId+'-'+employeeId:'—';
 }
+async function generateEmployeeId(button){
+ const owner=currentUser;
+ const fleetId=adminFleetId;
+ const submitButton=button.form.querySelector('button[type="submit"]');
+ if(!owner||!fleetId||button.disabled||submitButton.disabled)return;
+ const input=document.getElementById('newEmployeeId');
+ const previousId=input.value;
+ const first=Math.floor(Math.random()*900000);
+ const candidates=Array.from({length:8},(_,offset)=>String(100000+(first+offset)%900000))
+  .filter(id=>id!==previousId);
+
+ button.disabled=true;
+ try{
+  const {data,error}=await supabaseClient.from('fleet_employees').select('employee_id')
+   .eq('fleet_id',fleetId).in('employee_id',candidates);
+  if(currentUser!==owner||adminFleetId!==fleetId||input.value!==previousId||submitButton.disabled)return;
+  if(error)throw error;
+  const usedIds=new Set(data.map(row=>row.employee_id));
+  const availableId=candidates.find(id=>!usedIds.has(id));
+  if(!availableId){
+   showToast('Could not find an available ID. Generate again or enter one manually.');
+   return;
+  }
+  input.value=availableId;
+  updateEmployeeUsername();
+ }catch{
+  if(currentUser===owner&&adminFleetId===fleetId){
+   showToast('Could not check available IDs. Try again or enter one manually.');
+  }
+ }finally{button.disabled=false}
+}
 async function createFleetEmployee(event){
  event.preventDefault();
  if(!adminFleetId||accountTypeFor(currentUser)!=='fleet'||!currentUser)return;
  const owner=currentUser;
  const form=event.currentTarget;
- const button=form.querySelector('button');
+ const button=form.querySelector('button[type="submit"]');
  if(button.disabled)return;
  const employeeId=document.getElementById('newEmployeeId').value;
  const password=document.getElementById('newEmployeePassword').value;
