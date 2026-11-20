@@ -179,9 +179,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 .fleet-dashboard-nav{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;padding:7px;background:#101824;border:1px solid #263e5b;border-radius:16px}
 .fleet-dashboard-nav button{min-width:0;min-height:48px;padding:12px;color:var(--white);background:none;border:1px solid transparent;border-radius:9px;text-align:center;font-weight:700}
 .fleet-dashboard-nav button:hover{background:#14263b}
-.fleet-dashboard-nav button[aria-current="page"],.dispatch-tabs button[aria-selected="true"]{background:#173a58;border-color:#358ce0;color:#edf6ff}
-.fleet-dashboard-nav.dispatch-tabs{grid-template-columns:repeat(4,minmax(0,1fr))}
-@media(max-width:560px){.fleet-dashboard-nav.dispatch-tabs{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.fleet-dashboard-nav button[aria-current="page"]{background:#173a58;border-color:#358ce0;color:#edf6ff}
 .fleet-dashboard-nav button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .fleet-dashboard-content{min-width:0}
 .fleet-dashboard-content .page-head{margin-top:0}
@@ -217,6 +215,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 #fleetEmployeeTable table{min-width:0}
 @media(max-width:600px){.fleet-account-fields{grid-template-columns:1fr}}
 </style>
+<link rel="stylesheet" href="./dispatch.css">
 </head>
 <body>
 <header class="brandbar hidden" id="appHeader">
@@ -415,7 +414,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
        <h2>Operations</h2>
        <div class="fleet-tools-grid">
         <button class="card fleet-tool" type="button" onclick="showFleetSection('dispatch')">Dispatch <span aria-hidden="true">›</span></button>
-        <button class="card fleet-tool" type="button" onclick="showFleetSection('drivers')">Drivers <span aria-hidden="true">›</span></button>
+        <button class="card fleet-tool" type="button" onclick="showFleetSection('dispatch','drivers')">Drivers <span aria-hidden="true">›</span></button>
         <button class="card fleet-tool" type="button" onclick="showFleetSection('assets')">Assets <span aria-hidden="true">›</span></button>
         <button class="card fleet-tool" type="button" onclick="showFleetSection('messages')">Messages <span aria-hidden="true">›</span></button>
        </div>
@@ -447,24 +446,130 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
      </section>
     </div>
     <div class="hidden" id="fleetDispatch">
-     <div class="fleet-dashboard-nav dispatch-tabs" id="dispatchTabs" role="tablist" aria-label="Dispatch" onkeydown="handleDispatchTabKeys(event)">
-      <button id="dispatch-tab-current" type="button" role="tab" aria-selected="true" aria-controls="dispatch-panel-current" onclick="showDispatchTab(this)">Current Loads</button>
-      <button id="dispatch-tab-create" type="button" role="tab" aria-selected="false" aria-controls="dispatch-panel-create" tabindex="-1" onclick="showDispatchTab(this)">Create a Load</button>
-      <button id="dispatch-tab-saved" type="button" role="tab" aria-selected="false" aria-controls="dispatch-panel-saved" tabindex="-1" onclick="showDispatchTab(this)">Saved Loads</button>
-      <button id="dispatch-tab-history" type="button" role="tab" aria-selected="false" aria-controls="dispatch-panel-history" tabindex="-1" onclick="showDispatchTab(this)">Load History</button>
+     <div class="panel hidden" id="dispatchGate">
+      <p id="dispatchGateMessage" role="status"></p>
+      <button class="outline hidden" id="dispatchGateSettings" type="button" onclick="showFleetSection('settings')">Fleet Settings</button>
+      <button class="outline hidden" id="dispatchGateRetry" type="button" onclick="loadFleetAdmin()">Try again</button>
      </div>
-     <section class="panel" id="dispatch-panel-current" role="tabpanel" aria-labelledby="dispatch-tab-current" tabindex="0">
-      <p class="muted">Current loads will appear when dispatch tracking is connected.</p>
-     </section>
-     <section class="panel hidden" id="dispatch-panel-create" role="tabpanel" aria-labelledby="dispatch-tab-create" tabindex="0">
-      <p class="muted">Load entry and saving are coming later.</p>
-     </section>
-     <section class="panel hidden" id="dispatch-panel-saved" role="tabpanel" aria-labelledby="dispatch-tab-saved" tabindex="0">
-      <p class="muted">Saved loads will appear when load saving is connected.</p>
-     </section>
-     <section class="panel hidden" id="dispatch-panel-history" role="tabpanel" aria-labelledby="dispatch-tab-history" tabindex="0">
-      <p class="muted">Completed loads will appear when load history is connected.</p>
-     </section>
+     <div class="dispatch-workspace hidden" id="dispatchWorkspace">
+      <aside class="panel dispatch-rail" aria-labelledby="dispatchRailHeading">
+       <h2 id="dispatchRailHeading">Current Loads</h2>
+       <p class="muted dispatch-compact" id="dispatchRailStatus" role="status">Loading loads…</p>
+       <div class="dispatch-rail-list" id="dispatchRailList"></div>
+      </aside>
+      <div class="dispatch-center">
+       <div class="fleet-dashboard-nav dispatch-nav" id="dispatchTabs" role="tablist" aria-label="Dispatch">
+        <button id="dispatch-tab-current" type="button" role="tab" aria-selected="true" aria-controls="dispatch-panel-current" data-dispatch-tab="current">Current Loads</button>
+        <button id="dispatch-tab-create" type="button" role="tab" aria-selected="false" aria-controls="dispatch-panel-create" data-dispatch-tab="create" tabindex="-1">Create a Load</button>
+        <button id="dispatch-tab-contract" type="button" role="tab" aria-selected="false" aria-controls="dispatch-panel-contract" data-dispatch-tab="contract" tabindex="-1">Contract Loads</button>
+        <button id="dispatch-tab-history" type="button" role="tab" aria-selected="false" aria-controls="dispatch-panel-history" data-dispatch-tab="history" tabindex="-1">Load History</button>
+        <button id="dispatch-tab-drivers" type="button" role="tab" aria-selected="false" aria-controls="dispatch-panel-drivers" data-dispatch-tab="drivers" tabindex="-1">Drivers</button>
+       </div>
+       <div class="hidden panel" id="dispatchReadError">
+        <p role="status">Could not load Dispatch records.</p>
+        <button class="outline" type="button" id="dispatchReload">Try again</button>
+       </div>
+       <section id="dispatch-panel-current" class="dispatch-panel" role="tabpanel" aria-labelledby="dispatch-tab-current" tabindex="0">
+        <div class="field"><label for="dispatchLoadSearch">Search loads</label><input id="dispatchLoadSearch" type="search" placeholder="PRO, driver, or location"></div>
+        <section class="panel">
+         <h2>Active loads</h2>
+         <p id="dispatchCurrentEmpty" class="muted" role="status"></p>
+         <div class="dispatch-load-list" id="dispatchCurrentList"></div>
+        </section>
+        <section class="panel hidden" id="dispatchDraftSection">
+         <h2>Drafts</h2>
+         <div class="dispatch-load-list" id="dispatchDraftList"></div>
+        </section>
+       </section>
+       <section id="dispatch-panel-create" class="dispatch-panel hidden" role="tabpanel" aria-labelledby="dispatch-tab-create" tabindex="0">
+        <form id="dispatchLoadForm">
+         <div class="dispatch-subheading">
+          <h2 id="dispatchFormHeading">New load</h2>
+          <span class="tag">PRO <strong id="dispatchPro">—</strong></span>
+         </div>
+         <p class="muted" id="dispatchProStatus" role="status"></p>
+         <button class="outline hidden" id="dispatchProRetry" type="button">Retry PRO number</button>
+         <fieldset id="dispatchLoadFields" class="dispatch-stop">
+          <legend>Load assignment</legend>
+          <div class="dispatch-fields">
+           <div class="field"><label for="dispatchDriver1">Driver 1</label><select id="dispatchDriver1" name="driver1"><option value="">Select a driver</option></select></div>
+           <div class="field"><label for="dispatchSecondDriverMode">Second driver</label><select id="dispatchSecondDriverMode" name="secondDriverMode"><option value="none">No second driver</option><option value="unknown">Assign later</option><option value="assigned">Choose Driver 2</option></select></div>
+           <div class="field hidden" id="dispatchDriver2Field"><label for="dispatchDriver2">Driver 2</label><select id="dispatchDriver2" name="driver2"><option value="">Select a driver</option></select></div>
+          </div>
+          <div id="dispatchPickups"></div>
+          <div class="dispatch-actions"><button class="outline" type="button" data-dispatch-add-stop="pickup">Add another shipper</button></div>
+          <div id="dispatchReceivers"></div>
+          <div class="dispatch-actions"><button class="outline" type="button" data-dispatch-add-stop="receiver">Add another receiver</button></div>
+          <div class="panel">
+           <div class="field"><label for="dispatchLoadedMiles">Route loaded miles</label><input id="dispatchLoadedMiles" name="loadedMiles" type="number" min="0" step="0.1" inputmode="decimal"></div>
+          </div>
+          <details class="panel" id="dispatchRelayDetails">
+           <summary>Split Load Details</summary>
+           <div class="dispatch-fields">
+            <div class="field"><label for="dispatchRelayLocation">Relay location</label><input id="dispatchRelayLocation" name="relayLocation" maxlength="180"></div>
+            <div class="field"><label for="dispatchRelayDate">Relay date</label><input id="dispatchRelayDate" name="relayDate" type="date"></div>
+            <div class="field"><label for="dispatchRelayDrop">Driver 1 drop time</label><input id="dispatchRelayDrop" name="relayDrop" type="time"></div>
+            <div class="field"><label for="dispatchRelayPickup">Driver 2 pickup time</label><input id="dispatchRelayPickup" name="relayPickup" type="time"></div>
+            <div class="field"><label for="dispatchFirstLegMiles">Driver 1 leg miles</label><input id="dispatchFirstLegMiles" name="firstLegMiles" type="number" min="0" step="0.1" inputmode="decimal"></div>
+           </div>
+           <p id="dispatchLegAllocation" class="muted dispatch-compact" role="status"></p>
+          </details>
+          <details class="panel">
+           <summary>Driver Pay</summary>
+           <div class="dispatch-fields">
+            <div class="field"><label for="dispatchDriver1Pay">Driver 1 pay</label><input id="dispatchDriver1Pay" name="driver1Pay" type="number" min="0" step="0.01" inputmode="decimal"></div>
+            <div class="field"><label for="dispatchDriver2Pay">Driver 2 pay</label><input id="dispatchDriver2Pay" name="driver2Pay" type="number" min="0" step="0.01" inputmode="decimal"></div>
+           </div>
+          </details>
+          <details class="panel">
+           <summary>Empty Miles</summary>
+           <div class="dispatch-fields">
+            <div class="field"><label for="dispatchEmptyMiles">Empty miles</label><input id="dispatchEmptyMiles" name="emptyMiles" type="number" min="0" step="0.1" inputmode="decimal"></div>
+            <div class="field"><label for="dispatchEmptyRate">Rate per empty mile</label><input id="dispatchEmptyRate" name="emptyRate" type="number" min="0" step="0.01" inputmode="decimal"></div>
+           </div>
+          </details>
+          <details class="panel">
+           <summary>Stop Pay</summary>
+           <div class="field"><label for="dispatchStopPay">Stop pay</label><input id="dispatchStopPay" name="stopPay" type="number" min="0" step="0.01" inputmode="decimal"></div>
+          </details>
+         </fieldset>
+         <div class="dispatch-actions">
+          <button class="primary-btn" id="dispatchSubmit" type="submit" value="current">Submit</button>
+          <button class="outline" id="dispatchSaveDraft" type="submit" value="draft" formnovalidate>Save Draft</button>
+          <button class="outline" id="dispatchSaveContract" type="submit" value="contract" formnovalidate>Save as Contract</button>
+          <button class="outline hidden" id="dispatchComplete" type="button">Mark Completed</button>
+          <button class="outline" id="dispatchNewLoad" type="button">New Load</button>
+         </div>
+        </form>
+       </section>
+       <section id="dispatch-panel-contract" class="dispatch-panel hidden" role="tabpanel" aria-labelledby="dispatch-tab-contract" tabindex="0">
+        <p id="dispatchContractEmpty" class="muted" role="status"></p>
+        <div id="dispatchContractList" class="dispatch-load-list"></div>
+       </section>
+       <section id="dispatch-panel-history" class="dispatch-panel hidden" role="tabpanel" aria-labelledby="dispatch-tab-history" tabindex="0">
+        <p id="dispatchHistoryEmpty" class="muted" role="status"></p>
+        <div id="dispatchHistoryList" class="dispatch-load-list"></div>
+       </section>
+       <section id="dispatch-panel-drivers" class="dispatch-panel hidden" role="tabpanel" aria-labelledby="dispatch-tab-drivers" tabindex="0">
+        <div class="dispatch-fields">
+         <div class="field"><label for="dispatchDriverSearch">Search drivers</label><input id="dispatchDriverSearch" type="search" placeholder="Name or equipment"></div>
+         <div class="field"><label for="dispatchDriverFilter">Availability</label><select id="dispatchDriverFilter"><option value="">All drivers</option><option value="available">Available</option><option value="assigned">On a load</option><option value="off-duty">Off duty</option></select></div>
+        </div>
+        <details class="panel">
+         <summary>Add driver</summary>
+         <form id="dispatchDriverForm">
+          <div class="dispatch-fields">
+           <div class="field"><label for="dispatchDriverName">Name</label><input id="dispatchDriverName" name="name" maxlength="100" required></div>
+           <div class="field"><label for="dispatchDriverEquipment">Equipment</label><input id="dispatchDriverEquipment" name="equipment" maxlength="100"></div>
+          </div>
+          <button class="primary-btn" type="submit">Add driver</button>
+         </form>
+        </details>
+        <p id="dispatchDriversEmpty" class="muted" role="status"></p>
+        <div id="dispatchDriversList" class="dispatch-load-list"></div>
+       </section>
+      </div>
+     </div>
     </div>
     <section class="panel hidden" id="fleetToolPanel">
      <p id="fleetToolStatus" class="muted"></p>
@@ -520,6 +625,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 <div id="toast" class="hidden" role="status"></div>
 <div id="modal"><div class="modal-card"><h2 id="modalTitle"></h2><div id="modalBody"></div><button class="primary-btn" onclick="closeModal()">Close</button></div></div>
 
+<script src="./dispatch.js"></script>
 <script>
 const SUPABASE_URL = 'https://pxxikzzfrcncwufpzdfp.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_7yQMjUtCtnHC6jgRF4ROLA_CmgsHaZo';
@@ -694,6 +800,7 @@ async function signOut(){
   stopFleetPresenceTimer();
   currentUser=null;settlements=[];stays=[];taxDocuments=[];
   adminFleetId=null;
+  fleetDispatchApp.reset();
   fleetLoadState='loading';
   document.getElementById('fleetSetupForm').reset();
   document.getElementById('newEmployeeForm').reset();
@@ -1065,7 +1172,6 @@ async function loadUserData(){
 }
 const fleetSectionTitles={dashboard:'Fleet Admin Dashboard',dispatch:'Dispatch',settings:'Fleet Settings',profiles:'Employee Profiles'};
 const fleetTools={
- "drivers":{"title":"Drivers","status":"Company driver linking is coming later."},
  "assets":{"title":"Assets","status":"Truck and trailer management is coming later."},
  "messages":{"title":"Messages","status":"Fleet messaging is coming later."},
  "hr":{"title":"HR","status":"Onboarding and employment records are coming later.","links":["profiles","policies"]},
@@ -1130,40 +1236,16 @@ function renderFleetSections(){
  document.getElementById('fleetIdBadge').textContent=hasFleet?'Fleet ID '+adminFleetId:'';
  document.getElementById('fleetSettingsId').textContent=hasFleet?'Fleet ID '+adminFleetId:'';
 }
-function showFleetSection(section){
+function showFleetSection(section,dispatchTab='current'){
  if(!currentUser||accountTypeFor(currentUser)!=='fleet')return;
  if(!Object.hasOwn(fleetSectionTitles,section)&&!Object.hasOwn(fleetTools,section))return;
  fleetSection=section;
  renderFleetSections();
  showPage('fleetWorkspace');
- if(section==='dispatch')showDispatchTab(document.getElementById('dispatch-tab-current'));
- return loadFleetSectionData();
+ return loadFleetSectionData(dispatchTab);
 }
-function showDispatchTab(tab){
- for(const button of document.querySelectorAll('#dispatchTabs [role="tab"]')){
-  const selected=button===tab;
-  button.setAttribute('aria-selected',String(selected));
-  button.tabIndex=selected?0:-1;
-  document.getElementById(button.getAttribute('aria-controls')).classList.toggle('hidden',!selected);
- }
-}
-function handleDispatchTabKeys(event){
- const tabs=Array.from(event.currentTarget.querySelectorAll('[role="tab"]'));
- const index=tabs.indexOf(event.target);
- if(index<0)return;
- let next;
- switch(event.key){
-  case 'ArrowLeft': next=(index-1+tabs.length)%tabs.length;break;
-  case 'ArrowRight': next=(index+1)%tabs.length;break;
-  case 'Home': next=0;break;
-  case 'End': next=tabs.length-1;break;
-  default:return;
- }
- event.preventDefault();
- showDispatchTab(tabs[next]);
- tabs[next].focus();
-}
-function loadFleetSectionData(){
+function loadFleetSectionData(dispatchTab){
+ if(fleetSection==='dispatch')return fleetDispatchApp.open(supabaseClient,adminFleetId,fleetLoadState,dispatchTab);
  if(fleetLoadState!=='ready'||!adminFleetId)return;
  if(fleetSection==='dashboard')return Promise.all([loadFleetOverview(),loadFleetOnlineCount()]);
  if(fleetSection==='profiles')return loadFleetEmployees();
@@ -1173,12 +1255,13 @@ async function loadFleetAdmin(useSignupId=false){
  if(!owner||accountTypeFor(owner)!=='fleet')return;
  fleetLoadState='loading';
  renderFleetSections();
+ if(fleetSection==='dispatch')loadFleetSectionData();
  const {data,error}=await supabaseClient.from('fleets').select('id').eq('admin_user_id',owner.id).maybeSingle();
  if(currentUser!==owner)return;
  if(error){
   fleetLoadState='error';
   renderFleetSections();
-  return;
+  return loadFleetSectionData();
  }
  adminFleetId=data?.id??null;
  if(!adminFleetId){
