@@ -198,7 +198,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
     <button class="role-tab active" data-role="driver" onclick="chooseRole('driver')">Owner Op</button>
     <button class="role-tab" data-role="company" onclick="chooseRole('company')">Company Driver</button>
     <button class="role-tab" data-role="fleet" onclick="chooseRole('fleet')">Fleet Admin</button>
-    <button class="role-tab" data-role="employee" onclick="chooseRole('employee')">Employee</button>
+    <button class="role-tab" data-role="employee" onclick="chooseRole('employee')">Office</button>
     <button class="role-tab" data-role="mechanic" onclick="chooseRole('mechanic')">Mechanic</button>
    </div>
    <p id="signInUnavailable" class="muted hidden" role="status">Sign-in is coming later.</p>
@@ -378,7 +378,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
   </div>
  </section>
  <section id="fleetEmployeePage" class="page fleet-account-page">
-  <div class="page-head"><h1>Employee Account</h1></div>
+  <div class="page-head"><h1>Office Account</h1></div>
   <div class="panel"><p id="employeeAccountSummary" role="status">Loading your profile…</p></div>
  </section>
 </section>
@@ -430,7 +430,7 @@ function accountTypeFor(user){
  if(trustedType==='fleet_employee')return 'employee';
  return (trustedType||user?.user_metadata?.account_type)==='fleet'?'fleet':'driver';
 }
-const accountLabels={driver:'Owner Op',company:'Company Driver',fleet:'Fleet Admin',employee:'Employee',mechanic:'Mechanic'};
+const accountLabels={driver:'Owner Op',company:'Company Driver',fleet:'Fleet Admin',employee:'Office',mechanic:'Mechanic'};
 const pendingSignInRoles=new Set(['company','mechanic']);
 let adminFleetId=null;
 let authBusy=false;
@@ -443,7 +443,7 @@ function updateAuthForm(){
  document.getElementById('authForm').classList.toggle('hidden',pending);
  document.getElementById('signInUnavailable').classList.toggle('hidden',!pending);
  document.getElementById('authHeading').textContent=pending?accountLabels[selectedRole]:fleetSignup?'Create your Fleet Admin account'
-  :signUpMode?'Create your account':selectedRole==='fleet'?'Fleet Admin sign-in':employee?'Employee sign-in':'Welcome back';
+  :signUpMode?'Create your account':selectedRole==='fleet'?'Fleet Admin sign-in':employee?'Office sign-in':'Welcome back';
  document.getElementById('authSubmit').textContent=signUpMode?'Create Account':'Sign In';
  document.getElementById('authSwitchLabel').textContent=signUpMode?'Already have an account?':'New to RigTracker Pro?';
  document.getElementById('authSwitch').textContent=signUpMode?'Sign In':'Create an account';
