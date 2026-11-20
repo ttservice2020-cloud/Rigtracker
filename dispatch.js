@@ -7,12 +7,15 @@ const fleetDispatchApp = (() => {
   const stops = { pickup: byId('dispatchPickups'), receiver: byId('dispatchReceivers') };
   const formDetails = [
     'secondDriverMode', 'commodity', 'commodityOther', 'weightLbs', 'equipmentType', 'equipmentTypeOther',
+    'trailerDrop', 'trailerDropNotes', 'trailerPickup', 'trailerPickupNotes',
     'loadedMiles', 'relayLocation', 'relayDate', 'relayDrop',
     'relayPickup', 'firstLegMiles', 'driver1Pay', 'driver2Pay', 'emptyMiles', 'emptyRate', 'stopPay'
   ].filter(key => form.elements.namedItem(key));
-  const customFreightFields = [
+  const conditionalFreightFields = [
     ['commodity', 'commodityOther', 'dispatchCommodityOtherField'],
-    ['equipmentType', 'equipmentTypeOther', 'dispatchEquipmentTypeOtherField']
+    ['equipmentType', 'equipmentTypeOther', 'dispatchEquipmentTypeOtherField'],
+    ['trailerDrop', 'trailerDropNotes', 'dispatchTrailerDropNotesField'],
+    ['trailerPickup', 'trailerPickupNotes', 'dispatchTrailerPickupNotesField']
   ].filter(([key]) => form.elements.namedItem(key));
   const zones = [
     ['America/New_York', 'Eastern'], ['America/Chicago', 'Central'],
@@ -120,12 +123,14 @@ const fleetDispatchApp = (() => {
       ? (lastRun ? 'Last assigned: ' : 'Saved driver: ') + drivers : drivers;
     const label = [route(load), driverLabel].filter(Boolean).join(' · ');
     if (label) info.append(element('p', label));
-    const { commodity, commodityOther, weightLbs, equipmentType, equipmentTypeOther } = load.details;
+    const { commodity, commodityOther, weightLbs, equipmentType, equipmentTypeOther, trailerDrop, trailerPickup } = load.details;
     const weight = Number(weightLbs);
     const freight = [
       commodity === 'Other' ? commodityOther || commodity : commodity,
       Number.isFinite(weight) && weight > 0 ? weight.toLocaleString(undefined, { maximumFractionDigits: 2 }) + ' lb' : '',
-      equipmentType === 'Other' ? equipmentTypeOther || equipmentType : equipmentType
+      equipmentType === 'Other' ? equipmentTypeOther || equipmentType : equipmentType,
+      trailerDrop === 'yes' ? 'Trailer Drop' : '',
+      trailerPickup === 'yes' ? 'Trailer Pickup' : ''
     ].filter(Boolean).join(' · ');
     if (freight) info.append(element('p', freight));
     const schedule = deliverySchedule(load);
@@ -349,10 +354,11 @@ const fleetDispatchApp = (() => {
 
   function paintAssignment() {
     toggle('dispatchDriver2Field', form.elements.secondDriverMode.value === 'assigned');
-    for (const [selection, description, field] of customFreightFields) {
-      const isCustom = form.elements[selection].value === 'Other';
-      form.elements[description].disabled = !isCustom;
-      toggle(field, isCustom);
+    for (const [selection, description, field] of conditionalFreightFields) {
+      const control = form.elements[selection];
+      const visible = control.type === 'checkbox' ? control.checked : control.value === 'Other';
+      form.elements[description].disabled = !visible;
+      toggle(field, visible);
     }
     const loaded = form.elements.loadedMiles.value;
     const first = form.elements.firstLegMiles.value;
@@ -380,7 +386,9 @@ const fleetDispatchApp = (() => {
     };
     form.reset();
     for (const key of formDetails) {
-      if (typeof data[key] === 'string') form.elements[key].value = data[key];
+      const field = form.elements[key];
+      if (field.type === 'checkbox') field.checked = data[key] === field.value;
+      else if (typeof data[key] === 'string') field.value = data[key];
     }
     const assignment = fromContract ? lastContractAssignment(row) || row : row;
     form.elements.driver1.value = assignment?.driver_id ?? '';
@@ -392,7 +400,8 @@ const fleetDispatchApp = (() => {
       for (const stop of source?.length ? source : [{}]) addStop(kind, stop);
     }
     for (const details of form.querySelectorAll('details')) {
-      details.open = Boolean(row && [...details.querySelectorAll('input')].some(input => input.value));
+      details.open = details.id !== 'dispatchFreightDetails' &&
+        Boolean(row && [...details.querySelectorAll('input')].some(input => input.value));
     }
     paintEditor();
   }
@@ -572,6 +581,10 @@ const fleetDispatchApp = (() => {
   }
 
   form.addEventListener('input', markEdited);
+  form.addEventListener('invalid', event => {
+    const panel = event.target.closest('details');
+    if (panel) panel.open = true;
+  }, true);
   form.addEventListener('submit', event => {
     event.preventDefault();
     void saveLoad(event.submitter?.value || 'current');

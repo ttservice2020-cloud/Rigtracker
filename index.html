@@ -488,30 +488,6 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
            <div class="field"><label for="dispatchSecondDriverMode">Second driver</label><select id="dispatchSecondDriverMode" name="secondDriverMode"><option value="none">No second driver</option><option value="unknown">Assign later</option><option value="assigned">Choose Driver 2</option></select></div>
            <div class="field hidden" id="dispatchDriver2Field"><label for="dispatchDriver2">Driver 2</label><select id="dispatchDriver2" name="driver2"><option value="">Select a driver</option></select></div>
           </div>
-          <fieldset class="dispatch-stop">
-           <legend>Freight details (optional)</legend>
-           <div class="dispatch-fields">
-            <div class="field"><label for="dispatchCommodity">Commodity</label>
-             <select id="dispatchCommodity" name="commodity">
-              <option value="">Select a commodity</option>
-              <option>General Freight</option><option>Food &amp; Beverage</option><option>Produce</option>
-              <option>Building Materials</option><option>Machinery &amp; Equipment</option>
-              <option>Paper Products</option><option>Retail Goods</option><option>Automotive</option><option>Other</option>
-             </select>
-            </div>
-            <div class="field hidden" id="dispatchCommodityOtherField"><label for="dispatchCommodityOther">Describe the commodity</label><input id="dispatchCommodityOther" name="commodityOther" maxlength="120" disabled></div>
-            <div class="field"><label for="dispatchWeight">Weight (lb)</label><input id="dispatchWeight" name="weightLbs" type="number" min="0.01" step="0.01" inputmode="decimal"></div>
-            <div class="field"><label for="dispatchEquipmentType">Equipment Type</label>
-             <select id="dispatchEquipmentType" name="equipmentType">
-              <option value="">Select equipment</option>
-              <option>Dry Van</option><option>Reefer</option><option>Flatbed</option><option>Step Deck</option>
-              <option>Lowboy / RGN</option><option>Power Only</option><option>Box Truck</option>
-              <option>Tanker</option><option>Container / Chassis</option><option>Other</option>
-             </select>
-            </div>
-            <div class="field hidden" id="dispatchEquipmentTypeOtherField"><label for="dispatchEquipmentTypeOther">Describe the equipment</label><input id="dispatchEquipmentTypeOther" name="equipmentTypeOther" maxlength="120" disabled></div>
-           </div>
-          </fieldset>
           <div id="dispatchPickups"></div>
           <div class="dispatch-actions"><button class="outline" type="button" data-dispatch-add-stop="pickup">Add another shipper</button></div>
           <div id="dispatchReceivers"></div>
@@ -547,6 +523,34 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
           <details class="panel">
            <summary>Stop Pay</summary>
            <div class="field"><label for="dispatchStopPay">Stop pay</label><input id="dispatchStopPay" name="stopPay" type="number" min="0" step="0.01" inputmode="decimal"></div>
+          </details>
+          <details class="panel" id="dispatchFreightDetails">
+           <summary>Freight Details</summary>
+           <div class="dispatch-fields">
+            <div class="field"><label for="dispatchCommodity">Commodity</label>
+             <select id="dispatchCommodity" name="commodity">
+              <option value="">Select a commodity</option>
+              <option>General Freight</option><option>Food &amp; Beverage</option><option>Produce</option>
+              <option>Building Materials</option><option>Machinery &amp; Equipment</option>
+              <option>Paper Products</option><option>Retail Goods</option><option>Automotive</option><option>Other</option>
+             </select>
+            </div>
+            <div class="field hidden" id="dispatchCommodityOtherField"><label for="dispatchCommodityOther">Describe the commodity</label><input id="dispatchCommodityOther" name="commodityOther" maxlength="120" disabled></div>
+            <div class="field"><label for="dispatchWeight">Weight (lb)</label><input id="dispatchWeight" name="weightLbs" type="number" min="0.01" step="0.01" inputmode="decimal"></div>
+            <div class="field"><label for="dispatchEquipmentType">Equipment Type</label>
+             <select id="dispatchEquipmentType" name="equipmentType">
+              <option value="">Select equipment</option>
+              <option>Dry Van</option><option>Reefer</option><option>Flatbed</option><option>Step Deck</option>
+              <option>Lowboy / RGN</option><option>Power Only</option><option>Box Truck</option>
+              <option>Tanker</option><option>Container / Chassis</option><option>Other</option>
+             </select>
+            </div>
+            <div class="field hidden" id="dispatchEquipmentTypeOtherField"><label for="dispatchEquipmentTypeOther">Describe the equipment</label><input id="dispatchEquipmentTypeOther" name="equipmentTypeOther" maxlength="120" disabled></div>
+            <div class="field dispatch-checkbox dispatch-wide"><label for="dispatchTrailerDrop">Trailer Drop</label><input id="dispatchTrailerDrop" name="trailerDrop" type="checkbox" value="yes" aria-controls="dispatchTrailerDropNotesField"></div>
+            <div class="field hidden dispatch-wide" id="dispatchTrailerDropNotesField"><label for="dispatchTrailerDropNotes">Drop instructions (optional)</label><textarea id="dispatchTrailerDropNotes" name="trailerDropNotes" maxlength="500" rows="2" disabled></textarea></div>
+            <div class="field dispatch-checkbox dispatch-wide"><label for="dispatchTrailerPickup">Trailer Pickup</label><input id="dispatchTrailerPickup" name="trailerPickup" type="checkbox" value="yes" aria-controls="dispatchTrailerPickupNotesField"></div>
+            <div class="field hidden dispatch-wide" id="dispatchTrailerPickupNotesField"><label for="dispatchTrailerPickupNotes">Pickup instructions (optional)</label><textarea id="dispatchTrailerPickupNotes" name="trailerPickupNotes" maxlength="500" rows="2" disabled></textarea></div>
+           </div>
           </details>
          </fieldset>
          <div class="dispatch-actions">
@@ -641,7 +645,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 <div id="toast" class="hidden" role="status"></div>
 <div id="modal"><div class="modal-card"><h2 id="modalTitle"></h2><div id="modalBody"></div><button class="primary-btn" onclick="closeModal()">Close</button></div></div>
 
-<script src="./dispatch.js?v=freight-1"></script>
+<script src="./dispatch.js?v=trailer-1"></script>
 <script>
 const SUPABASE_URL = 'https://pxxikzzfrcncwufpzdfp.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_7yQMjUtCtnHC6jgRF4ROLA_CmgsHaZo';
