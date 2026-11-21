@@ -473,6 +473,9 @@ const driverLoadWorkflow = (() => {
       driverInitialized = true;
       const viewing = screen.classList.contains('active') && !document.hidden;
       const updated = accountTypeFor(user) === 'company' && companyLoadUpdate(user, data, viewing);
+      if (typeof rigTrackerApp !== 'undefined') {
+        rigTrackerApp.badge('loads', keys.length || (updated ? '•' : ''), keys.length ? 'new assignments or yard trailers' : 'load update');
+      }
       byId('profileDriverLoadsButton').textContent = keys.length ? 'Loads (' + keys.length + ')' : updated ? 'Loads · Update' : 'Loads';
       byId('ownerDriverLoadsButton').textContent = keys.length ? 'Loads (' + keys.length + ')' : 'Loads';
       const snapshot = JSON.stringify(data);

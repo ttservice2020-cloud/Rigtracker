@@ -1,6 +1,7 @@
 const companyMessaging = (() => {
   const byId = id => document.getElementById(id);
-  const channels = { dispatch: 'Dispatch', maintenance: 'Maintenance', private: 'Private' };
+  const teamChannels = ['dispatch', 'maintenance', 'safety'];
+  const channels = { dispatch: 'Dispatch', maintenance: 'Maintenance', safety: 'Safety', private: 'Private' };
   const badges = ['companyDriverMessagesButton','companyFleetMessagesButton','companyDispatchMessagesButton','companyOfficeMessagesButton'];
   const when = new Intl.DateTimeFormat(undefined, { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit', hourCycle:'h23' });
   let data;
@@ -14,6 +15,8 @@ const companyMessaging = (() => {
   let draftId;
   let draftBody;
   let historySignature = '';
+  let mechanicFleet;
+  let teamRequest;
 
   function element(tag, text, className) {
     const node = document.createElement(tag);
@@ -42,16 +45,71 @@ const companyMessaging = (() => {
     if (initialized && [...ids].some(id => !noticeIds.has(id))) showToast('New company driver message.');
     noticeIds = ids;
     initialized = true;
-    for (const id of badges) byId(id).textContent = unread.length ? 'Messages (' + unread.length + ')' : 'Messages';
+    if (typeof rigTrackerApp !== 'undefined') rigTrackerApp.badge('messages', unread.length, 'unread conversations');
+    for (const id of [...badges, 'mechanicMessagesButton']) {
+      const control = byId(id);
+      if (control) control.textContent = unread.length ? 'Messages (' + unread.length + ')' : 'Messages';
+    }
   }
 
   function paintChannelChoices() {
     const fleet = data?.staff_fleet;
     const driver = contacts?.drivers.find(row => row.profile_id === byId('companyMessageRecipient').value);
     const allowed = fleet
-      ? ['dispatch','maintenance'].filter(channel => fleet.scope.includes(channel)).concat(driver?.private_enabled ? ['private'] : [])
-      : ['dispatch','maintenance'];
+      ? teamChannels.filter(channel => fleet.scope.includes(channel)).concat(driver?.private_enabled ? ['private'] : [])
+      : teamChannels;
     setOptions('companyMessageChannel', allowed.map(value => [value,channels[value]]), allowed.length ? 'Choose a conversation' : 'No conversation access');
+  }
+
+  function crew() {
+    if (data?.staff_fleet) return data.staff_fleet;
+    if (mechanicFleet) return { id: mechanicFleet, scope: teamChannels };
+    return null;
+  }
+
+  function paintDriverDirectory() {
+    const member = crew();
+    byId('companyMessageDirectory').classList.toggle('hidden', !member || !contacts);
+    byId('companyMessageCrewFleetField').classList.toggle('hidden', (data.mechanic_fleets?.length || 0) < 2);
+    if (!member || !contacts) return;
+    if (mechanicFleet) {
+      setOptions('companyMessageCrewFleet', data.mechanic_fleets.map(id => [id,id]), 'Select fleet');
+      byId('companyMessageCrewFleet').value = mechanicFleet;
+    }
+    const picker = byId('companyMessageDriverPicker');
+    const previouslySelected = picker.value;
+    setOptions('companyMessageDriverPicker', contacts.drivers.map(driver => [driver.profile_id,driver.name]), 'All drivers');
+    if (!previouslySelected) picker.value = '';
+    const driver = contacts.drivers.find(item => item.profile_id === picker.value);
+    byId('companyMessageDriverCard').classList.toggle('hidden', !driver);
+    if (!driver) return;
+    byId('companyMessageDriverName').textContent = driver.name;
+    byId('companyMessageDriverProfile').textContent = 'RigTracker ID ' + driver.profile_id + ' · ' + member.id;
+    const allowed = teamChannels.filter(channel => member.scope.includes(channel));
+    if (driver.private_enabled) allowed.push('private');
+    byId('companyMessageDriverLines').replaceChildren(...allowed.map(kind => {
+      const control = element('button', channels[kind], 'outline');
+      control.type = 'button';
+      control.addEventListener('click', () => void jumpToTeam(member.id,kind,driver));
+      return control;
+    }));
+  }
+
+  function paintConversationList() {
+    const profile = crew() ? byId('companyMessageDriverPicker').value : '';
+    const threads = profile ? data.threads.filter(thread => thread.profile_id===profile && thread.fleet_id===crew().id) : data.threads;
+    byId('companyMessageThreads').replaceChildren(...(threads.length ? threads.map(thread => {
+      const row = element('article', '', 'dispatch-load-row');
+      const summary = element('div');
+      summary.append(element('strong', thread.contact), element('p', [thread.fleet_id, channels[thread.kind],
+        thread.unread ? 'Unread' : ''].filter(Boolean).join(' · '), 'muted'));
+      if (thread.last_message) summary.append(element('p', thread.last_message.body));
+      const open = element('button','Open','outline');
+      open.type = 'button';
+      open.addEventListener('click', () => void openThread(thread));
+      row.append(summary,open);
+      return row;
+    }) : [element('p','No conversations yet.','muted')]));
   }
 
   function paintAccess() {
@@ -70,7 +128,7 @@ const companyMessaging = (() => {
   function paint() {
     const fleet = data.staff_fleet;
     const drivers = contacts?.drivers || [];
-    byId('companyMessageStartPanel').classList.toggle('hidden', fleet ? !drivers.length : !data.linked_fleets.length);
+    byId('companyMessageStartPanel').classList.toggle('hidden', Boolean(crew()) || !data.linked_fleets.length);
     byId('companyMessageRecipientLabel').textContent = fleet ? 'Driver' : 'Fleet';
     setOptions('companyMessageRecipient', fleet ? drivers.map(driver => [driver.profile_id,driver.name])
       : data.linked_fleets.map(id => [id,id]), fleet ? 'Select a driver' : 'Select a fleet');
@@ -81,18 +139,8 @@ const companyMessaging = (() => {
       setOptions('companyPrivateStaff', contacts.staff.map(staff => [staff.id,staff.name]), 'Select a staff member');
       paintAccess();
     }
-    byId('companyMessageThreads').replaceChildren(...(data.threads.length ? data.threads.map(thread => {
-      const row = element('article', '', 'dispatch-load-row');
-      const summary = element('div');
-      summary.append(element('strong', thread.contact), element('p', [thread.fleet_id, channels[thread.kind],
-        thread.unread ? 'Unread' : ''].filter(Boolean).join(' · '), 'muted'));
-      if (thread.last_message) summary.append(element('p', thread.last_message.body));
-      const open = element('button','Open','outline');
-      open.type = 'button';
-      open.addEventListener('click', () => void openThread(thread));
-      row.append(summary,open);
-      return row;
-    }) : [element('p','No conversations yet.','muted')]));
+    paintDriverDirectory();
+    paintConversationList();
   }
 
   async function readThread() {
@@ -124,7 +172,7 @@ const companyMessaging = (() => {
 
   async function refresh(force = false) {
     const user = currentUser;
-    if (!user || !['company','fleet','employee'].includes(accountTypeFor(user)) || (!force && listRequest)) return;
+    if (!user || !['company','fleet','employee','mechanic'].includes(accountTypeFor(user)) || (!force && listRequest)) return;
     const request = {};
     listRequest = request;
     const page = byId('companyMessagesPage');
@@ -133,11 +181,14 @@ const companyMessaging = (() => {
       if (viewing && selected && !threadRequest) await readThread();
       if (user !== currentUser || listRequest !== request) return;
       const result = await rpc('list');
-      const staff = viewing && result.staff_fleet;
-      const contactRows = staff ? await rpc('contacts',staff.id) : null;
+      const fleets = result.mechanic_fleets || [];
+      const selectedFleet = fleets.includes(mechanicFleet) ? mechanicFleet : fleets[0];
+      const contactFleet = viewing && (result.staff_fleet?.id || selectedFleet);
+      const contactRows = contactFleet ? await rpc('contacts',contactFleet) : null;
       if (user !== currentUser || listRequest !== request) return;
       data = result;
       contacts = contactRows;
+      mechanicFleet = selectedFleet;
       showBadges();
       if (viewing) {
         byId('companyMessagesStatus').textContent = '';
@@ -160,10 +211,68 @@ const companyMessaging = (() => {
       accountTypeFor(currentUser)==='employee' ? 'fleetEmployeePage' : 'rigTrackerProfilePage'));
   }
 
+  async function openTeam(kind) {
+    const user = currentUser;
+    if (!user || accountTypeFor(user) !== 'company' || !teamChannels.includes(kind)) return;
+    await open();
+    if (user !== currentUser || !byId('companyMessagesPage').classList.contains('active')) return;
+    if (!data?.linked_fleets.length) {
+      showToast('Link to a fleet to contact ' + channels[kind] + '.');
+      return;
+    }
+    if (data.linked_fleets.length > 1) {
+      byId('companyMessageChannel').value = kind;
+      byId('companyMessageStartPanel').scrollIntoView?.({ block: 'start' });
+      byId('companyMessageRecipient').focus();
+      return;
+    }
+    await jumpToTeam(data.linked_fleets[0],kind);
+  }
+
+  async function jumpToTeam(fleet, kind, driver) {
+    const user = currentUser;
+    const token = {};
+    teamRequest = token;
+    try {
+      const profile = driver?.profile_id;
+      const existing = data.threads.find(thread => thread.fleet_id===fleet && thread.kind===kind &&
+        (!profile || thread.profile_id===profile));
+      const target = existing || {
+        ...await rpc('start',fleet,null,{kind,...(profile ? {profile_id:profile} : {})}),
+        kind, contact:driver?.name || channels[kind], fleet_id:fleet, profile_id:profile
+      };
+      if (user !== currentUser || teamRequest !== token || !byId('companyMessagesPage').classList.contains('active')) return;
+      await openThread(target);
+      if (user === currentUser && selected === target) byId('companyMessageThread').scrollIntoView?.({ block: 'start' });
+    } catch (error) {
+      if (user === currentUser) showToast(error.message || 'Could not open the ' + channels[kind] + ' line.');
+    }
+  }
+
+  async function openDriver({dispatchId, profileId}) {
+    const user = currentUser;
+    await open();
+    if (currentUser !== user || !byId('companyMessagesPage').classList.contains('active')) return;
+    const driver = contacts?.drivers.find(row => dispatchId ? row.dispatch_driver_id===dispatchId : row.profile_id===profileId);
+    if (!driver) { showToast('Link the driver’s Company Driver profile to open their conversations.'); return; }
+    byId('companyMessageDriverPicker').value = driver.profile_id;
+    selectDriver();
+    byId('companyMessageDriverCard').scrollIntoView?.({ block: 'start' });
+  }
+
+  function selectDriver() {
+    teamRequest = null;
+    selected = null;
+    byId('companyMessageThread').classList.add('hidden');
+    paintDriverDirectory();
+    paintConversationList();
+  }
+
   async function openThread(thread) {
     const switching = selected?.id !== thread.id;
     selected = thread;
     if (switching) {
+      threadRequest = null;
       historySignature = '';
       draftId = null; draftBody = null;
       byId('companyMessageBody').value = '';
@@ -185,6 +294,15 @@ const companyMessaging = (() => {
   }
 
   byId('companyMessageRecipient').addEventListener('change',paintChannelChoices);
+  byId('companyMessageDriverPicker').addEventListener('change',selectDriver);
+  byId('companyMessageCrewFleet').addEventListener('change', event => {
+    if (!data.mechanic_fleets?.includes(event.target.value)) return;
+    mechanicFleet = event.target.value;
+    contacts = null;
+    byId('companyMessageDriverPicker').value = '';
+    selectDriver();
+    void refresh(true);
+  });
   for (const id of ['companyPrivateDriver','companyPrivateStaff']) byId(id).addEventListener('change',paintAccess);
   byId('companyMessageStart').addEventListener('submit',event => {
     event.preventDefault();
@@ -233,12 +351,18 @@ const companyMessaging = (() => {
   function reset() {
     data = null; contacts = null; selected = null; returnPage = null; listRequest = null; threadRequest = null;
     noticeIds = new Set(); initialized = false; historySignature = ''; draftBody = null; draftId = null;
+    mechanicFleet = null; teamRequest = null;
+    byId('companyMessageDriverPicker').replaceChildren();
+    byId('companyMessageCrewFleet').replaceChildren();
+    byId('companyMessageDriverCard').classList.add('hidden');
+    byId('companyMessageDirectory').classList.add('hidden');
     byId('companyMessageBody').value = '';
     byId('companyMessageThreads').replaceChildren();
     byId('companyMessageHistory').replaceChildren();
     byId('companyMessageThread').classList.add('hidden');
     for (const id of badges) byId(id).textContent = 'Messages';
+    if (byId('mechanicMessagesButton')) byId('mechanicMessagesButton').textContent = 'Messages';
   }
   setInterval(() => { if (!document.hidden) void refresh(); },10000);
-  return { open, back, refresh, reset };
+  return { open, openTeam, openDriver, back, refresh, reset };
 })();

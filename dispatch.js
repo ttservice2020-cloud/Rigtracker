@@ -222,7 +222,12 @@ const fleetDispatchApp = (() => {
       const row = element('article', '', 'dispatch-load-row');
       const info = element('div');
       const label = active ? 'On a load · ' + active.join(', ') : availability === 'available' ? 'Available' : 'Off duty';
-      info.append(element('strong', driver.name), element('p', label));
+      if (driver.driver_type === 'company' && typeof companyMessaging !== 'undefined') {
+        const profile = button(driver.name, () => void companyMessaging.openDriver({ dispatchId: driver.id }));
+        profile.className = 'link-btn company-driver-profile-link';
+        info.append(profile);
+      } else info.append(element('strong', driver.name));
+      info.append(element('p', label));
       if (driver.equipment) info.append(element('p', driver.equipment));
       if (driver.driver_type) {
         const type = driver.driver_type === 'owner_op' ? 'Owner Op' : 'Company Driver';

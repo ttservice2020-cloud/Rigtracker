@@ -90,7 +90,7 @@ function createCompanyDriver(event){
  return mutateFleetProfile(form.querySelector('button[type="submit"]'),'create_company_driver',Object.fromEntries(new FormData(form)),form);
 }
 
-async function openOwnRigTrackerProfile(){
+async function openOwnRigTrackerProfile({openLoads=false}={}){
  const user=currentUser;
  const role=accountTypeFor(user);
  if(!user||!['company','driver','mechanic'].includes(role))return;
@@ -103,6 +103,7 @@ async function openOwnRigTrackerProfile(){
  const details=document.getElementById('rigTrackerProfileDetails');
  const driver=role==='company';
  document.getElementById('companyDriverExtras')?.classList.toggle('hidden',!driver);
+ document.getElementById('mechanicMessagesButton')?.classList.toggle('hidden',role!=='mechanic');
  document.getElementById('profileDriverLoadsButton')?.classList.toggle('hidden',role!=='driver'&&!driver);
  title.textContent=driver?'Company Driver Dashboard':role==='mechanic'?'Mechanic Dashboard':'RigTracker Profile';
  document.getElementById('rigTrackerProfileBack').classList.toggle('hidden',role!=='driver');
@@ -124,9 +125,13 @@ async function openOwnRigTrackerProfile(){
  }
  status.classList.add('hidden');
  details.classList.remove('hidden');
+ if(driver&&typeof rigTrackerApp!=='undefined')rigTrackerApp.companyReady();
  if(driver&&typeof companyDriverTools!=='undefined')companyDriverTools.refresh();
- if(driver&&typeof companyMessaging!=='undefined')void companyMessaging.refresh();
- if((driver||role==='driver')&&typeof driverLoadWorkflow!=='undefined')void driverLoadWorkflow.refresh(true);
+ if((driver||role==='mechanic')&&typeof companyMessaging!=='undefined')void companyMessaging.refresh();
+ if((driver||role==='driver')&&typeof driverLoadWorkflow!=='undefined'){
+  if(openLoads&&document.getElementById('rigTrackerProfilePage').classList.contains('active'))void driverLoadWorkflow.open();
+  else void driverLoadWorkflow.refresh(true);
+ }
  document.getElementById('ownRigTrackerId').value=profile.profile_id;
  document.getElementById('ownProfileEmail').value=user.email||'';
  for(const key of ['first_name','last_name','phone','license_number']){

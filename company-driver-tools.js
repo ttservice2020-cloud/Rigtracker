@@ -203,6 +203,7 @@ const companyDriverTools = (() => {
       }
     } catch { /* The screen still works without access to this browser’s storage. */ }
     const count = records.filter(record => Date.parse(record.published_at) > viewedAt).length;
+    if (typeof rigTrackerApp !== 'undefined') rigTrackerApp.badge('settlements', count, 'new settlements');
     byId('companyDriverDocumentsButton').textContent = count ? 'Documents (' + count + ')' : 'Documents';
     byId('companyDriverPayButton').textContent = count ? 'Pay (' + count + ')' : 'Pay';
   }

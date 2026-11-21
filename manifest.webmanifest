@@ -1,0 +1,15 @@
+{
+  "id": "./",
+  "name": "RigTracker Pro",
+  "short_name": "RigTracker",
+  "description": "Manage loads, messages, and settlements from your driver account.",
+  "start_url": "./?app=driver",
+  "scope": "./",
+  "display": "standalone",
+  "theme_color": "#0b1524",
+  "background_color": "#05080d",
+  "icons": [
+    { "src": "./icons/rigtracker-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "./icons/rigtracker-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
