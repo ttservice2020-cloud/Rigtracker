@@ -93,6 +93,7 @@ async function openOwnRigTrackerProfile(){
  const status=document.getElementById('rigTrackerProfileStatus');
  const details=document.getElementById('rigTrackerProfileDetails');
  const driver=role==='company';
+ document.getElementById('profileDriverLoadsButton')?.classList.toggle('hidden',role!=='driver'&&!driver);
  title.textContent=driver?'Company Driver Dashboard':role==='mechanic'?'Mechanic Dashboard':'RigTracker Profile';
  document.getElementById('rigTrackerProfileBack').classList.toggle('hidden',role!=='driver');
  form.reset();
@@ -113,6 +114,7 @@ async function openOwnRigTrackerProfile(){
  }
  status.classList.add('hidden');
  details.classList.remove('hidden');
+ if((driver||role==='driver')&&typeof driverLoadWorkflow!=='undefined')void driverLoadWorkflow.refresh(true);
  document.getElementById('ownRigTrackerId').value=profile.profile_id;
  document.getElementById('ownProfileEmail').value=user.email||'';
  for(const key of ['first_name','last_name','phone','license_number']){
