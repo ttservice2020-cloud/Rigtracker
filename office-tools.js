@@ -18,6 +18,7 @@ const officeTools = (() => {
   let employeeRequest;
 
   const has = permission => Boolean(employee && (employee.office_is_official || employee.office_permissions.includes(permission)));
+  const canLinkProfiles = () => Boolean(employee?.office_is_official && employee.office_can_link_profiles && !employee.password_required);
   const messagesAllowed = () => ['messages','dispatch','assets','policies'].some(has) || hasPrivateThreads;
   const visible = (id, allowed) => byId(id).classList.toggle('hidden', !allowed);
   const displayName = row => [row.first_name,row.last_name].filter(Boolean).join(' ') || 'Office employee';
@@ -26,6 +27,7 @@ const officeTools = (() => {
     for (const tab of tabs) {
       const key = tab.dataset.officeTool;
       const available = key === 'profiles' ? employee?.office_can_manage_profiles
+        : key === 'link-profiles' ? canLinkProfiles()
         : key === 'safety' ? employee?.office_is_official : key === 'messages' ? messagesAllowed() : has(key);
       tab.classList.toggle('hidden', !available);
     }
@@ -45,7 +47,7 @@ const officeTools = (() => {
 
   function readEmployee(user) {
     return supabaseClient.from('fleet_employees')
-      .select('fleet_id,employee_id,office_role,office_is_official,office_can_manage_profiles,office_permissions,password_required')
+      .select('fleet_id,employee_id,office_role,office_is_official,office_can_manage_profiles,office_can_link_profiles,office_permissions,password_required')
       .eq('user_id',user.id).maybeSingle();
   }
 
@@ -137,6 +139,7 @@ const officeTools = (() => {
   function updateEditAccess() {
     const official = byId('officeProfileDesignation').value === 'official';
     visible('officeProfileOfficialAccess',official);
+    visible('officeProfileLinkAccess',Boolean(editing?.admin) && official);
     visible('officeProfilePermissionFields',!official);
   }
   byId('officeProfileDesignation').addEventListener('change',updateEditAccess);
@@ -148,6 +151,7 @@ const officeTools = (() => {
     byId('officeProfileIdentity').textContent = displayName(row) + ' · ' + fleet + '-' + row.employee_id;
     byId('officeProfileDesignation').value = row.office_is_official ? 'official' : 'unofficial';
     byId('officeProfileManage').checked = row.office_can_manage_profiles;
+    byId('officeProfileLink').checked = Boolean(row.office_can_link_profiles);
     visible('officeProfileDesignationFields',admin);
     const assigned = row.office_permissions || [];
     byId('officeProfilePermissionOptions').replaceChildren(...permissionLabels.map(([key,label])=>{
@@ -192,6 +196,7 @@ const officeTools = (() => {
     if (editing?.admin) {
       settings.is_official = byId('officeProfileDesignation').value === 'official';
       settings.can_manage_profiles = byId('officeProfileManage').checked;
+      settings.can_link_profiles = settings.is_official && byId('officeProfileLink').checked;
     }
     void saveChange(selection=>rpc('edit',selection.fleet,selection.row,settings),()=> 'Access updated.');
   });
@@ -218,8 +223,8 @@ const officeTools = (() => {
   passwordForm.addEventListener('submit', event=>{
     event.preventDefault();
     const password = temporaryPassword.value;
-    if (password.length < 8 || new TextEncoder().encode(password).length > 72) {
-      byId('officeProfileStatus').textContent = 'Use at least 8 characters and at most 72 bytes.';
+    if (!meetsPasswordRequirements(password)) {
+      byId('officeProfileStatus').textContent = passwordRequirements;
       return;
     }
     void saveChange(async selection=>{
@@ -269,7 +274,16 @@ const officeTools = (() => {
     }
   }
 
+  function openProfileLink() {
+    if (!canLinkProfiles()) return;
+    fleetSection = 'links';
+    resetFleetLinkForm();
+    renderFleetSections();
+    showPage('fleetWorkspace');
+  }
+
   const routes = {
+    'link-profiles':openProfileLink,
     dispatch:()=>showOfficeDispatch('current'),drivers:()=>showOfficeDispatch('drivers'),
     messages:()=>companyMessaging.open(),payroll:()=>companyDriverTools.openPayroll(),
     settlements:()=>companyDriverTools.openPayroll('Pay Settlements'),safety:()=>companySafety.open(),
@@ -295,5 +309,5 @@ const officeTools = (() => {
     renderTools();
   }
 
-  return { has,readEmployee,setEmployee,refreshEmployee,setPrivateThreads,openDashboard,dispatchFleet,dispatchAccess,loadRoster,updateCreateAccess,reset };
+  return { has,canLinkProfiles,readEmployee,setEmployee,refreshEmployee,setPrivateThreads,openDashboard,dispatchFleet,dispatchAccess,loadRoster,updateCreateAccess,reset };
 })();

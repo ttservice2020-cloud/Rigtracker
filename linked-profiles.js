@@ -95,11 +95,18 @@ function clearLinkPreview(){
 }
 document.getElementById('linkProfileKey').addEventListener('input',clearLinkPreview);
 
+function resetFleetLinkForm(){
+ document.getElementById('linkExistingProfileForm').reset();
+ clearLinkPreview();
+}
+
 async function saveRigTrackerLink(event){
  event.preventDefault();
  const user=currentUser;
- const fleet=adminFleetId;
- if(!user||!fleet||accountTypeFor(user)!=='fleet')return;
+ if(!user||fleetSection!=='links')return;
+ const office=accountTypeFor(user)==='employee';
+ const allowed=()=>office?officeTools.canLinkProfiles():accountTypeFor(user)==='fleet'&&Boolean(adminFleetId);
+ if(!allowed())return;
  const form=event.currentTarget;
  const control=document.getElementById('linkProfileSubmit');
  const field=document.getElementById('linkProfileKey');
@@ -111,14 +118,31 @@ async function saveRigTrackerLink(event){
   field.focus();
   return;
  }
- if(linkPreview===key){
-  return mutateFleetProfile(control,'link',{linkKey:key,employeeNumber:document.getElementById('linkEmployeeNumber').value},form);
- }
+ const redeem=linkPreview===key;
+ const employeeNumber=document.getElementById('linkEmployeeNumber').value;
+ if(redeem&&!office)return mutateFleetProfile(control,'link',{linkKey:key,employeeNumber},form);
+
+ const current=()=>currentUser===user&&fleetSection==='links'&&allowed()&&cleanLinkKey(field.value)===key;
  control.disabled=true;
- status.textContent='Checking link key…';
+ status.textContent=redeem?'Linking profile…':'Checking link key…';
  try{
-  const {profile}=await callFleetProfiles('preview_link',{linkKey:key});
-  if(currentUser!==user||adminFleetId!==fleet||cleanLinkKey(field.value)!==key)return;
+  let profile;
+  if(office){
+   const {data,error}=await supabaseClient.rpc('profile_link_key',{
+    action:redeem?'redeem':'preview',link_key:key,employee_number:redeem&&employeeNumber?employeeNumber:null
+   });
+   if(error)throw error;
+   if(!current())return;
+   if(redeem){
+    resetFleetLinkForm();
+    status.textContent='Profile linked.';
+    return;
+   }
+   profile=data;
+  }else{
+   ({profile}=await callFleetProfiles('preview_link',{linkKey:key}));
+  }
+  if(!current())return;
   linkPreview=key;
   const label=linkedProfileLabels[profile.profile_type];
   const name=[profile.first_name,profile.last_name].filter(Boolean).join(' ');
@@ -128,7 +152,7 @@ async function saveRigTrackerLink(event){
   document.getElementById('linkEmployeeNumber').disabled=!companyDriver;
   control.textContent='Link Profile';
  }catch(error){
-  if(currentUser===user&&adminFleetId===fleet&&cleanLinkKey(field.value)===key)status.textContent=error.message;
+  if(current())status.textContent=error.message;
  }finally{control.disabled=false}
 }
 
@@ -191,7 +215,9 @@ document.addEventListener('visibilitychange',()=>{
 function createCompanyDriver(event){
  event.preventDefault();
  const form=event.currentTarget;
- return mutateFleetProfile(form.querySelector('button[type="submit"]'),'create_company_driver',Object.fromEntries(new FormData(form)),form);
+ const fields=Object.fromEntries(new FormData(form));
+ if(!meetsPasswordRequirements(fields.password)){showToast(passwordRequirements);return}
+ return mutateFleetProfile(form.querySelector('button[type="submit"]'),'create_company_driver',fields,form);
 }
 
 async function openOwnRigTrackerProfile({openLoads=false}={}){
@@ -308,8 +334,8 @@ async function saveRigTrackerPassword(event){
  const currentPassword=values.get('currentPassword');
  if(password!==values.get('confirmPassword')){showToast('The new passwords do not match.');return}
  if(password===currentPassword){showToast('Choose a password different from the temporary password.');return}
- if(password.length<8||new TextEncoder().encode(password).length>72){
-  showToast('Use at least 8 characters and at most 72 bytes.');
+ if(!meetsPasswordRequirements(password)){
+  showToast(passwordRequirements);
   return;
  }
  button.disabled=true;

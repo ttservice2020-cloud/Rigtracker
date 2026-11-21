@@ -800,7 +800,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
         <p id="linkProfilePreview" class="muted" role="status"></p>
         <div class="employee-setup-actions"><button class="primary-btn" type="submit" id="linkProfileSubmit">Check Key</button></div>
        </form>
-       <form class="panel" id="companyDriverForm" onsubmit="createCompanyDriver(event)">
+       <form class="panel" data-admin-link-tool id="companyDriverForm" onsubmit="createCompanyDriver(event)">
         <h2>Create a Company Driver account</h2>
         <div class="form-grid fleet-account-fields">
          <div class="field"><label for="companyFirstName">First name</label><input id="companyFirstName" name="firstName" maxlength="100" required></div>
@@ -814,7 +814,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
         <p class="muted">Give the driver their temporary password. They can confirm their email from the Company Driver sign-in tab.</p>
         <button class="primary-btn" type="submit">Create and link driver</button>
        </form>
-       <section class="panel">
+       <section class="panel" data-admin-link-tool>
         <h2>Linked profiles</h2>
         <p id="fleetLinksStatus" class="muted" role="status"></p>
         <div class="table-shell hidden" id="fleetLinkTable"><table>
@@ -857,7 +857,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
          <div class="field"><label for="newEmployeeOfficeRole">Job title</label><input id="newEmployeeOfficeRole" type="text" autocomplete="off" maxlength="100" placeholder="Dispatcher" required></div>
         </div>
         <label class="office-toggle"><input id="newEmployeeManageProfiles" type="checkbox" role="switch"> Manage Employee Profiles</label>
-        <p class="muted hidden" id="newEmployeeOfficialAccess">Officials have access to all Office tools.</p>
+        <p class="muted hidden" id="newEmployeeOfficialAccess">Officials have access to standard Office tools.</p>
         <fieldset class="employee-setup-step" id="newEmployeePermissionOptions">
          <legend>Access</legend>
          <div class="employee-access-list">
@@ -1127,6 +1127,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
     <div class="fleet-tools-grid">
      <button type="button" class="card fleet-tool hidden" data-office-tool="dispatch">Dispatch</button>
      <button type="button" class="card fleet-tool hidden" data-office-tool="drivers">Drivers</button>
+     <button type="button" class="card fleet-tool hidden" data-office-tool="link-profiles">Link Profiles</button>
      <button type="button" class="card fleet-tool hidden" data-office-tool="assets">Assets <small>Coming later</small></button>
      <button type="button" class="card fleet-tool hidden" data-office-tool="messages" id="companyOfficeMessagesButton">Messages</button>
     </div>
@@ -1190,7 +1191,8 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
    <div class="field"><label for="officeProfileDesignation">Designation</label><select id="officeProfileDesignation"><option value="unofficial">Unofficial</option><option value="official">Official</option></select></div>
    <label class="office-toggle"><input type="checkbox" id="officeProfileManage" role="switch"> Manage Employee Profiles</label>
   </div>
-  <p class="muted hidden" id="officeProfileOfficialAccess">Officials have access to all Office tools.</p>
+  <label class="office-toggle hidden" id="officeProfileLinkAccess"><input type="checkbox" id="officeProfileLink" role="switch"> Link RigTracker Profiles</label>
+  <p class="muted hidden" id="officeProfileOfficialAccess">Officials have access to standard Office tools.</p>
   <fieldset id="officeProfilePermissionFields"><legend>Access</legend><div class="employee-access-list" id="officeProfilePermissionOptions"></div></fieldset>
   <button class="primary-btn" type="submit">Save Access</button>
  </form>
@@ -1206,13 +1208,13 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 
 <script src="./dispatch-progress.js?v=driver-workflow-1"></script>
 <script src="./dispatch.js?v=office-access-1"></script>
-<script src="./linked-profiles.js?v=link-keys-1"></script>
+<script src="./linked-profiles.js?v=office-link-permission-1"></script>
 <script src="./company-driver-tools.js?v=office-access-1"></script>
 <script src="./company-messages.js?v=office-access-1"></script>
 <script src="./driver-workflow.js?v=office-access-1"></script>
 <script src="./company-safety.js?v=1"></script>
 <script src="./driver-app.js?v=1"></script>
-<script src="./office-tools.js?v=2"></script>
+<script src="./office-tools.js?v=3"></script>
 <script>
 const SUPABASE_URL = 'https://pxxikzzfrcncwufpzdfp.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_7yQMjUtCtnHC6jgRF4ROLA_CmgsHaZo';
@@ -1303,6 +1305,11 @@ function toggleAuthMode(){
  signUpMode=!signUpMode;
  updateAuthForm();
 }
+const passwordRequirements = "Use at least 8 characters, one uppercase letter, and one symbol such as !@$#%&.";
+function meetsPasswordRequirements(password){
+ return typeof password === 'string' && password.length >= 8 && /[A-Z]/.test(password) && /[\x21-\x2F\x3A-\x40\x5B-\x60\x7B-\x7E]/.test(password)
+    && new TextEncoder().encode(password).length <= 72;
+}
 async function submitAuth(event){
  event.preventDefault();
  if(authBusy)return;
@@ -1321,6 +1328,7 @@ async function submitAuth(event){
  button.disabled=true;
  try{
   if(signUpMode&&!fleetManagedSignInRoles.has(role)){
+   if(!meetsPasswordRequirements(password)){showToast(passwordRequirements);return}
    const data={account_type:role};
    if(role==='fleet')data.requested_fleet_id=document.getElementById('signupFleetId').value.trim().toLowerCase();
    const result=await supabaseClient.auth.signUp({email,password,options:{data,emailRedirectTo:window.location.origin}});
@@ -1416,6 +1424,7 @@ async function signOut(){
   companySafety.reset();
   rigTrackerApp.reset();
   officeTools.reset();
+  resetFleetLinkForm();
   document.querySelectorAll('.page').forEach(page=>page.classList.remove('active'));
   resetSettlementForm();
   document.getElementById('appHeader').classList.add('hidden');
@@ -1797,23 +1806,24 @@ function renderFleetSections(){
  const operation=dispatch||fleetSection==='links'||Boolean(tool);
  const ready=fleetLoadState==='ready';
  const hasFleet=Boolean(adminFleetId);
+ const officeLink=office&&fleetSection==='links'&&officeTools.canLinkProfiles();
  const visible={
   fleetDashboard:dashboard,
   fleetDispatch:dispatch,
   fleetToolPanel:Boolean(tool),
   fleetToolBack:operation,
   fleetIdBadge:hasFleet&&fleetSection==='profiles',
-  fleetLoading:!dashboard&&(!operation||fleetSection==='links')&&fleetLoadState==='loading',
-  fleetUnavailable:(!operation||fleetSection==='links')&&fleetLoadState==='error',
+  fleetLoading:!office&&!dashboard&&(!operation||fleetSection==='links')&&fleetLoadState==='loading',
+  fleetUnavailable:!office&&(!operation||fleetSection==='links')&&fleetLoadState==='error',
   fleetSettings:fleetSection==='settings'&&ready,
   fleetSettingsSaved:hasFleet,
   fleetSetupForm:!hasFleet,
   fleetProfiles:fleetSection==='profiles'&&ready,
   fleetProfilesNeedsId:!hasFleet,
   fleetManagement:hasFleet,
-  fleetLinkedProfiles:fleetSection==='links'&&ready,
-  fleetLinksNeedsId:!hasFleet,
-  fleetLinksContent:hasFleet
+  fleetLinkedProfiles:fleetSection==='links'&&(office ? officeLink : ready),
+  fleetLinksNeedsId:!office&&!hasFleet,
+  fleetLinksContent:office ? officeLink : hasFleet
  };
  for(const [id,show] of Object.entries(visible)){
   document.getElementById(id).classList.toggle('hidden',!show);
@@ -1822,7 +1832,8 @@ function renderFleetSections(){
   if(button.dataset.fleetSection===(operation?'dashboard':fleetSection))button.setAttribute('aria-current','page');
   else button.removeAttribute('aria-current');
  }
- document.getElementById('fleetPageTitle').textContent=tool?.title??fleetSectionTitles[fleetSection];
+ document.getElementById('fleetPageTitle').textContent=officeLink?'Link Profiles':(tool?.title??fleetSectionTitles[fleetSection]);
+ for(const panel of document.querySelectorAll('[data-admin-link-tool]'))panel.classList.toggle('hidden',office);
  if(tool){
   document.getElementById('fleetToolStatus').textContent=tool.status;
   const links=(tool.links??[]).map(target=>{
@@ -1850,6 +1861,7 @@ function showFleetSection(section,dispatchTab='current'){
  if(section==='payroll')return companyDriverTools.openPayroll();
  if(!Object.hasOwn(fleetSectionTitles,section)&&!Object.hasOwn(fleetTools,section))return;
  fleetSection=section;
+ if(section==='links')resetFleetLinkForm();
  renderFleetSections();
  showPage('fleetWorkspace');
  return loadFleetSectionData(dispatchTab);
@@ -2046,7 +2058,7 @@ async function createFleetEmployee(event){
  const lastName=document.getElementById('newEmployeeLastName').value.trim();
  if(!firstName||!lastName){showToast('Enter the employee’s first and last name.');return}
  if(!/^[0-9]{1,6}$/.test(employeeId)){showToast('Use 1–6 digits for the Employee ID.');return}
- if(new TextEncoder().encode(password).length>72){showToast('Choose a shorter password.');return}
+ if(!meetsPasswordRequirements(password)){showToast(passwordRequirements);return}
  if(document.getElementById('employeeAccessStep').disabled){
   showEmployeeSetupStep(true,true);
   return;

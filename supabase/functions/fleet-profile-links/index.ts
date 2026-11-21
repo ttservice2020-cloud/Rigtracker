@@ -83,8 +83,9 @@ Deno.serve(async (request) => {
       if (employeeNumber && !employeeNumberPattern.test(employeeNumber)) {
         return reply(400, { message: "Use 1–6 digits for the employee number." });
       }
-      if (password.length < 8 || new TextEncoder().encode(password).length > 72) {
-        return reply(400, { message: "Enter a temporary password with at least 8 characters and at most 72 bytes." });
+      if (!(password.length >= 8 && /[A-Z]/.test(password) && /[\x21-\x2F\x3A-\x40\x5B-\x60\x7B-\x7E]/.test(password)
+    && new TextEncoder().encode(password).length <= 72)) {
+        return reply(400, { message: "Use at least 8 characters, one uppercase letter, and one symbol such as !@$#%&." });
       }
       const { data, error } = await service.auth.admin.createUser({
         email, password, email_confirm: false,

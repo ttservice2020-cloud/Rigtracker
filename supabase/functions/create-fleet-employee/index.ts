@@ -13,7 +13,8 @@ function reply(status: number, body: Record<string, unknown>) {
 }
 
 function validTemporaryPassword(password: unknown): password is string {
-  return typeof password === "string" && password.length >= 8 && new TextEncoder().encode(password).length <= 72;
+  return typeof password === "string" && password.length >= 8 && /[A-Z]/.test(password) && /[\x21-\x2F\x3A-\x40\x5B-\x60\x7B-\x7E]/.test(password)
+    && new TextEncoder().encode(password).length <= 72;
 }
 
 Deno.serve(async (request) => {
@@ -44,7 +45,7 @@ Deno.serve(async (request) => {
     return reply(400, { message: "Use 1–6 digits for the Employee ID." });
   }
   if (!validTemporaryPassword(password)) {
-    return reply(400, { message: "Use at least 8 characters and at most 72 bytes for the password." });
+    return reply(400, { message: "Use at least 8 characters, one uppercase letter, and one symbol such as !@$#%&." });
   }
 
   if (payload?.action === "reset_password") {
