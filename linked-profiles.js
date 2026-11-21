@@ -258,10 +258,8 @@ async function openOwnRigTrackerProfile({openLoads=false}={}){
  if(driver&&typeof rigTrackerApp!=='undefined')rigTrackerApp.companyReady();
  if(driver&&typeof companyDriverTools!=='undefined')companyDriverTools.refresh();
  if((driver||role==='mechanic')&&typeof companyMessaging!=='undefined')void companyMessaging.refresh();
- if((driver||role==='driver')&&typeof driverLoadWorkflow!=='undefined'){
-  if(openLoads&&document.getElementById('rigTrackerProfilePage').classList.contains('active'))void driverLoadWorkflow.open();
-  else void driverLoadWorkflow.refresh(true);
- }
+ const hasDriverWorkflow=(driver||role==='driver')&&typeof driverLoadWorkflow!=='undefined';
+ if(hasDriverWorkflow&&!openLoads)void driverLoadWorkflow.refresh(true);
  document.getElementById('ownRigTrackerId').value=profile.profile_id;
  const linkAccess={
   company:'Linked fleets can assign loads and share team messages and settlements with you.',
@@ -286,11 +284,16 @@ async function openOwnRigTrackerProfile({openLoads=false}={}){
   .select('fleet_id,employee_number').eq('profile_user_id',user.id).is('unlinked_at',null).order('fleet_id');
  if(!current())return;
  if(linkError){linkedStatus.textContent='Could not load linked fleets.';return}
- linkedStatus.textContent=links.length?'':'No fleets are linked.';
+ linkedStatus.textContent=links.length?'':driver
+  ?'Generate a link key above and share it with your fleet office to get linked.'
+  :'No fleets are linked.';
  for(const link of links){
   const row=document.createElement('li');
   row.textContent=link.employee_number?link.fleet_id+' · Employee '+link.employee_number:link.fleet_id;
   linkedFleets.append(row);
+ }
+ if(hasDriverWorkflow&&openLoads&&links.length&&document.getElementById('rigTrackerProfilePage').classList.contains('active')){
+  void driverLoadWorkflow.open();
  }
 }
 
