@@ -119,3 +119,29 @@
  .dispatch-milestones li:nth-child(3)::after{display:none}
 }
 .dispatch-history-filter{max-width:180px;margin:8px 0}
+
+.load-offer{background:#0b1627;border:1px solid #253c5b;scroll-margin-block-start:12px}
+.load-offer-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:14px}
+.load-offer-card{min-width:0;border:1px solid #2b4b74;border-radius:10px;background:#142946;overflow:hidden;overflow-wrap:anywhere}
+.load-offer-card>header{display:flex;align-items:baseline;flex-wrap:wrap;justify-content:space-between;gap:4px 8px;padding:9px 12px;background:#1a4178;color:#f3f7ff}
+.load-offer-card h3{margin:0;font-size:15px;line-height:1.35}
+.load-offer-card>header span{font-size:12px;color:#d0e5ff}
+.load-offer-stops{display:grid;gap:9px;list-style:none;margin:0;padding:12px}
+.load-offer-stops li+li{padding-top:9px;border-top:1px solid #355475}
+.load-offer-stops p,.load-offer-empty{margin:3px 0 0;color:#ccdef3;font-size:14px;line-height:1.4}
+.load-offer-empty{padding:12px;margin:0}
+.load-offer-appointment{display:grid;gap:2px;padding-top:8px;margin-top:8px;border-top:1px solid #355475;font-size:14px}
+.load-offer-appointment span,.load-offer-freight dt,.load-offer-pay dt{color:#aecbe9;font-size:13px}
+.load-offer-notes{white-space:pre-wrap}
+.load-offer-freight,.load-offer-pay{display:grid;gap:8px 12px;margin:0;padding:12px;font-size:14px}
+.load-offer-freight{grid-template-columns:repeat(2,minmax(0,1fr))}
+.load-offer-freight dd,.load-offer-pay dd{margin:2px 0 0;font-weight:700}
+.load-offer-pay>div{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.load-offer-pay dd{text-align:right;font-variant-numeric:tabular-nums}
+.load-offer-total{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:6px 12px;margin:0 12px;padding:10px 0 12px;border-top:1px solid #355475}
+.load-offer-total strong{font-size:clamp(20px,3vw,26px);color:#80e5ff;font-variant-numeric:tabular-nums}
+.load-offer-actions{justify-content:flex-end;margin-top:14px}
+@media(max-width:530px){
+ .load-offer-grid{grid-template-columns:minmax(0,1fr)}
+ .load-offer-actions>*{flex:1}
+}

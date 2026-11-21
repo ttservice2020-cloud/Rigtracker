@@ -6,7 +6,7 @@ const fleetDispatchApp = (() => {
   const tabs = [...byId('dispatchTabs').querySelectorAll('[role=tab]')];
   const stops = { pickup: byId('dispatchPickups'), receiver: byId('dispatchReceivers') };
   const formDetails = [
-    'secondDriverMode', 'routeNumber', 'pickupNumber', 'commodity', 'commodityOther', 'weightLbs', 'equipmentType', 'equipmentTypeOther',
+    'secondDriverMode', 'routeNumber', 'pickupNumber', 'commodity', 'commodityOther', 'weightLbs', 'pieces', 'equipmentType', 'equipmentTypeOther',
     'trailerDrop', 'trailerDropNotes', 'trailerPickup', 'trailerPickupNotes',
     'payGross', 'driver1AdditionalPay', 'driver2AdditionalPay', 'loadedMiles', 'relayLocation', 'relayDate', 'relayDrop',
     'relayPickup', 'firstLegMiles', 'driver1Pay', 'driver2Pay', 'emptyMiles', 'emptyRate', 'stopPay'
@@ -225,7 +225,8 @@ const fleetDispatchApp = (() => {
       info.append(element('strong', driver.name), element('p', label));
       if (driver.equipment) info.append(element('p', driver.equipment));
       if (driver.driver_type) {
-        info.append(element('p', driver.driver_type === 'owner_op' ? 'Owner Op · ' + payLabels[driver.pay_method] : 'Company Driver'));
+        const type = driver.driver_type === 'owner_op' ? 'Owner Op' : 'Company Driver';
+        info.append(element('p', [type, payLabels[driver.pay_method]].filter(Boolean).join(' · ')));
       }
       const actions = element('div', '', 'dispatch-actions');
       if (byId('dispatchPayProfileForm')) actions.append(button('Edit Pay Profile', () => editPayProfile(driver)));
@@ -545,7 +546,7 @@ const fleetDispatchApp = (() => {
     const draft = edit;
     if (!scope || draft.saving || draft.row?.status === 'completed') return;
     if (status === 'completed' && !form.reportValidity()) return;
-    for (const name of ['weightLbs', 'driver1AdditionalPay', 'driver2AdditionalPay']) {
+    for (const name of ['weightLbs', 'pieces', 'driver1AdditionalPay', 'driver2AdditionalPay']) {
       const field = form.elements.namedItem(name);
       if (field && !field.reportValidity()) return;
     }
@@ -836,6 +837,12 @@ const fleetDispatchApp = (() => {
   function paintPayProfileFields() {
     const form = byId('dispatchPayProfileForm');
     const owner = form.elements.driverType.value === 'owner_op';
+    const company = form.elements.driverType.value === 'company';
+    const companyMethod = form.elements.companyPayMethod;
+    if (companyMethod) {
+      toggle('dispatchProfileCompanyMethodField', company);
+      companyMethod.disabled = !company;
+    }
     const method = form.elements.payMethod.value;
     for (const [field, input, visible] of [
       ['dispatchProfileMethodField', form.elements.payMethod, owner],
@@ -852,9 +859,10 @@ const fleetDispatchApp = (() => {
     const form = byId('dispatchPayProfileForm');
     if (form.querySelector('button[type=submit]').disabled) return;
     state.payProfileId = driver.id;
-    const { driverType, payMethod, splitPercent, mileRate } = form.elements;
+    const { driverType, payMethod, companyPayMethod, splitPercent, mileRate } = form.elements;
     driverType.value = driver.driver_type ?? '';
-    payMethod.value = driver.pay_method ?? '';
+    payMethod.value = driver.driver_type === 'owner_op' ? driver.pay_method ?? '' : '';
+    if (companyPayMethod) companyPayMethod.value = driver.driver_type === 'company' ? driver.pay_method ?? '' : '';
     splitPercent.value = driver.split_percent ?? '';
     mileRate.value = driver.mile_rate ?? '';
     byId('dispatchPayProfileHeading').textContent = driver.name + ' pay profile';
@@ -870,8 +878,9 @@ const fleetDispatchApp = (() => {
     const control = form.querySelector('button[type=submit]');
     if (!scope?.payProfileId || control.disabled) return;
     const data = new FormData(form);
+    const driverType = data.get('driverType');
     const profile = {
-      driver_type: data.get('driverType'), pay_method: data.get('payMethod'),
+      driver_type: driverType, pay_method: (driverType === 'company' ? data.get('companyPayMethod') : data.get('payMethod')) || null,
       split_percent: data.get('splitPercent'), mile_rate: data.get('mileRate')
     };
     control.disabled = true;

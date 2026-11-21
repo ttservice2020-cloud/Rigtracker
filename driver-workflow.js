@@ -7,6 +7,15 @@ const driverLoadWorkflow = (() => {
   };
   const empty = () => ({ loads: [], yard: [] });
   const bucket = 'driver-load-documents';
+  const currency = new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' });
+  const rate = new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 6 });
+  const quantity = new Intl.NumberFormat(undefined, { maximumFractionDigits: 4 });
+  const appointmentDate = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeZone: 'UTC' });
+  const zoneNames = {
+    'America/New_York': 'Eastern', 'America/Chicago': 'Central', 'America/Denver': 'Mountain',
+    'America/Phoenix': 'Arizona', 'America/Los_Angeles': 'Pacific', 'America/Anchorage': 'Alaska',
+    'Pacific/Honolulu': 'Hawaii'
+  };
   let driverData = empty();
   let selected = null;
   let driverRead = null;
@@ -90,6 +99,121 @@ const driverLoadWorkflow = (() => {
     return statusText[load.decision] || 'New assignment';
   }
 
+  const isOffer = load => load?.status === 'current' && !load.decision;
+
+  function offerNumber(value, formatter, unit = '') {
+    if (value == null || value === '' || !Number.isFinite(Number(value))) return '';
+    return formatter.format(Number(value)) + unit;
+  }
+
+  function offerFields(entries, className = '') {
+    const list = node('dl', '', className);
+    for (const [label, value] of entries) {
+      if (!value) continue;
+      const row = node('div');
+      row.append(node('dt', label), node('dd', value));
+      list.append(row);
+    }
+    return list;
+  }
+
+  function offerCard(title, extra) {
+    const card = node('section', '', 'load-offer-card');
+    const heading = node('header');
+    heading.append(node('h3', title));
+    if (extra) heading.append(node('span', extra));
+    card.append(heading);
+    return card;
+  }
+
+  function offerTime(value) {
+    if (!value || !/^(?:[01]\d|2[0-3]):?[0-5]\d$/.test(value)) return '';
+    return value.length === 4 ? value.slice(0, 2) + ':' + value.slice(2) : value;
+  }
+
+  function offerStops(load, kind) {
+    const stops = load.stops.filter(stop => stop.kind === kind);
+    const card = offerCard(kind === 'pickup' ? 'Pickup' : 'Delivery',
+      stops.length + (stops.length === 1 ? ' stop' : ' stops'));
+    const list = node('ol', '', 'load-offer-stops');
+    for (const { info } of stops) {
+      const row = node('li');
+      row.append(node('strong', info.company || 'Stop location'));
+      const locality = [[info.city, info.state].filter(Boolean).join(', '), info.zip].filter(Boolean).join(' ');
+      for (const line of [info.address, locality]) if (line) row.append(node('p', line));
+      const date = info.date && new Date(info.date + 'T00:00:00Z');
+      const day = date && Number.isFinite(date.valueOf()) ? appointmentDate.format(date) : '';
+      const time = [offerTime(info.from), offerTime(info.to)].filter(Boolean).join('–');
+      const appointment = [day, [time, time && zoneNames[info.zone]].filter(Boolean).join(' ')].filter(Boolean).join(' · ');
+      const schedule = node('div', '', 'load-offer-appointment');
+      schedule.append(node('span', 'Appointment'), node('strong', appointment || 'To be scheduled'));
+      row.append(schedule);
+      if (info.notes) row.append(node('p', info.notes, 'load-offer-notes'));
+      list.append(row);
+    }
+    if (stops.length) card.append(list);
+    else card.append(node('p', 'No stops assigned.', 'load-offer-empty'));
+    return card;
+  }
+
+  function offerFreight(freight) {
+    const card = offerCard('Shipment Details');
+    const fields = offerFields([
+      ['Commodity', freight.commodity], ['Equipment', freight.equipment],
+      ['Weight', offerNumber(freight.weight, quantity, ' lb')], ['Pieces', offerNumber(freight.pieces, quantity)],
+      ['Route', freight.route], ['Loaded miles', offerNumber(freight.miles, quantity, ' mi')],
+      ['Pickup number', freight.pickupNumber], ['Trailer drop', freight.trailerDrop], ['Trailer pickup', freight.trailerPickup]
+    ], 'load-offer-freight');
+    if (fields.childElementCount) card.append(fields);
+    else card.append(node('p', 'No shipment details entered.', 'load-offer-empty'));
+    return card;
+  }
+
+  function offerPay(pay) {
+    const company = accountTypeFor(currentUser) === 'company';
+    const card = offerCard(company ? 'Company Driver Pay' : 'Owner-Operator Pay');
+    if (!pay || (company ? pay.type !== 'company' : pay.type !== 'owner_op')) return card;
+    const amount = value => offerNumber(value, currency);
+    const displayRate = value => offerNumber(value, rate, ' / mi');
+    const rows = pay.method === 'split' ? [
+      ['Gross load pay', amount(pay.gross)],
+      ['Fuel surcharge rate', pay.fuelRateCents == null ? '' : displayRate(Number(pay.fuelRateCents) / 100)],
+      ['Route loaded miles', offerNumber(pay.loadedMiles, quantity, ' mi')],
+      ['Fuel surcharge', amount(pay.fuelSurcharge)], ['Gross after fuel', amount(pay.splitBase)],
+      ['Your split', offerNumber(pay.splitPercent, quantity, '%')]
+    ] : pay.method === 'per_mile' ? [
+      ['Your rate', displayRate(pay.mileRate)], ['Your loaded miles', offerNumber(pay.miles, quantity, ' mi')]
+    ] : [];
+    rows.push(['Base pay', amount(pay.amount)]);
+    if (pay.additionalPay > 0) rows.push(['Additional pay', amount(pay.additionalPay)]);
+    const entries = offerFields(rows, 'load-offer-pay');
+    if (entries.childElementCount) card.append(entries);
+    const total = amount(pay.totalPay ?? pay.amount);
+    if (total) {
+      const summary = node('div', '', 'load-offer-total');
+      summary.append(node('span', 'Estimated pay'), node('strong', total));
+      card.append(summary);
+    }
+    return card;
+  }
+
+  function paintOffer(load, panel) {
+    const cards = node('div', '', 'load-offer-grid');
+    cards.append(offerStops(load, 'pickup'), offerStops(load, 'delivery'),
+      offerFreight(load.offer?.freight || {}), offerPay(load.offer?.pay));
+    const actions = node('div', '', 'dispatch-actions load-offer-actions');
+    const respond = async (control, action, message) => {
+      const other = control === accept ? reject : accept;
+      other.disabled = true;
+      try { await mutate(control, 'driver', action, load.id, {}, message); }
+      finally { other.disabled = false; }
+    };
+    const accept = button('Accept', control => respond(control, 'accept', 'Assignment accepted.'), 'primary-btn');
+    const reject = button('Reject', control => respond(control, 'reject', 'Dispatch was notified.'));
+    actions.append(accept, reject);
+    panel.append(cards, actions);
+  }
+
   async function rpc(role, action, id, payload) {
     const data = { action, ...(id ? { load_id: id } : {}), ...(payload ? { payload } : {}) };
     if (role === 'dispatch') data.fleet = adminFleetId;
@@ -124,7 +248,11 @@ const driverLoadWorkflow = (() => {
       summary.append(node('strong', pro(load)), node('p', label(load), 'muted'));
       const route = [place(load.stops[0]?.info), place(load.stops.at(-1)?.info)].filter(Boolean);
       if (route.length) summary.append(node('p', [...new Set(route)].join(' → ')));
-      row.append(summary, button('Open load', () => { selected = load.id; paintDetails(); }));
+      row.append(summary, button(isOffer(load) ? 'Review offer' : 'Open load', () => {
+        selected = load.id;
+        paintDetails();
+        byId('driverWorkflowDetail').scrollIntoView?.({ block: 'start' });
+      }));
       return row;
     });
     setList('driverWorkflowLoads', rows, 'No loads are assigned to you.');
@@ -284,15 +412,18 @@ const driverLoadWorkflow = (() => {
     const load = driverData.loads.find(row => row.id === selected);
     panel.replaceChildren();
     panel.classList.toggle('hidden', !load);
+    const pendingOffer = isOffer(load);
+    const list = byId('driverWorkflowLoads').parentElement;
+    panel.classList.toggle('load-offer', pendingOffer);
+    if (pendingOffer && panel.nextElementSibling !== list) list.before(panel);
+    if (!pendingOffer && panel.previousElementSibling !== list) list.after(panel);
     if (!load) return;
-    panel.append(node('h2', pro(load)), node('p', label(load), 'muted'), node('h3', 'Load Progress'), showAllStops(load));
-    if (load.status === 'current' && !load.decision) {
-      const actions = node('div', '', 'dispatch-actions');
-      actions.append(button('Accept', control => mutate(control, 'driver', 'accept', load.id, {}, 'Assignment accepted.'),
-        'primary-btn'), button('Reject', control => mutate(control, 'driver', 'reject', load.id, {}, 'Dispatch was notified.')));
-      panel.append(actions);
+    panel.append(node('h2', pro(load)), node('p', [label(load), load.fleet].filter(Boolean).join(' · '), 'muted'));
+    if (pendingOffer) {
+      paintOffer(load, panel);
       return;
     }
+    panel.append(node('h3', 'Load Progress'), showAllStops(load));
     if (load.decision !== 'accepted' || load.review === 'denied') return;
     if (load.yard_handoff?.picked_up_at) {
       const { trailer, yard, picked_up_at, first_driver } = load.yard_handoff;
@@ -331,8 +462,9 @@ const driverLoadWorkflow = (() => {
     try {
       const data = await rpc('driver', 'list');
       if (driverRead !== request || user !== currentUser) return;
+      const previous = driverData.loads.find(load => load.id === selected);
       driverData = data;
-      const unread = data.loads.filter(load => load.status === 'current' && !load.decision);
+      const unread = data.loads.filter(isOffer);
       const offers = data.yard.filter(offer => !offer.picked_up_at);
       const keys = [...unread.map(load => 'load:' + load.id), ...offers.map(offer => 'trailer:' + offer.id + ':' + offer.trailer)];
       const justArrived = keys.some(key => !seenDriver.has(key));
@@ -349,7 +481,15 @@ const driverLoadWorkflow = (() => {
         byId('driverWorkflowStatus').textContent = '';
         driverSnapshot = snapshot;
       }
-      if (screen.classList.contains('active') && redraw) paintDetails();
+      if (screen.classList.contains('active')) {
+        const current = data.loads.find(load => load.id === selected);
+        if (!current && unread.length) {
+          selected = unread[0].id;
+          paintDetails();
+        } else if (redraw || (isOffer(previous) && JSON.stringify(previous) !== JSON.stringify(current))) {
+          paintDetails();
+        }
+      }
     } catch (error) {
       if (driverRead === request && user === currentUser && (!quiet || screen.classList.contains('active'))) {
         byId('driverWorkflowStatus').textContent = error.message || 'Could not load assignments.';
@@ -459,6 +599,7 @@ const driverLoadWorkflow = (() => {
   }
 
   function open() {
+    if (!byId('driverLoadsPage').classList.contains('active')) selected = null;
     showPage('driverLoadsPage');
     byId('driverWorkflowStatus').textContent = 'Loading your assignments…';
     return refresh();

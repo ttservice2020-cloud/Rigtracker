@@ -237,7 +237,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 .driver-load-stops p{margin:5px 0}
 .driver-load-stops li[aria-current="step"]{border-color:#4c8dff;background:#13294a}
 </style>
-<link rel="stylesheet" href="./dispatch.css?v=progress-1">
+<link rel="stylesheet" href="./dispatch.css?v=load-offers-1">
 </head>
 <body>
 <header class="brandbar hidden" id="appHeader">
@@ -672,6 +672,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
             </div>
             <div class="field hidden" id="dispatchCommodityOtherField"><label for="dispatchCommodityOther">Describe the commodity</label><input id="dispatchCommodityOther" name="commodityOther" maxlength="120" disabled></div>
             <div class="field"><label for="dispatchWeight">Weight (lb)</label><input id="dispatchWeight" name="weightLbs" type="number" min="0.01" step="0.01" inputmode="decimal"></div>
+            <div class="field"><label for="dispatchPieces">Pieces</label><input id="dispatchPieces" name="pieces" type="number" min="1" max="999999999" step="1" inputmode="numeric"></div>
             <div class="field"><label for="dispatchEquipmentType">Equipment Type</label>
              <select id="dispatchEquipmentType" name="equipmentType">
               <option value="">Select equipment</option>
@@ -740,6 +741,9 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
            </div>
            <div class="field hidden" id="dispatchProfileMethodField"><label for="dispatchProfilePayMethod">Owner Op pay method</label>
             <select id="dispatchProfilePayMethod" name="payMethod"><option value="">Select a pay method</option><option value="hourly">Hourly</option><option value="split">Split Load</option><option value="per_mile">Flat Rate per Mile</option></select>
+           </div>
+           <div class="field hidden" id="dispatchProfileCompanyMethodField"><label for="dispatchProfileCompanyPayMethod">Company Driver pay method</label>
+            <select id="dispatchProfileCompanyPayMethod" name="companyPayMethod"><option value="">Per load (manual)</option><option value="hourly">Hourly</option></select>
            </div>
            <div class="field hidden" id="dispatchProfileSplitField"><label for="dispatchProfileSplit">Driver split (%)</label><input id="dispatchProfileSplit" name="splitPercent" type="number" min="0" max="100" step="0.01" inputmode="decimal"></div>
            <div class="field hidden" id="dispatchProfileMileField"><label for="dispatchProfileMile">Flat rate ($ per loaded mile)</label><input id="dispatchProfileMile" name="mileRate" type="number" min="0" max="9999" step="0.0001" inputmode="decimal"></div>
@@ -1051,11 +1055,11 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 <div id="modal"><div class="modal-card"><h2 id="modalTitle"></h2><div id="modalBody"></div><button class="primary-btn" onclick="closeModal()">Close</button></div></div>
 
 <script src="./dispatch-progress.js?v=driver-workflow-1"></script>
-<script src="./dispatch.js?v=driver-workflow-1"></script>
+<script src="./dispatch.js?v=load-offers-1"></script>
 <script src="./linked-profiles.js?v=company-tools-1"></script>
 <script src="./company-driver-tools.js?v=1"></script>
 <script src="./company-messages.js?v=1"></script>
-<script src="./driver-workflow.js?v=load-notices-1"></script>
+<script src="./driver-workflow.js?v=load-offers-1"></script>
 <script>
 const SUPABASE_URL = 'https://pxxikzzfrcncwufpzdfp.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_7yQMjUtCtnHC6jgRF4ROLA_CmgsHaZo';
