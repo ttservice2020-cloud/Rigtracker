@@ -73,14 +73,17 @@ Deno.serve(async (request) => {
     email_confirm: true,
     user_metadata: hasOfficeSetup ? { first_name: firstName, last_name: lastName } : {},
     app_metadata: {
-      account_type: "fleet_employee", fleet_id: fleet.id, employee_id: employeeId,
+      account_type: "fleet_employee", fleet_id: fleet.id, employee_id: employeeId, temporary_password: true,
       ...(hasOfficeSetup ? { office_role: officeRole, office_permissions: [...new Set(permissions)] } : {}),
     },
   });
   if (error) {
-    const { data: existing } = await client.from("fleet_employees").select("employee_id")
-      .eq("fleet_id", fleet.id).eq("employee_id", employeeId).maybeSingle();
-    if (existing || error.code === "email_exists" || error.code === "user_already_exists") {
+    const [office, driver] = await Promise.all([
+      client.from("fleet_employees").select("employee_id").eq("fleet_id", fleet.id).eq("employee_id", employeeId).maybeSingle(),
+      client.from("rigtracker_fleet_links").select("employee_number").eq("fleet_id", fleet.id)
+        .eq("employee_number", employeeId).is("unlinked_at", null).maybeSingle(),
+    ]);
+    if (office.data || driver.data || error.code === "email_exists" || error.code === "user_already_exists") {
       return reply(409, { message: "That Employee ID is already in use in this fleet." });
     }
     if (error.code === "weak_password") {
