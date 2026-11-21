@@ -132,8 +132,20 @@ const driverLoadWorkflow = (() => {
     byId('driverYardList').replaceChildren(...offers.map(offer => node('li',
       [offer.trailer, offer.yard, pro(offer), offer.picked_up_at ? 'In Transit · Dispatch review' : 'Ready at yard'].join(' · '))));
     byId('driverYardStatus').textContent = offers.length ? '' : 'No yard trailers have been sent.';
-    setOptions(byId('driverYardOffer'), waiting.map(offer => [offer.id, offer.trailer + ' · ' + offer.yard]), 'Choose a trailer from the list');
+    updateYardMatch();
     byId('driverYardForm').classList.toggle('hidden', !waiting.length);
+  }
+
+  function updateYardMatch() {
+    const number = byId('driverYardTrailer').value.trim().toUpperCase();
+    const matches = driverData.yard.filter(offer => !offer.picked_up_at && offer.trailer.toUpperCase() === number);
+    const picker = byId('driverYardOffer');
+    const needsYard = matches.length > 1;
+    picker.closest('.field').classList.toggle('hidden', !needsYard);
+    picker.disabled = !needsYard;
+    picker.required = needsYard;
+    setOptions(picker, matches.map(offer => [offer.id, offer.yard + ' · ' + pro(offer)]), 'Choose the matching yard');
+    return matches;
   }
 
   function showAllStops(load) {
@@ -443,11 +455,17 @@ const driverLoadWorkflow = (() => {
     byId('dispatch-tab-activity').textContent = 'Driver Activity';
   }
 
+  byId('driverYardTrailer').addEventListener('input', updateYardMatch);
+  updateYardMatch();
   byId('driverYardForm').addEventListener('submit', event => {
     event.preventDefault();
     const form = event.currentTarget;
+    const matches = updateYardMatch();
     const { load, trailer } = values(form);
-    void mutate(form.querySelector('button[type="submit"]'), 'driver', 'yard_pickup', load, { trailer },
+    if (!matches.length) { showToast('Enter a trailer number from your yard list.'); return; }
+    const id = matches.length === 1 ? matches[0].id : load;
+    if (!id) { byId('driverYardOffer').reportValidity(); return; }
+    void mutate(form.querySelector('button[type="submit"]'), 'driver', 'yard_pickup', id, { trailer },
       'In Transit. Dispatch was notified.', () => form.reset());
   });
 
