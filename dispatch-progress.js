@@ -221,6 +221,21 @@ const dispatchProgress = (() => {
           }
         }
         if (stop.progress.completedAt) entry.append(element('p', 'Departed ' + recordedTime(stop.progress.completedAt, stop.zone)));
+        const report = stop.progress.driverReport;
+        if (report) {
+          const reported = [
+            report.trailer && 'Trailer ' + report.trailer,
+            report.commodity,
+            report.weight && 'Weight ' + report.weight,
+            report.pieces && 'Pieces ' + report.pieces,
+            report.bol && 'BOL ' + report.bol,
+            report.droppedTrailer && 'Dropped ' + report.droppedTrailer,
+            report.pickedTrailer && 'Picked up ' + report.pickedTrailer + ' (' + report.loadedState + ')'
+          ].filter(Boolean);
+          if (reported.length) entry.append(element('p', reported.join(' · '), 'muted'));
+          if (report.document) entry.append(button(stop.kind === 'pickup' ? 'View BOL' : 'View delivery paperwork',
+            () => driverLoadWorkflow.openDocument(report.document)));
+        }
         return entry;
       }));
       const details = load.details;
