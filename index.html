@@ -273,7 +273,10 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
    <div class="card stat"><div class="stat-label">Net Payout</div><div class="stat-value" id="dashNet">$0.00</div></div>
    <div class="card stat"><div class="stat-label">Per Diem Nights</div><div class="stat-value" id="dashNights">0</div></div>
   </div>
-  <button class="outline" type="button" onclick="openOwnRigTrackerProfile()">RigTracker Profile</button>
+  <div class="employee-setup-actions">
+    <button class="outline" type="button" onclick="openOwnRigTrackerProfile()">RigTracker Profile</button>
+    <button class="primary-btn" id="ownerDriverLoadsButton" type="button" onclick="driverLoadWorkflow.open()">Loads</button>
+   </div>
    <h2>What would you like to do?</h2>
   <div class="grid tiles" style="margin-top:16px">
    <article class="tile"><div><h3>Settlement Entry</h3><p>Enter a settlement and itemized deductions.</p></div><button class="primary-btn" onclick="showPage('settlementPage')">Add Settlement</button></article>
@@ -467,6 +470,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
         <button id="dispatch-tab-contract" type="button" role="tab" aria-selected="false" aria-controls="dispatch-panel-contract" data-dispatch-tab="contract" tabindex="-1">Contract Loads</button>
         <button id="dispatch-tab-history" type="button" role="tab" aria-selected="false" aria-controls="dispatch-panel-history" data-dispatch-tab="history" tabindex="-1">Load History</button>
         <button id="dispatch-tab-drivers" type="button" role="tab" aria-selected="false" aria-controls="dispatch-panel-drivers" data-dispatch-tab="drivers" tabindex="-1">Drivers</button>
+         <button id="dispatch-tab-activity" type="button" role="tab" aria-selected="false" aria-controls="dispatch-panel-activity" data-dispatch-tab="activity" tabindex="-1">Driver Activity</button>
        </div>
        <div class="hidden panel" id="dispatchReadError">
         <p role="status">Could not load Dispatch records.</p>
@@ -531,7 +535,32 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
          <p class="muted hidden" id="dispatchContractRunsEmpty">No completed runs for this contract yet.</p>
         </section>
        </section>
-       <section id="dispatch-panel-current" class="dispatch-panel" role="tabpanel" aria-labelledby="dispatch-tab-current" tabindex="0">
+       <section id="dispatch-panel-activity" class="dispatch-panel hidden" role="tabpanel" aria-labelledby="dispatch-tab-activity" tabindex="0">
+         <p class="muted" id="dispatchWorkflowStatus" role="status"></p>
+         <section class="panel">
+          <h2>Return loads to review</h2>
+          <div id="dispatchWorkflowReturns" class="dispatch-load-list"></div>
+         </section>
+         <section class="panel">
+          <h2>Yard splits</h2>
+          <div id="dispatchWorkflowYard" class="dispatch-load-list"></div>
+          <form id="dispatchYardSendForm">
+           <h3>Send a yard trailer</h3>
+           <div class="form-grid fleet-account-fields">
+            <div class="field"><label for="dispatchYardLoad">Load</label><select id="dispatchYardLoad" name="load" required></select></div>
+            <div class="field"><label for="dispatchYardRecipient">Next driver</label><select id="dispatchYardRecipient" name="driver_id"></select></div>
+            <div class="field"><label for="dispatchYardSite">Yard</label><input id="dispatchYardSite" name="yard" maxlength="160" required></div>
+            <div class="field"><label for="dispatchYardNumber">Trailer number</label><input id="dispatchYardNumber" name="trailer" maxlength="40" required></div>
+           </div>
+           <button class="primary-btn" type="submit">Save Yard Split</button>
+          </form>
+         </section>
+         <section class="panel">
+          <h2>Driver responses</h2>
+          <div id="dispatchWorkflowResponses" class="dispatch-load-list"></div>
+         </section>
+        </section>
+        <section id="dispatch-panel-current" class="dispatch-panel" role="tabpanel" aria-labelledby="dispatch-tab-current" tabindex="0">
         <div class="field"><label for="dispatchLoadSearch">Search loads</label><input id="dispatchLoadSearch" type="search" placeholder="PRO, driver, or location"></div>
         <section class="panel">
          <h2>Active loads</h2>
@@ -833,6 +862,9 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
    </div></div>
    <div id="rigTrackerProfileStatus" class="panel" role="status"></div>
    <div class="hidden" id="rigTrackerProfileDetails">
+    <div class="employee-setup-actions">
+     <button class="primary-btn hidden" id="profileDriverLoadsButton" type="button" onclick="driverLoadWorkflow.open()">Loads</button>
+    </div>
     <section class="panel">
      <h2>RigTracker Profile ID</h2>
      <div class="field"><input id="ownRigTrackerId" aria-label="RigTracker Profile ID" readonly></div>
@@ -856,6 +888,30 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
     </section>
    </div>
   </section>
+  <section id="driverLoadsPage" class="page fleet-account-page">
+   <div class="page-head">
+    <div><button class="back" type="button" onclick="driverLoadWorkflow.back()">← Back to Dashboard</button><h1>Loads</h1></div>
+    <button class="outline" type="button" onclick="driverLoadWorkflow.refresh()">Refresh</button>
+   </div>
+   <p class="muted" id="driverWorkflowStatus" role="status"></p>
+   <section class="panel">
+    <h2>Assignments</h2>
+    <div id="driverWorkflowLoads" class="dispatch-load-list"></div>
+   </section>
+   <section class="panel hidden" id="driverWorkflowDetail" aria-label="Driver load details"></section>
+   <section class="panel" id="driverWorkflowYard">
+    <h2>Yard trailers</h2>
+    <p class="muted" id="driverYardStatus"></p>
+    <ul id="driverYardList"></ul>
+    <form class="hidden" id="driverYardForm">
+     <div class="form-grid fleet-account-fields">
+      <div class="field"><label for="driverYardOffer">Yard trailer</label><select id="driverYardOffer" name="load" required></select></div>
+      <div class="field"><label for="driverYardTrailer">Trailer number on the trailer</label><input id="driverYardTrailer" name="trailer" maxlength="40" required></div>
+     </div>
+     <button class="primary-btn" type="submit">In Transit</button>
+    </form>
+   </section>
+  </section>
   <section id="rigTrackerPasswordPage" class="page fleet-account-page">
    <div class="page-head"><h1>Set Your Password</h1></div>
    <form class="panel" id="rigTrackerPasswordForm" onsubmit="saveRigTrackerPassword(event)">
@@ -876,9 +932,10 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 <div id="toast" class="hidden" role="status"></div>
 <div id="modal"><div class="modal-card"><h2 id="modalTitle"></h2><div id="modalBody"></div><button class="primary-btn" onclick="closeModal()">Close</button></div></div>
 
-<script src="./dispatch-progress.js?v=progress-1"></script>
-<script src="./dispatch.js?v=linked-accounts-1"></script>
-<script src="./linked-profiles.js?v=1"></script>
+<script src="./dispatch-progress.js?v=driver-workflow-1"></script>
+<script src="./dispatch.js?v=driver-workflow-1"></script>
+<script src="./linked-profiles.js?v=driver-workflow-1"></script>
+<script src="./driver-workflow.js?v=1"></script>
 <script>
 const SUPABASE_URL = 'https://pxxikzzfrcncwufpzdfp.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_7yQMjUtCtnHC6jgRF4ROLA_CmgsHaZo';
@@ -1069,6 +1126,7 @@ async function signOut(){
   updateEmployeeUsername();
   document.getElementById('fleetEmployeeRows').replaceChildren();
   resetLinkedProfileScreens();
+  driverLoadWorkflow.reset();
   document.querySelectorAll('.page').forEach(page=>page.classList.remove('active'));
   resetSettlementForm();
   document.getElementById('appHeader').classList.add('hidden');
