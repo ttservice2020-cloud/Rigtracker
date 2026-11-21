@@ -792,11 +792,13 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
       <div id="fleetLinksContent">
        <form class="panel" id="linkExistingProfileForm" onsubmit="saveRigTrackerLink(event)">
         <h2>Link an existing profile</h2>
+        <p class="muted">Ask the profile owner to generate a link key in their RigTracker Profile.</p>
         <div class="form-grid fleet-account-fields">
-         <div class="field"><label for="linkProfileId">RigTracker Profile ID</label><input id="linkProfileId" name="profileId" inputmode="numeric" pattern="[0-9]{16}" maxlength="16" required></div>
-         <div class="field"><label for="linkEmployeeNumber">Employee number (Company Driver, optional)</label><input id="linkEmployeeNumber" name="employeeNumber" inputmode="numeric" pattern="[0-9]{1,6}" maxlength="6" placeholder="Generated if blank"></div>
+         <div class="field"><label for="linkProfileKey">Link key</label><input id="linkProfileKey" name="linkKey" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="32" required></div>
+         <div class="field hidden" id="linkEmployeeNumberField"><label for="linkEmployeeNumber">Employee number (optional)</label><input id="linkEmployeeNumber" name="employeeNumber" inputmode="numeric" pattern="[0-9]{1,6}" maxlength="6" placeholder="Generated if blank" disabled></div>
         </div>
-        <div class="employee-setup-actions"><button class="primary-btn" type="submit">Link profile</button></div>
+        <p id="linkProfilePreview" class="muted" role="status"></p>
+        <div class="employee-setup-actions"><button class="primary-btn" type="submit" id="linkProfileSubmit">Check Key</button></div>
        </form>
        <form class="panel" id="companyDriverForm" onsubmit="createCompanyDriver(event)">
         <h2>Create a Company Driver account</h2>
@@ -816,7 +818,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
         <h2>Linked profiles</h2>
         <p id="fleetLinksStatus" class="muted" role="status"></p>
         <div class="table-shell hidden" id="fleetLinkTable"><table>
-         <thead><tr><th scope="col">Name</th><th scope="col">Account</th><th scope="col">RigTracker ID</th><th scope="col">Employee number</th><th scope="col">Link</th></tr></thead>
+         <thead><tr><th scope="col">Name</th><th scope="col">Account</th><th scope="col">Employee number</th><th scope="col">Link</th></tr></thead>
          <tbody id="fleetLinkRows"></tbody>
         </table></div>
         <details class="panel" id="formerCompanyDrivers">
@@ -884,7 +886,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
        <h2>Employee roster</h2>
        <p id="fleetEmployeeStatus" role="status">Loading profiles…</p>
        <div class="table-shell hidden" id="fleetEmployeeTable">
-        <table><thead><tr><th scope="col">Name</th><th scope="col">Username</th><th scope="col">Job title</th><th scope="col">Designation</th><th scope="col">Manage profiles</th><th scope="col">Profile</th></tr></thead><tbody id="fleetEmployeeRows"></tbody></table>
+        <table><thead><tr><th scope="col">Name</th><th scope="col">Username</th><th scope="col">Job title</th><th scope="col">Manage profiles</th><th scope="col">Profile</th></tr></thead><tbody id="fleetEmployeeRows"></tbody></table>
        </div>
       </section>
      </div>
@@ -913,7 +915,18 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
     <section class="panel">
      <h2>RigTracker Profile ID</h2>
      <div class="field"><input id="ownRigTrackerId" aria-label="RigTracker Profile ID" readonly></div>
-     <p class="muted">Share this ID to link your account with a fleet.</p>
+    </section>
+    <section class="panel">
+     <h2>Link to a fleet</h2>
+     <p class="muted">Share a one-time key with a Fleet Admin. The key expires after 24 hours and lets them see your name and account type before linking.</p>
+     <p class="muted" id="ownLinkAccess"></p>
+     <div class="field hidden" id="ownLinkKeyField"><label for="ownLinkKey">Link key</label><input id="ownLinkKey" readonly autocomplete="off" spellcheck="false"></div>
+     <p class="muted" id="ownLinkKeyStatus" role="status"></p>
+     <div class="employee-setup-actions">
+      <button class="primary-btn" type="button" id="ownLinkKeyGenerate">Generate Link Key</button>
+      <button class="outline hidden" type="button" id="ownLinkKeyCopy">Copy Key</button>
+      <button class="outline hidden" type="button" id="ownLinkKeyRevoke">Cancel Key</button>
+     </div>
     </section>
     <form class="panel" id="ownRigTrackerProfileForm" onsubmit="saveOwnRigTrackerProfile(event)">
      <h2>My profile</h2>
@@ -1145,7 +1158,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
   <div class="page-head"><div><button class="back" type="button" onclick="officeTools.openDashboard()">← Back to Dashboard</button><h1>Employee Profiles</h1></div></div>
   <p id="officeProfilesStatus" role="status" class="muted"></p>
   <div class="table-shell hidden" id="officeProfilesTable">
-   <table><thead><tr><th scope="col">Name</th><th scope="col">Username</th><th scope="col">Job title</th><th scope="col">Designation</th><th scope="col">Manage profiles</th><th scope="col">Profile</th></tr></thead><tbody id="officeProfilesRows"></tbody></table>
+   <table><thead><tr><th scope="col">Name</th><th scope="col">Username</th><th scope="col">Job title</th><th scope="col">Manage profiles</th><th scope="col">Profile</th></tr></thead><tbody id="officeProfilesRows"></tbody></table>
   </div>
  </section>
  <section class="page fleet-account-page" id="officeHourlyPage">
@@ -1193,13 +1206,13 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 
 <script src="./dispatch-progress.js?v=driver-workflow-1"></script>
 <script src="./dispatch.js?v=office-access-1"></script>
-<script src="./linked-profiles.js?v=driver-app-1"></script>
+<script src="./linked-profiles.js?v=link-keys-1"></script>
 <script src="./company-driver-tools.js?v=office-access-1"></script>
 <script src="./company-messages.js?v=office-access-1"></script>
 <script src="./driver-workflow.js?v=office-access-1"></script>
 <script src="./company-safety.js?v=1"></script>
 <script src="./driver-app.js?v=1"></script>
-<script src="./office-tools.js?v=1"></script>
+<script src="./office-tools.js?v=2"></script>
 <script>
 const SUPABASE_URL = 'https://pxxikzzfrcncwufpzdfp.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_7yQMjUtCtnHC6jgRF4ROLA_CmgsHaZo';

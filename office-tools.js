@@ -38,7 +38,7 @@ const officeTools = (() => {
   function setEmployee(profile) {
     employee = { ...profile, office_permissions: profile.office_permissions || [] };
     byId('employeeAccountSummary').textContent = profile.fleet_id + '-' + profile.employee_id
-      + (profile.office_role ? ' · ' + profile.office_role : '') + ' · ' + (profile.office_is_official ? 'Official' : 'Unofficial');
+      + (profile.office_role ? ' · ' + profile.office_role : '');
     visible('officeDashboardTools', true);
     renderTools();
   }
@@ -91,7 +91,7 @@ const officeTools = (() => {
   function rosterRow(row, fleet, prefix) {
     const tr = document.createElement('tr');
     for (const value of [displayName(row), fleet + '-' + row.employee_id, row.office_role || '—',
-      row.office_is_official ? 'Official' : 'Unofficial', row.office_can_manage_profiles ? 'On' : 'Off']) {
+      row.office_can_manage_profiles ? 'On' : 'Off']) {
       tr.insertCell().textContent = value;
     }
     const actions = tr.insertCell();

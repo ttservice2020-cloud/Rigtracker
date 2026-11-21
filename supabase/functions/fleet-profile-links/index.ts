@@ -38,19 +38,29 @@ Deno.serve(async (request) => {
         .eq("fleet_id", fleet.id).is("unlinked_at", null).order("profile_user_id");
       return error ? reply(503, { message: "Could not load linked profiles." }) : reply(200, { links: data });
     }
-    case "link":
-    case "unlink": {
-      const id = text(body.profileId);
+    case "preview_link":
+    case "link": {
+      const key = text(body.linkKey).replace(/[\s-]/g, "").toUpperCase();
+      if (!/^[A-F0-9]{20}$/.test(key)) return reply(400, { message: "Enter the link key from the profile owner." });
       const number = text(body.employeeNumber);
-      if (!/^[0-9]{16}$/.test(id)) return reply(400, { message: "Enter the 16-digit RigTracker Profile ID." });
       if (number && !employeeNumberPattern.test(number)) {
         return reply(400, { message: "Use 1–6 digits for the employee number." });
       }
-      const { error } = await service.rpc("manage_rigtracker_link", {
-        acting_admin: user.id, target_fleet: fleet.id, target_profile_id: id,
-        requested_number: number || null, removing: body.action === "unlink",
+      const { data, error } = await client.rpc("profile_link_key", {
+        action: body.action === "link" ? "redeem" : "preview", link_key: key, employee_number: number || null,
       });
       if (error?.code === "23505") return reply(409, { message: "That employee number is already in use." });
+      if (error?.code === "22023") return reply(400, { message: error.message });
+      if (error?.code === "42501") return reply(403, { message: error.message });
+      return error ? reply(502, { message: "Could not check the link key. Try again." }) : reply(200, { profile: data });
+    }
+    case "unlink": {
+      const id = text(body.profileId);
+      if (!/^[0-9]{16}$/.test(id)) return reply(400, { message: "Enter the 16-digit RigTracker Profile ID." });
+      const { error } = await service.rpc("manage_rigtracker_link", {
+        acting_admin: user.id, target_fleet: fleet.id, target_profile_id: id,
+        requested_number: null, removing: true,
+      });
       if (error?.code === "22023") return reply(400, { message: error.message });
       return error ? reply(502, { message: "Could not update the link. Try again." }) : reply(200, { profileId: id });
     }
@@ -88,7 +98,7 @@ Deno.serve(async (request) => {
       });
       if (error) {
         if (error.code === "email_exists" || error.code === "user_already_exists") {
-          return reply(409, { message: "That email already has an account. Link an existing driver using their RigTracker Profile ID." });
+          return reply(409, { message: "That email already has an account. Ask the driver for a link key." });
         }
         if (error.code === "weak_password") return reply(400, { message: "Choose a stronger temporary password." });
         if (employeeNumber) {

@@ -1,6 +1,12 @@
 const linkedProfileLabels={company_driver:'Company Driver',driver:'Owner Op',mechanic:'Mechanic'};
 let fleetLinkRead=null;
 let ownProfileRead=null;
+let linkPreview=null;
+let ownLinkKey=null;
+let ownKeyRequest=null;
+const linkKeyFormat=/^[A-F0-9]{20}$/;
+const cleanLinkKey=value=>value.replace(/[\s-]/g,'').toUpperCase();
+const linkExpiryFormat=new Intl.DateTimeFormat(undefined,{dateStyle:'medium',timeStyle:'short'});
 
 async function callFleetProfiles(action,fields={}){
  const {data,error}=await supabaseClient.functions.invoke('fleet-profile-links',{body:{action,...fields}});
@@ -30,7 +36,6 @@ async function loadFleetProfileLinks(){
    const row=document.createElement('tr');
    row.insertCell().textContent=[profile.first_name,profile.last_name].filter(Boolean).join(' ')||'—';
    row.insertCell().textContent=linkedProfileLabels[profile.profile_type];
-   row.insertCell().textContent=profile.profile_id;
    row.insertCell().textContent=employee_number||'—';
    const remove=document.createElement('button');
    remove.type='button';
@@ -63,13 +68,14 @@ async function mutateFleetProfile(control,action,fields,form){
  if(!owner||!fleetId||accountTypeFor(owner)!=='fleet'||control.disabled)return;
  control.disabled=true;
  try{
-  const result=await callFleetProfiles(action,fields);
+  await callFleetProfiles(action,fields);
   if(currentUser!==owner||adminFleetId!==fleetId)return;
   form?.reset();
+  if(action==='link')clearLinkPreview();
   const messages={
    link:'Profile linked.',
    unlink:'Fleet link removed.',
-   create_company_driver:result.profileId?'Company Driver created. RigTracker ID: '+result.profileId:'Company Driver created.'
+   create_company_driver:'Company Driver created and linked.'
   };
   showToast(messages[action]);
   await loadFleetProfileLinks();
@@ -78,11 +84,109 @@ async function mutateFleetProfile(control,action,fields,form){
  }finally{control.disabled=false}
 }
 
-function saveRigTrackerLink(event){
- event.preventDefault();
- const form=event.currentTarget;
- return mutateFleetProfile(form.querySelector('button[type="submit"]'),'link',Object.fromEntries(new FormData(form)),form);
+function clearLinkPreview(){
+ linkPreview=null;
+ const number=document.getElementById('linkEmployeeNumber');
+ number.value='';
+ number.disabled=true;
+ document.getElementById('linkEmployeeNumberField').classList.add('hidden');
+ document.getElementById('linkProfileSubmit').textContent='Check Key';
+ document.getElementById('linkProfilePreview').textContent='';
 }
+document.getElementById('linkProfileKey').addEventListener('input',clearLinkPreview);
+
+async function saveRigTrackerLink(event){
+ event.preventDefault();
+ const user=currentUser;
+ const fleet=adminFleetId;
+ if(!user||!fleet||accountTypeFor(user)!=='fleet')return;
+ const form=event.currentTarget;
+ const control=document.getElementById('linkProfileSubmit');
+ const field=document.getElementById('linkProfileKey');
+ const status=document.getElementById('linkProfilePreview');
+ if(control.disabled)return;
+ const key=cleanLinkKey(field.value);
+ if(!linkKeyFormat.test(key)){
+  status.textContent='Enter the complete link key from the profile owner.';
+  field.focus();
+  return;
+ }
+ if(linkPreview===key){
+  return mutateFleetProfile(control,'link',{linkKey:key,employeeNumber:document.getElementById('linkEmployeeNumber').value},form);
+ }
+ control.disabled=true;
+ status.textContent='Checking link key…';
+ try{
+  const {profile}=await callFleetProfiles('preview_link',{linkKey:key});
+  if(currentUser!==user||adminFleetId!==fleet||cleanLinkKey(field.value)!==key)return;
+  linkPreview=key;
+  const label=linkedProfileLabels[profile.profile_type];
+  const name=[profile.first_name,profile.last_name].filter(Boolean).join(' ');
+  status.textContent=[name,label].filter(Boolean).join(' · ');
+  const companyDriver=profile.profile_type==='company_driver';
+  document.getElementById('linkEmployeeNumberField').classList.toggle('hidden',!companyDriver);
+  document.getElementById('linkEmployeeNumber').disabled=!companyDriver;
+  control.textContent='Link Profile';
+ }catch(error){
+  if(currentUser===user&&adminFleetId===fleet&&cleanLinkKey(field.value)===key)status.textContent=error.message;
+ }finally{control.disabled=false}
+}
+
+function showOwnLinkKey(expiresAt,message=''){
+ if(ownLinkKey?.expiresAt!==expiresAt)ownLinkKey=null;
+ const code=ownLinkKey?.code||'';
+ document.getElementById('ownLinkKey').value=code;
+ document.getElementById('ownLinkKeyField').classList.toggle('hidden',!code);
+ document.getElementById('ownLinkKeyCopy').classList.toggle('hidden',!code);
+ document.getElementById('ownLinkKeyRevoke').classList.toggle('hidden',!expiresAt);
+ document.getElementById('ownLinkKeyGenerate').textContent=expiresAt?'Generate New Key':'Generate Link Key';
+ const ends=expiresAt?new Date(expiresAt):null;
+ const expiry=ends&&Number.isFinite(ends.valueOf())?'Key expires '+linkExpiryFormat.format(ends)+'.':'';
+ document.getElementById('ownLinkKeyStatus').textContent=message||expiry;
+}
+
+async function updateOwnLinkKey(action){
+ const user=currentUser;
+ if(!user||ownKeyRequest)return;
+ const request={};
+ ownKeyRequest=request;
+ const controls=['ownLinkKeyGenerate','ownLinkKeyCopy','ownLinkKeyRevoke'].map(id=>document.getElementById(id));
+ for(const control of controls)control.disabled=true;
+ try{
+  const {data,error}=await supabaseClient.rpc('profile_link_key',{action});
+  if(currentUser!==user||ownKeyRequest!==request)return;
+  if(error)throw error;
+  if(action==='issue')ownLinkKey={code:data.key,expiresAt:data.expires_at};
+  showOwnLinkKey(data?.expires_at||null,action==='revoke'?'Link key canceled.':'');
+ }catch(error){
+  if(currentUser===user&&ownKeyRequest===request){
+   document.getElementById('ownLinkKeyStatus').textContent=error.message||'Could not update the link key.';
+  }
+ }finally{
+  if(ownKeyRequest===request){
+   ownKeyRequest=null;
+   for(const control of controls)control.disabled=false;
+  }
+ }
+}
+
+document.getElementById('ownLinkKeyGenerate').addEventListener('click',()=>void updateOwnLinkKey('issue'));
+document.getElementById('ownLinkKeyRevoke').addEventListener('click',()=>void updateOwnLinkKey('revoke'));
+document.getElementById('ownLinkKeyCopy').addEventListener('click',async()=>{
+ if(!ownLinkKey?.code)return;
+ const field=document.getElementById('ownLinkKey');
+ try{
+  await navigator.clipboard.writeText(ownLinkKey.code);
+  showToast('Link key copied.');
+ }catch{
+  field.focus();
+  field.select();
+ }
+});
+document.addEventListener('visibilitychange',()=>{
+ if(!document.hidden&&document.getElementById('rigTrackerProfilePage').classList.contains('active')
+    &&!document.getElementById('rigTrackerProfileDetails').classList.contains('hidden'))void updateOwnLinkKey('status');
+});
 
 function createCompanyDriver(event){
  event.preventDefault();
@@ -133,6 +237,13 @@ async function openOwnRigTrackerProfile({openLoads=false}={}){
   else void driverLoadWorkflow.refresh(true);
  }
  document.getElementById('ownRigTrackerId').value=profile.profile_id;
+ const linkAccess={
+  company:'Linked fleets can assign loads and share team messages and settlements with you.',
+  driver:'Linked fleets can assign loads to you.',
+  mechanic:'Linking gives you access to the fleet’s Dispatch, Maintenance, and Safety conversations.'
+ };
+ document.getElementById('ownLinkAccess').textContent=linkAccess[role];
+ void updateOwnLinkKey('status');
  document.getElementById('ownProfileEmail').value=user.email||'';
  for(const key of ['first_name','last_name','phone','license_number']){
   const field=form.elements.namedItem(key);
@@ -230,11 +341,16 @@ async function sendCompanyEmailConfirmation(button){
 function resetLinkedProfileScreens(){
  fleetLinkRead=null;
  ownProfileRead=null;
+ ownKeyRequest=null;
+ ownLinkKey=null;
  passwordRecoveryRequested=false;
  for(const id of ['linkExistingProfileForm','companyDriverForm','ownRigTrackerProfileForm','rigTrackerPasswordForm']){
   document.getElementById(id).reset();
  }
  for(const id of ['fleetLinkRows','ownRigTrackerLinks'])document.getElementById(id).replaceChildren();
+ clearLinkPreview();
+ showOwnLinkKey(null);
+ for(const id of ['ownLinkKeyGenerate','ownLinkKeyCopy','ownLinkKeyRevoke'])document.getElementById(id).disabled=false;
  document.getElementById('ownRigTrackerId').value='';
  document.getElementById('ownProfileEmail').value='';
  document.getElementById('rigTrackerProfileDetails').classList.add('hidden');
