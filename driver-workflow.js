@@ -16,6 +16,7 @@ const driverLoadWorkflow = (() => {
   let seenDriver = new Set();
   let seenOffice = new Set();
   let driverInitialized = false;
+  let seenLoadVersion = '';
   let officeInitialized = false;
 
   function node(tag, text, className) {
@@ -149,11 +150,16 @@ const driverLoadWorkflow = (() => {
   }
 
   function showAllStops(load) {
-    const list = node('ol');
+    const list = node('ol', '', 'driver-load-stops');
+    const active = load.stops.find(stop => !stop.progress?.completedAt);
+    const handoffComplete = load.yard_handoff?.first_driver && load.yard_handoff?.picked_up_at;
     for (const stop of load.stops) {
       const row = node('li');
+      if (stop === active && !handoffComplete && load.decision === 'accepted' && load.review !== 'denied' &&
+          (load.status === 'current' || load.review === 'pending')) row.setAttribute('aria-current', 'step');
       const schedule = [stop.info.date, stop.info.from, stop.info.zone].filter(Boolean).join(' ');
-      row.append(node('strong', stop.kind === 'pickup' ? 'Pickup' : 'Delivery'), node('p', place(stop.info)));
+      const stage = stop.progress?.completedAt ? 'Departed' : stop.progress?.arrivalAt ? 'Arrived' : 'Scheduled';
+      row.append(node('strong', (stop.kind === 'pickup' ? 'Pickup' : 'Delivery') + ' · ' + stage), node('p', place(stop.info)));
       if (schedule) row.append(node('p', schedule, 'muted'));
       if (stop.info.notes) row.append(node('p', stop.info.notes));
       if (stop.progress?.arrivalAt) {
@@ -162,6 +168,10 @@ const driverLoadWorkflow = (() => {
         row.append(node('p', departed ? 'Arrived ' + time + ' · Departed ' + departed : 'Arrived ' + time, 'muted'));
       }
       const report = stop.progress?.driverReport;
+      const freight = [report?.trailer && 'Trailer ' + report.trailer, report?.commodity,
+        report?.weight && 'Weight ' + report.weight, report?.pieces && report.pieces + ' pieces',
+        report?.bol && 'BOL ' + report.bol].filter(Boolean);
+      if (freight.length) row.append(node('p', freight.join(' · '), 'muted'));
       if (report?.document) row.append(button(stop.kind === 'pickup' ? 'View BOL' : 'View delivery paperwork', () => openDocument(report.document)));
       list.append(row);
     }
@@ -170,15 +180,14 @@ const driverLoadWorkflow = (() => {
 
   function stopForm(load, stop) {
     const form = node('form');
-    const title = stop.kind === 'pickup' ? 'Pickup details' : 'Delivery details';
+    const title = stop.kind === 'pickup' ? 'Depart Pickup' : 'Depart Delivery';
     form.append(node('h3', title));
     const state = node('select');
     state.name = 'loaded_state';
     setOptions(state, [['loaded','Loaded'],['empty','Empty']], 'Select loaded or empty');
     const file = node('input');
     file.type = 'file';
-    file.accept = 'image/*,application/pdf';
-    file.setAttribute('capture','environment');
+    file.accept = 'image/jpeg,image/png,image/webp,image/heic,image/heif,application/pdf';
     const picked = input('Trailer pickup number (optional)', 'picked_trailer', { maxLength:40 });
     picked.querySelector('input').addEventListener('input', event => { state.required = Boolean(event.target.value.trim()); });
     form.append(fields(
@@ -191,7 +200,7 @@ const driverLoadWorkflow = (() => {
       picked, field('Picked-up trailer status', state),
       field(stop.kind === 'pickup' ? 'Photo or copy of BOL' : 'Photo or copy of proof of delivery', file)
     ));
-    const submit = submitButton(stop.kind === 'pickup' ? 'Complete Pickup' : 'Complete Delivery');
+    const submit = submitButton(title);
     form.append(submit);
     let uploaded = null;
     form.addEventListener('submit', async event => {
@@ -212,7 +221,7 @@ const driverLoadWorkflow = (() => {
         } finally { submit.disabled = false; }
       }
       if (currentUser === user) await mutate(submit, 'driver', 'finish_stop', load.id, data,
-        stop.kind === 'pickup' ? 'Pickup recorded.' : 'Delivery recorded.');
+        stop.kind === 'pickup' ? 'Pickup departure recorded.' : 'Delivery departure recorded.');
     });
     return form;
   }
@@ -276,7 +285,7 @@ const driverLoadWorkflow = (() => {
     panel.replaceChildren();
     panel.classList.toggle('hidden', !load);
     if (!load) return;
-    panel.append(node('h2', pro(load)), node('p', label(load), 'muted'), showAllStops(load));
+    panel.append(node('h2', pro(load)), node('p', label(load), 'muted'), node('h3', 'Load Progress'), showAllStops(load));
     if (load.status === 'current' && !load.decision) {
       const actions = node('div', '', 'dispatch-actions');
       actions.append(button('Accept', control => mutate(control, 'driver', 'accept', load.id, {}, 'Assignment accepted.'),
@@ -292,11 +301,25 @@ const driverLoadWorkflow = (() => {
     const handedOff = load.yard_handoff?.first_driver && load.yard_handoff?.picked_up_at;
     if (!handedOff && (load.status === 'current' || load.review === 'pending')) {
       const stop = load.stops.find(row => !row.progress?.completedAt);
-      if (stop && !stop.progress?.arrivalAt) panel.append(button('Arrived at ' + (stop.kind === 'pickup' ? 'Pickup' : 'Delivery'),
+      if (stop && !stop.progress?.arrivalAt) panel.append(button('Arrive at ' + (stop.kind === 'pickup' ? 'Pickup' : 'Delivery'),
         control => mutate(control, 'driver', 'arrive', load.id, { stop: stop.key }, 'Arrival recorded.'), 'primary-btn'));
       else if (stop) panel.append(stopForm(load, stop));
     }
     if (!load.return_of && ['current','completed'].includes(load.status)) panel.append(returnForm(load));
+  }
+
+  function companyLoadUpdate(user, data, visible) {
+    const key = 'rigtracker-load-seen:' + user.id;
+    const snapshot = JSON.stringify(data);
+    let hash = 0;
+    for (let i = 0; i < snapshot.length; i++) hash = Math.imul(31, hash) + snapshot.charCodeAt(i) | 0;
+    const version = String(hash);
+    try { seenLoadVersion ||= localStorage.getItem(key) || ''; } catch {}
+    if (!seenLoadVersion || visible) {
+      seenLoadVersion = version;
+      try { localStorage.setItem(key, version); } catch {}
+    }
+    return (data.loads.length > 0 || data.yard.length > 0) && version !== seenLoadVersion;
   }
 
   async function refresh(quiet = false, redraw = !quiet) {
@@ -316,7 +339,10 @@ const driverLoadWorkflow = (() => {
       if (driverInitialized && justArrived) showToast('You have a new load assignment or yard trailer.');
       seenDriver = new Set(keys);
       driverInitialized = true;
-      for (const id of ['profileDriverLoadsButton','ownerDriverLoadsButton']) byId(id).textContent = keys.length ? 'Loads (' + keys.length + ')' : 'Loads';
+      const viewing = screen.classList.contains('active') && !document.hidden;
+      const updated = accountTypeFor(user) === 'company' && companyLoadUpdate(user, data, viewing);
+      byId('profileDriverLoadsButton').textContent = keys.length ? 'Loads (' + keys.length + ')' : updated ? 'Loads · Update' : 'Loads';
+      byId('ownerDriverLoadsButton').textContent = keys.length ? 'Loads (' + keys.length + ')' : 'Loads';
       const snapshot = JSON.stringify(data);
       if (screen.classList.contains('active') && (redraw || snapshot !== driverSnapshot)) {
         paintDriverList();
@@ -444,7 +470,7 @@ const driverLoadWorkflow = (() => {
 
   function reset() {
     driverRead = null; officeRead = null; selected = null;
-    driverSnapshot = ''; officeSnapshot = ''; driverData = empty();
+    driverSnapshot = ''; officeSnapshot = ''; driverData = empty(); seenLoadVersion = '';
     driverInitialized = false; officeInitialized = false;
     seenDriver = new Set(); seenOffice = new Set();
     for (const id of ['driverWorkflowLoads','driverWorkflowDetail','driverYardList','dispatchWorkflowReturns',

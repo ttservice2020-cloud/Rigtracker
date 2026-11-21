@@ -37,7 +37,16 @@ async function loadFleetProfileLinks(){
    remove.className='outline';
    remove.textContent='Remove link';
    remove.addEventListener('click',()=>mutateFleetProfile(remove,'unlink',{profileId:profile.profile_id}));
-   row.insertCell().append(remove);
+   const actions=row.insertCell();
+   if(profile.profile_type==='company_driver'&&typeof companyDriverTools!=='undefined'){
+    const manage=document.createElement('button');
+    manage.type='button';
+    manage.className='outline';
+    manage.textContent='Manage Driver';
+    manage.addEventListener('click',()=>companyDriverTools.openAdmin(profile));
+    actions.append(manage);
+   }
+   actions.append(remove);
    return row;
   });
   body.replaceChildren(...rows);
@@ -93,6 +102,7 @@ async function openOwnRigTrackerProfile(){
  const status=document.getElementById('rigTrackerProfileStatus');
  const details=document.getElementById('rigTrackerProfileDetails');
  const driver=role==='company';
+ document.getElementById('companyDriverExtras')?.classList.toggle('hidden',!driver);
  document.getElementById('profileDriverLoadsButton')?.classList.toggle('hidden',role!=='driver'&&!driver);
  title.textContent=driver?'Company Driver Dashboard':role==='mechanic'?'Mechanic Dashboard':'RigTracker Profile';
  document.getElementById('rigTrackerProfileBack').classList.toggle('hidden',role!=='driver');
@@ -114,6 +124,8 @@ async function openOwnRigTrackerProfile(){
  }
  status.classList.add('hidden');
  details.classList.remove('hidden');
+ if(driver&&typeof companyDriverTools!=='undefined')companyDriverTools.refresh();
+ if(driver&&typeof companyMessaging!=='undefined')void companyMessaging.refresh();
  if((driver||role==='driver')&&typeof driverLoadWorkflow!=='undefined')void driverLoadWorkflow.refresh(true);
  document.getElementById('ownRigTrackerId').value=profile.profile_id;
  document.getElementById('ownProfileEmail').value=user.email||'';
