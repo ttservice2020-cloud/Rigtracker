@@ -62,6 +62,7 @@ const fleetDispatchApp = (() => {
       toggle(node.getAttribute('aria-controls'), selected && !showDetail);
       if (selected && focus) node.focus();
     }
+    if (tab === 'activity') void driverLoadWorkflow.refreshOffice(false, true);
   }
 
   byId('dispatchTabs').addEventListener('keydown', event => {
@@ -80,7 +81,8 @@ const fleetDispatchApp = (() => {
   for (const node of tabs) node.addEventListener('click', () => selectTab(node.dataset.dispatchTab));
 
   function proLabel(number) {
-    return state.fleetId.toUpperCase() + '-' + number;
+    const load = state?.loads.find(item => String(item.pro_number) === String(number));
+    return (load?.return_of ? 'B-' : 'A-') + number;
   }
 
   function cityState(stop) {
@@ -157,7 +159,7 @@ const fleetDispatchApp = (() => {
     const search = byId('dispatchLoadSearch').value.trim().toLowerCase();
     const current = state.loads.filter(load => load.status === 'current');
     const matching = current.filter(load => matchesLoad(load, search));
-    const drafts = state.loads.filter(load => load.status === 'draft' && matchesLoad(load, search));
+    const drafts = state.loads.filter(load => load.status === 'draft' && !load.return_of && matchesLoad(load, search));
     const contracts = state.loads.filter(load => load.status === 'contract');
     const history = state.loads.filter(load => load.status === 'completed');
 
@@ -205,6 +207,7 @@ const fleetDispatchApp = (() => {
     const assignments = new Map();
     for (const load of state.loads.filter(entry => entry.status === 'current')) {
       for (const id of [load.driver_id, load.second_driver_id].filter(Boolean)) {
+        if (load.progress?.driverResponses?.[id]?.decision === 'rejected') continue;
         if (!assignments.has(id)) assignments.set(id, []);
         assignments.get(id).push(proLabel(load.pro_number));
       }
@@ -1215,5 +1218,11 @@ const fleetDispatchApp = (() => {
     return refresh();
   }
 
-  return { open, reset };
+  async function openRecord(id) {
+    if (!getLoad(id)) await refresh();
+    const load = getLoad(id);
+    if (load) viewLoad(load);
+  }
+
+  return { open, reset, reload: refresh, openRecord };
 })();
