@@ -244,6 +244,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 </style>
 <link rel="stylesheet" href="./dispatch.css?v=load-offers-1">
 <link rel="stylesheet" href="./driver-app.css?v=2">
+<link rel="stylesheet" href="./office-tools.css?v=1">
 </head>
 <body>
 <header class="brandbar hidden" id="appHeader">
@@ -418,7 +419,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 
  <section id="fleetWorkspace" class="page fleet-workspace">
   <div class="fleet-dashboard-layout">
-   <nav class="fleet-dashboard-nav" aria-label="Fleet Admin navigation">
+   <nav class="fleet-dashboard-nav" id="fleetAdminNav" aria-label="Fleet Admin navigation">
     <button type="button" data-fleet-section="dashboard" aria-current="page" onclick="showFleetSection('dashboard')">Dashboard</button>
     <button type="button" data-fleet-section="profiles" onclick="showFleetSection('profiles')">Employee Profiles</button>
     <button type="button" data-fleet-section="settings" onclick="showFleetSection('settings')">Fleet Settings</button>
@@ -426,7 +427,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
    <div class="fleet-dashboard-content">
     <div class="page-head">
      <div>
-      <button class="back hidden" id="fleetToolBack" type="button" onclick="showFleetSection('dashboard')">← Back to Dashboard</button>
+      <button class="back hidden" id="fleetToolBack" type="button" onclick="accountTypeFor(currentUser)==='employee'?officeTools.openDashboard():showFleetSection('dashboard')">← Back to Dashboard</button>
       <h1 id="fleetPageTitle">Fleet Admin Dashboard</h1>
      </div>
      <div class="tag hidden" id="fleetIdBadge"></div>
@@ -849,8 +850,13 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
        </div>
        </fieldset>
        <fieldset class="employee-setup-step hidden" id="employeeAccessStep" disabled>
-        <div class="field"><label for="newEmployeeOfficeRole">Office role</label><input id="newEmployeeOfficeRole" type="text" autocomplete="off" maxlength="100" placeholder="Dispatcher" required></div>
-        <fieldset class="employee-setup-step">
+        <div class="form-grid fleet-account-fields">
+         <div class="field"><label for="newEmployeeDesignation">Designation</label><select id="newEmployeeDesignation"><option value="unofficial">Unofficial</option><option value="official">Official</option></select></div>
+         <div class="field"><label for="newEmployeeOfficeRole">Job title</label><input id="newEmployeeOfficeRole" type="text" autocomplete="off" maxlength="100" placeholder="Dispatcher" required></div>
+        </div>
+        <label class="office-toggle"><input id="newEmployeeManageProfiles" type="checkbox" role="switch"> Manage Employee Profiles</label>
+        <p class="muted hidden" id="newEmployeeOfficialAccess">Officials have access to all Office tools.</p>
+        <fieldset class="employee-setup-step" id="newEmployeePermissionOptions">
          <legend>Access</legend>
          <div class="employee-access-list">
           <label><input type="checkbox" name="officePermission" value="dispatch"> Dispatch</label>
@@ -878,7 +884,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
        <h2>Employee roster</h2>
        <p id="fleetEmployeeStatus" role="status">Loading profiles…</p>
        <div class="table-shell hidden" id="fleetEmployeeTable">
-        <table><thead><tr><th scope="col">Name</th><th scope="col">Employee ID</th><th scope="col">Username</th><th scope="col">Office role</th></tr></thead><tbody id="fleetEmployeeRows"></tbody></table>
+        <table><thead><tr><th scope="col">Name</th><th scope="col">Username</th><th scope="col">Job title</th><th scope="col">Designation</th><th scope="col">Manage profiles</th><th scope="col">Profile</th></tr></thead><tbody id="fleetEmployeeRows"></tbody></table>
        </div>
       </section>
      </div>
@@ -1007,7 +1013,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
    </div>
   </section>
   <section id="companyPayrollPage" class="page fleet-account-page">
-   <div class="page-head"><div><button class="back" type="button" onclick="companyDriverTools.backPayroll()">← Back</button><h1>Payroll</h1></div></div>
+   <div class="page-head"><div><button class="back" type="button" onclick="companyDriverTools.backPayroll()">← Back</button><h1 id="companyPayrollTitle">Payroll</h1></div></div>
    <p id="companyPayrollStatus" class="muted" role="status"></p>
    <section class="panel"><h2>Driver settlements</h2><div class="field">
     <label for="companyPayrollDriver">Company Driver</label><select id="companyPayrollDriver"></select>
@@ -1101,11 +1107,51 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
    </section>
   </section>
   <section id="fleetEmployeePage" class="page fleet-account-page">
-  <div class="page-head"><h1>Office Account</h1></div>
-  <div class="panel"><p id="employeeAccountSummary" role="status">Loading your profile…</p>
-   <button class="outline" type="button" id="companyOfficeMessagesButton" onclick="companyMessaging.open()">Messages</button>
-   <button class="outline hidden" type="button" id="companyOfficePayrollButton" onclick="companyDriverTools.openPayroll()"><span class="payroll-label">Payroll</span></button>
-   <button class="outline hidden" type="button" id="companyOfficeSafetyButton" onclick="companySafety.open()">Safety &amp; Compliance</button></div>
+  <div class="page-head"><div><h1>Office Dashboard</h1><p class="muted" id="employeeAccountSummary" role="status">Loading your profile…</p></div></div>
+  <div id="officeDashboardTools" class="hidden fleet-tools">
+   <section class="fleet-tools-group" data-office-group>
+    <h2>Operations</h2>
+    <div class="fleet-tools-grid">
+     <button type="button" class="card fleet-tool hidden" data-office-tool="dispatch">Dispatch</button>
+     <button type="button" class="card fleet-tool hidden" data-office-tool="drivers">Drivers</button>
+     <button type="button" class="card fleet-tool hidden" data-office-tool="assets">Assets <small>Coming later</small></button>
+     <button type="button" class="card fleet-tool hidden" data-office-tool="messages" id="companyOfficeMessagesButton">Messages</button>
+    </div>
+   </section>
+   <section class="fleet-tools-group" data-office-group>
+    <h2>People and Pay</h2>
+    <div class="fleet-tools-grid">
+     <button type="button" class="card fleet-tool hidden" data-office-tool="profiles">Employee Profiles</button>
+     <button type="button" class="card fleet-tool hidden" data-office-tool="hr">HR <small>Coming later</small></button>
+     <button type="button" class="card fleet-tool hidden" data-office-tool="payroll" id="companyOfficePayrollButton"><span class="payroll-label">Payroll</span></button>
+     <button type="button" class="card fleet-tool hidden" data-office-tool="settlements">Pay Settlements</button>
+     <button type="button" class="card fleet-tool hidden" data-office-tool="hourly">Hourly Time</button>
+     <button type="button" class="card fleet-tool hidden" data-office-tool="bank_ledger">Bank Ledger <small>Coming later</small></button>
+     <button type="button" class="card fleet-tool hidden" data-office-tool="payments">Send Payments <small>Coming later</small></button>
+    </div>
+   </section>
+   <section class="fleet-tools-group" data-office-group>
+    <h2>Company Records</h2>
+    <div class="fleet-tools-grid">
+     <button type="button" class="card fleet-tool hidden" data-office-tool="safety" id="companyOfficeSafetyButton">Safety &amp; Compliance</button>
+     <button type="button" class="card fleet-tool hidden" data-office-tool="policies">Policies <small>Coming later</small></button>
+     <button type="button" class="card fleet-tool hidden" data-office-tool="activity">Activity Log <small>Coming later</small></button>
+    </div>
+   </section>
+   <p id="officeNoTools" class="muted hidden">Ask your Fleet Admin to assign access to Office tools.</p>
+  </div>
+ </section>
+ <section class="page fleet-account-page" id="officeProfilesPage">
+  <div class="page-head"><div><button class="back" type="button" onclick="officeTools.openDashboard()">← Back to Dashboard</button><h1>Employee Profiles</h1></div></div>
+  <p id="officeProfilesStatus" role="status" class="muted"></p>
+  <div class="table-shell hidden" id="officeProfilesTable">
+   <table><thead><tr><th scope="col">Name</th><th scope="col">Username</th><th scope="col">Job title</th><th scope="col">Designation</th><th scope="col">Manage profiles</th><th scope="col">Profile</th></tr></thead><tbody id="officeProfilesRows"></tbody></table>
+  </div>
+ </section>
+ <section class="page fleet-account-page" id="officeHourlyPage">
+  <div class="page-head"><div><button class="back" type="button" onclick="officeTools.openDashboard()">← Back to Dashboard</button><h1>Hourly Time</h1></div></div>
+  <p class="muted" id="officeHourlyStatus" role="status"></p>
+  <div class="dispatch-load-list" id="officeHourlyRows"></div>
  </section>
 </section>
 </main>
@@ -1124,17 +1170,36 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
  <p id="driverInstallSteps"></p>
  <form method="dialog"><button class="primary-btn" type="submit">Done</button></form>
 </dialog>
+<dialog class="office-profile-dialog" id="officeProfileDialog" aria-labelledby="officeProfileTitle">
+ <div class="office-profile-heading"><div><h2 id="officeProfileTitle">Edit Profile</h2><p class="muted" id="officeProfileIdentity"></p></div><button class="outline" type="button" id="officeProfileClose">Close</button></div>
+ <form id="officeProfileAccessForm">
+  <div id="officeProfileDesignationFields">
+   <div class="field"><label for="officeProfileDesignation">Designation</label><select id="officeProfileDesignation"><option value="unofficial">Unofficial</option><option value="official">Official</option></select></div>
+   <label class="office-toggle"><input type="checkbox" id="officeProfileManage" role="switch"> Manage Employee Profiles</label>
+  </div>
+  <p class="muted hidden" id="officeProfileOfficialAccess">Officials have access to all Office tools.</p>
+  <fieldset id="officeProfilePermissionFields"><legend>Access</legend><div class="employee-access-list" id="officeProfilePermissionOptions"></div></fieldset>
+  <button class="primary-btn" type="submit">Save Access</button>
+ </form>
+ <form id="officeProfilePasswordForm">
+  <h3>Reset password</h3>
+  <div class="field"><label for="officeProfileTemporaryPassword">Temporary password</label><input id="officeProfileTemporaryPassword" autocomplete="off" autocapitalize="none" spellcheck="false" minlength="8" maxlength="72" required></div>
+  <div class="employee-setup-actions"><button class="outline" id="officeGeneratePassword" type="button">Generate</button><button class="outline" id="officeCopyPassword" type="button">Copy</button><button class="primary-btn" type="submit">Set Temporary Password</button></div>
+ </form>
+ <p class="muted" id="officeProfileStatus" role="status"></p>
+</dialog>
 <div id="toast" class="hidden" role="status"></div>
 <div id="modal"><div class="modal-card"><h2 id="modalTitle"></h2><div id="modalBody"></div><button class="primary-btn" onclick="closeModal()">Close</button></div></div>
 
 <script src="./dispatch-progress.js?v=driver-workflow-1"></script>
-<script src="./dispatch.js?v=driver-app-1"></script>
+<script src="./dispatch.js?v=office-access-1"></script>
 <script src="./linked-profiles.js?v=driver-app-1"></script>
-<script src="./company-driver-tools.js?v=driver-app-1"></script>
-<script src="./company-messages.js?v=driver-app-1"></script>
-<script src="./driver-workflow.js?v=driver-app-1"></script>
+<script src="./company-driver-tools.js?v=office-access-1"></script>
+<script src="./company-messages.js?v=office-access-1"></script>
+<script src="./driver-workflow.js?v=office-access-1"></script>
 <script src="./company-safety.js?v=1"></script>
 <script src="./driver-app.js?v=1"></script>
+<script src="./office-tools.js?v=1"></script>
 <script>
 const SUPABASE_URL = 'https://pxxikzzfrcncwufpzdfp.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_7yQMjUtCtnHC6jgRF4ROLA_CmgsHaZo';
@@ -1337,6 +1402,7 @@ async function signOut(){
   driverLoadWorkflow.reset();
   companySafety.reset();
   rigTrackerApp.reset();
+  officeTools.reset();
   document.querySelectorAll('.page').forEach(page=>page.classList.remove('active'));
   resetSettlementForm();
   document.getElementById('appHeader').classList.add('hidden');
@@ -1711,6 +1777,7 @@ const fleetTools={
  "activity":{"title":"Activity Log","status":"The fleet activity log is coming later."}
 };
 function renderFleetSections(){
+ const office=accountTypeFor(currentUser)==='employee';
  const dashboard=fleetSection==='dashboard';
  const dispatch=fleetSection==='dispatch';
  const tool=Object.hasOwn(fleetTools,fleetSection)?fleetTools[fleetSection]:null;
@@ -1755,7 +1822,8 @@ function renderFleetSections(){
   });
   document.getElementById('fleetToolLinks').replaceChildren(...links);
  }
- document.getElementById('accountLabel').textContent=hasFleet?'Fleet ID '+adminFleetId:ready?'Fleet ID not set':'Fleet Admin';
+ document.getElementById('fleetAdminNav').classList.toggle('hidden',office);
+ document.getElementById('accountLabel').textContent=office?'Office':hasFleet?'Fleet ID '+adminFleetId:ready?'Fleet ID not set':'Fleet Admin';
  if(dashboard&&(!ready||!hasFleet)){
   document.getElementById('fleetDashboardOnlineCount').textContent=ready?'0':'—';
   document.getElementById('fleetDashboardEmployeeCount').textContent=ready?'0':'—';
@@ -1772,6 +1840,14 @@ function showFleetSection(section,dispatchTab='current'){
  renderFleetSections();
  showPage('fleetWorkspace');
  return loadFleetSectionData(dispatchTab);
+}
+function showOfficeDispatch(tab){
+ const fleet=officeTools.dispatchFleet();
+ if(!fleet)return;
+ fleetSection='dispatch';
+ renderFleetSections();
+ showPage('fleetWorkspace');
+ return fleetDispatchApp.open(supabaseClient,fleet,'ready',tab,officeTools.dispatchAccess());
 }
 function loadFleetSectionData(dispatchTab){
  if(fleetSection==='dispatch')return fleetDispatchApp.open(supabaseClient,adminFleetId,fleetLoadState,dispatchTab);
@@ -1889,29 +1965,7 @@ async function loadFleetEmployeeCount(){
  if(!error&&Number.isInteger(count))countField.textContent=String(count);
 }
 async function loadFleetEmployees(){
- const owner=currentUser;
- const fleetId=adminFleetId;
- const status=document.getElementById('fleetEmployeeStatus');
- const table=document.getElementById('fleetEmployeeTable');
- status.textContent='Loading profiles…';
- status.classList.remove('hidden');
- table.classList.add('hidden');
- const {data,error}=await supabaseClient.from('fleet_employees').select('employee_id,first_name,last_name,office_role')
-  .eq('fleet_id',fleetId).order('created_at',{ascending:false}).order('employee_id');
- if(currentUser!==owner||adminFleetId!==fleetId)return;
- if(error){status.textContent='Could not load employee profiles.';return}
- if(!data.length){status.textContent='No employee profiles yet.';return}
- const rows=data.map(({employee_id,first_name,last_name,office_role})=>{
-  const row=document.createElement('tr');
-  row.insertCell().textContent=[first_name,last_name].filter(Boolean).join(' ')||'—';
-  row.insertCell().textContent=employee_id;
-  row.insertCell().textContent=fleetId+'-'+employee_id;
-  row.insertCell().textContent=office_role||'—';
-  return row;
- });
- document.getElementById('fleetEmployeeRows').replaceChildren(...rows);
- status.classList.add('hidden');
- table.classList.remove('hidden');
+ return officeTools.loadRoster('fleetEmployee',adminFleetId);
 }
 function updateEmployeeUsername(){
  const employeeId=document.getElementById('newEmployeeId').value;
@@ -1963,7 +2017,8 @@ function showEmployeeSetupStep(access,focus=false){
  document.getElementById('employeeSetupHeading').textContent=access?'Role and access':'Create Office employee';
  document.getElementById('employeeSetupBack').classList.toggle('hidden',!access);
  document.getElementById('employeeSetupSubmit').textContent=access?'Submit profile':'Next';
- if(focus)document.getElementById(access?'newEmployeeOfficeRole':'newEmployeeFirstName').focus();
+ officeTools.updateCreateAccess();
+ if(focus)document.getElementById(access?'newEmployeeDesignation':'newEmployeeFirstName').focus();
 }
 async function createFleetEmployee(event){
  event.preventDefault();
@@ -1984,14 +2039,16 @@ async function createFleetEmployee(event){
   return;
  }
  const officeRole=document.getElementById('newEmployeeOfficeRole').value.trim();
- if(!officeRole){showToast('Enter an Office role.');return}
+ if(!officeRole){showToast('Enter a job title.');return}
+ const isOfficial=document.getElementById('newEmployeeDesignation').value==='official';
+ const canManageProfiles=document.getElementById('newEmployeeManageProfiles').checked;
  const permissions=Array.from(form.querySelectorAll('[name="officePermission"]:checked'),input=>input.value);
  const backButton=document.getElementById('employeeSetupBack');
  button.disabled=true;
  backButton.disabled=true;
  try{
   const {data,error}=await supabaseClient.functions.invoke('create-fleet-employee',{
-   body:{employeeId,password,firstName,lastName,officeRole,permissions}
+   body:{employeeId,password,firstName,lastName,officeRole,permissions,isOfficial,canManageProfiles}
   });
   if(currentUser!==owner)return;
   if(error){
@@ -2017,12 +2074,13 @@ async function loadEmployeeAccount(){
  const summary=document.getElementById('employeeAccountSummary');
  summary.textContent='Loading your profile…';
  showPage('fleetEmployeePage');
- const {data,error}=await supabaseClient.from('fleet_employees').select('fleet_id,employee_id,password_required').eq('user_id',employee.id).maybeSingle();
+ const {data,error}=await officeTools.readEmployee(employee);
  if(currentUser!==employee)return;
  if(data?.password_required){openRigTrackerPasswordChange(true);return}
  summary.textContent=error||!data?'Could not load your employee profile. Contact your Fleet Admin.':
   'Signed in as '+data.fleet_id+'-'+data.employee_id+'.';
  if(data&&!error){
+  officeTools.setEmployee(data);
   startFleetPresenceTimer(markFleetEmployeeOnline,45000);
   void markFleetEmployeeOnline();
   companyDriverTools.refresh();
@@ -2032,7 +2090,10 @@ async function loadEmployeeAccount(){
 }
 document.addEventListener('visibilitychange',()=>{
  if(document.hidden||fleetPresenceTimer===null||!currentUser)return;
- if(accountTypeFor(currentUser)==='employee')void markFleetEmployeeOnline();
+ if(accountTypeFor(currentUser)==='employee'){
+  void officeTools.refreshEmployee();
+  void markFleetEmployeeOnline();
+ }
  else void loadFleetOnlineCount();
 });
 document.getElementById('settleGross').addEventListener('input',calculateSettlement);

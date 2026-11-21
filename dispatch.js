@@ -29,6 +29,7 @@ const fleetDispatchApp = (() => {
   const payLabels = { hourly: 'Hourly', split: 'Split Load', per_mile: 'Flat Rate per Mile' };
   const payCurrency = new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' });
   const payRate = new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 4 });
+  const ownerAccess = { dispatch:true, drivers:true, paySettings:true, messages:true };
   let state;
   let edit;
   let stopId = 0;
@@ -52,11 +53,20 @@ const fleetDispatchApp = (() => {
     return node;
   }
 
+  function availableTabs() {
+    if (!state) return [];
+    return tabs.filter(node => node.dataset.dispatchTab === 'drivers' ? state.access.drivers : state.access.dispatch);
+  }
+
   function selectTab(tab, focus = false, showDetail = false) {
+    const available = availableTabs();
+    if (!available.some(node => node.dataset.dispatchTab === tab)) tab = available[0]?.dataset.dispatchTab;
+    if (!tab) return;
     selectedTab = tab;
     if (!showDetail) progressView?.close();
     for (const node of tabs) {
       const selected = node.dataset.dispatchTab === tab;
+      node.classList.toggle('hidden', !available.includes(node));
       node.setAttribute('aria-selected', String(selected));
       node.tabIndex = selected ? 0 : -1;
       toggle(node.getAttribute('aria-controls'), selected && !showDetail);
@@ -66,17 +76,18 @@ const fleetDispatchApp = (() => {
   }
 
   byId('dispatchTabs').addEventListener('keydown', event => {
-    const index = tabs.indexOf(event.target);
+    const available = availableTabs();
+    const index = available.indexOf(event.target);
     if (index < 0) return;
     const landing = {
-      ArrowLeft: (index + tabs.length - 1) % tabs.length,
-      ArrowRight: (index + 1) % tabs.length,
+      ArrowLeft: (index + available.length - 1) % available.length,
+      ArrowRight: (index + 1) % available.length,
       Home: 0,
-      End: tabs.length - 1
+      End: available.length - 1
     }[event.key];
     if (landing === undefined) return;
     event.preventDefault();
-    selectTab(tabs[landing].dataset.dispatchTab, true);
+    selectTab(available[landing].dataset.dispatchTab, true);
   });
   for (const node of tabs) node.addEventListener('click', () => selectTab(node.dataset.dispatchTab));
 
@@ -234,9 +245,9 @@ const fleetDispatchApp = (() => {
         info.append(element('p', [type, payLabels[driver.pay_method]].filter(Boolean).join(' · ')));
       }
       const actions = element('div', '', 'dispatch-actions');
-      if (byId('dispatchPayProfileForm')) actions.append(button('Edit Pay Profile', () => editPayProfile(driver)));
+      if (state.access.paySettings && byId('dispatchPayProfileForm')) actions.append(button('Edit Pay Profile', () => editPayProfile(driver)));
       row.append(info, actions);
-      if (!active) {
+      if (!active && state.access.drivers) {
         const next = availability === 'available' ? 'off-duty' : 'available';
         const control = button(next === 'available' ? 'Set Available' : 'Set Off Duty', () => setAvailability(driver, next, control));
         actions.append(control);
@@ -287,7 +298,7 @@ const fleetDispatchApp = (() => {
     const beforeRead = new Map(scope.loads.map(load => [load.id, load]));
     try {
       const [loads, drivers] = await Promise.all([
-        readRecords(scope, loadTable, 'updated_at', false),
+        scope.access.dispatch ? readRecords(scope, loadTable, 'updated_at', false) : [],
         readRecords(scope, driverTable, 'name', true)
       ]);
       if (state !== scope || scope.readRequest !== request) return;
@@ -513,7 +524,7 @@ const fleetDispatchApp = (() => {
   function reservePro() {
     const draft = edit;
     const scope = state;
-    if (!scope || !draft) return Promise.resolve(null);
+    if (!scope?.access.dispatch || !draft) return Promise.resolve(null);
     if (draft.pro) return Promise.resolve(draft.pro);
     if (draft.pending) return draft.pending;
     draft.id ||= crypto.randomUUID();
@@ -549,7 +560,7 @@ const fleetDispatchApp = (() => {
   async function saveLoad(status) {
     const scope = state;
     const draft = edit;
-    if (!scope || draft.saving || draft.row?.status === 'completed') return;
+    if (!scope?.access.dispatch || draft.saving || draft.row?.status === 'completed') return;
     if (status === 'completed' && !form.reportValidity()) return;
     for (const name of ['weightLbs', 'pieces', 'driver1AdditionalPay', 'driver2AdditionalPay']) {
       const field = form.elements.namedItem(name);
@@ -638,7 +649,7 @@ const fleetDispatchApp = (() => {
     event.preventDefault();
     const scope = state;
     const control = driverForm.querySelector('button');
-    if (!scope || control.disabled) return;
+    if (!scope?.access.drivers || control.disabled) return;
     const fields = new FormData(driverForm);
     const name = fields.get('name').trim();
     if (!name) { showToast('Enter a driver name.'); return; }
@@ -663,6 +674,7 @@ const fleetDispatchApp = (() => {
 
   async function setAvailability(driver, availability, control) {
     const scope = state;
+    if (!scope?.access.drivers) return;
     control.disabled = true;
     try {
       const result = await scope.client.from(driverTable).update({ availability }).eq('fleet_id', scope.fleetId)
@@ -861,6 +873,7 @@ const fleetDispatchApp = (() => {
   }
 
   function editPayProfile(driver) {
+    if (!state?.access.paySettings) return;
     const form = byId('dispatchPayProfileForm');
     if (form.querySelector('button[type=submit]').disabled) return;
     state.payProfileId = driver.id;
@@ -881,7 +894,7 @@ const fleetDispatchApp = (() => {
     const scope = state;
     const form = event.currentTarget;
     const control = form.querySelector('button[type=submit]');
-    if (!scope?.payProfileId || control.disabled) return;
+    if (!scope?.access.paySettings || !scope.payProfileId || control.disabled) return;
     const data = new FormData(form);
     const driverType = data.get('driverType');
     const profile = {
@@ -950,7 +963,7 @@ const fleetDispatchApp = (() => {
     const scope = state;
     const form = event.currentTarget;
     const control = form.querySelector('button[type=submit]');
-    if (!scope || control.disabled || form.elements.rate.disabled) return;
+    if (!scope?.access.paySettings || control.disabled || form.elements.rate.disabled) return;
     const data = new FormData(form);
     control.disabled = true;
     try {
@@ -1202,7 +1215,7 @@ const fleetDispatchApp = (() => {
     toggle('dispatchReadError', false);
   }
 
-  function open(client, fleetId, stage, tab) {
+  function open(client, fleetId, stage, tab, access = ownerAccess) {
     const ready = stage === 'ready' && Boolean(fleetId);
     toggle('dispatchGate', !ready);
     toggle('dispatchWorkspace', ready);
@@ -1216,10 +1229,13 @@ const fleetDispatchApp = (() => {
       if (tab) selectedTab = tab;
       return;
     }
-    if (state?.fleetId !== fleetId || state.client !== client) {
+    byId('dispatchWorkspace').classList.toggle('office-drivers-only',!access.dispatch);
+    toggle('companyDispatchMessagesButton',access.messages);
+    toggle('dispatchFuelSettings',access.paySettings);
+    if (state?.fleetId !== fleetId || state.client !== client || JSON.stringify(state.access) !== JSON.stringify(access)) {
       const destination = tab || selectedTab;
       reset();
-      state = { client, fleetId, loads: [], drivers: [], updates: new Map(), loaded: false, failed: false };
+      state = { client, fleetId, access, loads: [], drivers: [], updates: new Map(), loaded: false, failed: false };
       watch(state);
       paintLoads();
       paintDrivers();

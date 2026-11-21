@@ -7,6 +7,8 @@ const driverLoadWorkflow = (() => {
   };
   const empty = () => ({ loads: [], yard: [] });
   const bucket = 'driver-load-documents';
+  const dispatchFleet = () => accountTypeFor(currentUser) === 'fleet' ? adminFleetId
+    : typeof officeTools !== 'undefined' && officeTools.has('dispatch') ? officeTools.dispatchFleet() : null;
   const currency = new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' });
   const rate = new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 6 });
   const quantity = new Intl.NumberFormat(undefined, { maximumFractionDigits: 4 });
@@ -216,7 +218,7 @@ const driverLoadWorkflow = (() => {
 
   async function rpc(role, action, id, payload) {
     const data = { action, ...(id ? { load_id: id } : {}), ...(payload ? { payload } : {}) };
-    if (role === 'dispatch') data.fleet = adminFleetId;
+    if (role === 'dispatch') data.fleet = dispatchFleet();
     const response = await supabaseClient.rpc(role + '_workflow', data);
     if (response.error) throw response.error;
     return response.data;
@@ -570,14 +572,14 @@ const driverLoadWorkflow = (() => {
 
   async function refreshOffice(quiet = false, force = false) {
     const user = currentUser;
-    const fleet = adminFleetId;
-    if ((quiet && officeRead) || !user || !fleet || accountTypeFor(user) !== 'fleet') return;
+    const fleet = dispatchFleet();
+    if ((quiet && officeRead) || !user || !fleet) return;
     const request = {};
     officeRead = request;
     const panel = byId('dispatch-panel-activity');
     try {
       const data = await rpc('dispatch', 'list');
-      if (officeRead !== request || currentUser !== user || adminFleetId !== fleet) return;
+      if (officeRead !== request || currentUser !== user || dispatchFleet() !== fleet) return;
       const keys = [
         ...data.returns.map(row => 'return:' + row.id),
         ...data.yard.filter(row => row.picked_up_at).map(row => 'pickup:' + row.id),
@@ -649,7 +651,7 @@ const driverLoadWorkflow = (() => {
 
   setInterval(() => {
     if (!currentUser || document.hidden) return;
-    if (accountTypeFor(currentUser) === 'fleet') void refreshOffice(true);
+    if (dispatchFleet()) void refreshOffice(true);
     else void refresh(true);
   }, 10000);
 

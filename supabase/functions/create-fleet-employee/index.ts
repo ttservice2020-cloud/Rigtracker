@@ -12,6 +12,10 @@ function reply(status: number, body: Record<string, unknown>) {
   return Response.json(body, { status, headers: corsHeaders });
 }
 
+function validTemporaryPassword(password: unknown): password is string {
+  return typeof password === "string" && password.length >= 8 && new TextEncoder().encode(password).length <= 72;
+}
+
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
   if (request.method !== "POST") return reply(405, { message: "Use POST to create an employee." });
@@ -33,20 +37,52 @@ Deno.serve(async (request) => {
   const { data: { user }, error: authError } = await client.auth.getUser(token);
   if (authError || !user) return reply(401, { message: "Sign in as Fleet Admin." });
 
+  const payload = await request.json().catch(() => null);
+  const employeeId = typeof payload?.employeeId === "string" ? payload.employeeId.trim() : "";
+  const password = payload?.password;
+  if (!/^[0-9]{1,6}$/.test(employeeId)) {
+    return reply(400, { message: "Use 1–6 digits for the Employee ID." });
+  }
+  if (!validTemporaryPassword(password)) {
+    return reply(400, { message: "Use at least 8 characters and at most 72 bytes for the password." });
+  }
+
+  if (payload?.action === "reset_password") {
+    const fleetId = typeof payload.fleetId === "string" ? payload.fleetId : "";
+    if (!/^[a-z0-9]{1,20}$/.test(fleetId)) return reply(400, { message: "Select an Office profile." });
+    const { data: employee, error: accessError } = await client.rpc("office_profiles", {
+      fleet: fleetId, action: "reset_target", employee_number: employeeId,
+    });
+    if (accessError || !employee?.user_id) {
+      return reply(403, { message: accessError?.code === "42501" ? accessError.message : "You cannot reset this Office password." });
+    }
+    const service = createClient(url, serviceKey, { auth: authOptions });
+    const { error } = await service.auth.admin.updateUserById(employee.user_id, {
+      password,
+      app_metadata: { office_password_reset_id: crypto.randomUUID(), office_password_reset_by: user.id },
+    });
+    if (error?.code === "weak_password") {
+      return reply(400, { message: "Choose a stronger temporary password." });
+    }
+    if (error) return reply(502, { message: "Could not reset the password. Try again." });
+    return reply(200, { username: fleetId + "-" + employeeId });
+  }
+
   const { data: fleet, error: fleetError } = await client.from("fleets")
     .select("id").eq("admin_user_id", user.id).maybeSingle();
   if (fleetError) return reply(503, { message: "Could not verify your Fleet Admin account." });
   if (!fleet) return reply(403, { message: "Only the Fleet Admin can create employee accounts." });
 
-  const payload = await request.json().catch(() => null);
-  const employeeId = typeof payload?.employeeId === "string" ? payload.employeeId.trim() : "";
-  const password = typeof payload?.password === "string" ? payload.password : "";
   const firstName = typeof payload?.firstName === "string" ? payload.firstName.trim() : "";
   const lastName = typeof payload?.lastName === "string" ? payload.lastName.trim() : "";
   const officeRole = typeof payload?.officeRole === "string" ? payload.officeRole.trim() : "";
   const permissions = payload?.permissions;
-  const hasOfficeSetup = ["firstName", "lastName", "officeRole", "permissions"]
+  const hasDesignation = Object.hasOwn(payload ?? {}, "isOfficial") || Object.hasOwn(payload ?? {}, "canManageProfiles");
+  const hasOfficeSetup = hasDesignation || ["firstName", "lastName", "officeRole", "permissions"]
     .some((key) => Object.hasOwn(payload ?? {}, key));
+  if (hasDesignation && (typeof payload.isOfficial !== "boolean" || typeof payload.canManageProfiles !== "boolean")) {
+    return reply(400, { message: "Choose Official or Unofficial and whether they can manage profiles." });
+  }
   if (hasOfficeSetup) {
     if (!firstName || !lastName || firstName.length > 100 || lastName.length > 100) {
       return reply(400, { message: "Enter a first and last name, up to 100 characters each." });
@@ -58,13 +94,6 @@ Deno.serve(async (request) => {
       return reply(400, { message: "Select valid Office access options." });
     }
   }
-  if (!/^[0-9]{1,6}$/.test(employeeId)) {
-    return reply(400, { message: "Use 1–6 digits for the Employee ID." });
-  }
-  if (password.length < 8 || new TextEncoder().encode(password).length > 72) {
-    return reply(400, { message: "Use at least 8 characters and at most 72 bytes for the password." });
-  }
-
   const username = fleet.id + "-" + employeeId;
   const service = createClient(url, serviceKey, { auth: authOptions });
   const { error } = await service.auth.admin.createUser({
@@ -75,6 +104,7 @@ Deno.serve(async (request) => {
     app_metadata: {
       account_type: "fleet_employee", fleet_id: fleet.id, employee_id: employeeId, temporary_password: true,
       ...(hasOfficeSetup ? { office_role: officeRole, office_permissions: [...new Set(permissions)] } : {}),
+      ...(hasDesignation ? { office_is_official: payload.isOfficial, office_can_manage_profiles: payload.canManageProfiles } : {}),
     },
   });
   if (error) {

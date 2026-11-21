@@ -1,0 +1,13 @@
+.office-toggle{display:flex;align-items:center;gap:10px;margin:12px 0 16px}
+.office-toggle input{width:20px;height:20px;accent-color:var(--accent)}
+#officeDashboardTools .fleet-tool small{font-size:12px;color:var(--muted);font-weight:400;margin-inline-start:8px;text-align:right}
+.office-profile-dialog{width:min(640px,calc(100% - 24px));max-height:calc(100dvh - 32px);overflow:auto;background:#0f1a2a;color:var(--white);border:1px solid #345475;border-radius:14px;padding:18px}
+.office-profile-dialog::backdrop{background:#05080dcc}
+.office-profile-heading{display:flex;flex-wrap:wrap;align-items:start;justify-content:space-between;gap:10px}
+.office-profile-heading h2,.office-profile-heading p{margin:0}
+.office-profile-dialog form{margin-top:18px}
+.office-profile-dialog fieldset{min-width:0;margin-bottom:10px}
+#officeProfilePasswordForm{padding-top:16px;border-top:1px solid #345475}
+#officeProfilePasswordForm .employee-setup-actions{flex-wrap:wrap}
+#dispatchWorkspace.office-drivers-only{grid-template-columns:minmax(0,1fr)}
+#dispatchWorkspace.office-drivers-only .dispatch-rail{display:none}

@@ -1,0 +1,299 @@
+const officeTools = (() => {
+  const byId = id => document.getElementById(id);
+  const dialog = byId('officeProfileDialog');
+  const accessForm = byId('officeProfileAccessForm');
+  const passwordForm = byId('officeProfilePasswordForm');
+  const temporaryPassword = byId('officeProfileTemporaryPassword');
+  const tabs = [...document.querySelectorAll('[data-office-tool]')];
+  const permissionLabels = [...document.querySelectorAll('#newEmployeePermissionOptions [name=officePermission]')]
+    .map(field => [field.value, field.closest('label').textContent.trim()]);
+  const requests = new Map();
+  const clock = new Intl.DateTimeFormat(undefined, {
+    year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
+  });
+  let employee;
+  let editing;
+  let pending = false;
+  let hasPrivateThreads = false;
+  let employeeRequest;
+
+  const has = permission => Boolean(employee && (employee.office_is_official || employee.office_permissions.includes(permission)));
+  const messagesAllowed = () => ['messages','dispatch','assets','policies'].some(has) || hasPrivateThreads;
+  const visible = (id, allowed) => byId(id).classList.toggle('hidden', !allowed);
+  const displayName = row => [row.first_name,row.last_name].filter(Boolean).join(' ') || 'Office employee';
+
+  function renderTools() {
+    for (const tab of tabs) {
+      const key = tab.dataset.officeTool;
+      const available = key === 'profiles' ? employee?.office_can_manage_profiles
+        : key === 'safety' ? employee?.office_is_official : key === 'messages' ? messagesAllowed() : has(key);
+      tab.classList.toggle('hidden', !available);
+    }
+    for (const group of document.querySelectorAll('[data-office-group]')) {
+      group.classList.toggle('hidden', !group.querySelector('[data-office-tool]:not(.hidden)'));
+    }
+    visible('officeNoTools', Boolean(employee) && tabs.every(tab => tab.classList.contains('hidden')));
+  }
+
+  function setEmployee(profile) {
+    employee = { ...profile, office_permissions: profile.office_permissions || [] };
+    byId('employeeAccountSummary').textContent = profile.fleet_id + '-' + profile.employee_id
+      + (profile.office_role ? ' · ' + profile.office_role : '') + ' · ' + (profile.office_is_official ? 'Official' : 'Unofficial');
+    visible('officeDashboardTools', true);
+    renderTools();
+  }
+
+  function readEmployee(user) {
+    return supabaseClient.from('fleet_employees')
+      .select('fleet_id,employee_id,office_role,office_is_official,office_can_manage_profiles,office_permissions,password_required')
+      .eq('user_id',user.id).maybeSingle();
+  }
+
+  async function refreshEmployee() {
+    const user = currentUser;
+    if (!user || accountTypeFor(user) !== 'employee') return;
+    const request = {};
+    employeeRequest = request;
+    const { data, error } = await readEmployee(user);
+    if (currentUser !== user || employeeRequest !== request || error || !data) return;
+    if (data.password_required) {
+      if (!byId('rigTrackerPasswordPage').classList.contains('active')) openRigTrackerPasswordChange(true);
+      return;
+    }
+    setEmployee(data);
+  }
+
+  function setPrivateThreads(allowed) {
+    hasPrivateThreads = allowed;
+    if (employee) renderTools();
+  }
+
+  function openDashboard() {
+    showPage('fleetEmployeePage');
+    return refreshEmployee();
+  }
+
+  function dispatchFleet() {
+    return has('dispatch') || has('drivers') ? employee.fleet_id : null;
+  }
+
+  function dispatchAccess() {
+    return { dispatch:has('dispatch'), drivers:has('drivers'), paySettings:Boolean(employee?.office_is_official), messages:messagesAllowed() };
+  }
+
+  async function rpc(action, fleet, row, settings) {
+    const payload = { action, fleet, ...(row ? { employee_number:row.employee_id } : {}), ...(settings ? { settings } : {}) };
+    const { data, error } = await supabaseClient.rpc('office_profiles',payload);
+    if (error) throw error;
+    return data;
+  }
+
+  function rosterRow(row, fleet, prefix) {
+    const tr = document.createElement('tr');
+    for (const value of [displayName(row), fleet + '-' + row.employee_id, row.office_role || '—',
+      row.office_is_official ? 'Official' : 'Unofficial', row.office_can_manage_profiles ? 'On' : 'Off']) {
+      tr.insertCell().textContent = value;
+    }
+    const actions = tr.insertCell();
+    if (row.can_edit) {
+      const control = document.createElement('button');
+      control.className = 'outline';
+      control.type = 'button';
+      control.textContent = 'Edit Profile';
+      control.addEventListener('click',()=>editProfile(row,fleet,prefix));
+      actions.append(control);
+    }
+    return tr;
+  }
+
+  async function loadRoster(prefix, fleet) {
+    const user = currentUser;
+    if (!user || !fleet) return;
+    const request = {};
+    requests.set(prefix,request);
+    const status = byId(prefix+'Status');
+    visible(prefix+'Status',true);
+    visible(prefix+'Table',false);
+    status.textContent = 'Loading profiles…';
+    try {
+      const rows = await rpc('list',fleet);
+      if (currentUser !== user || requests.get(prefix) !== request) return;
+      if (!rows.length) { status.textContent = 'No Office profiles yet.'; return; }
+      byId(prefix+'Rows').replaceChildren(...rows.map(row=>rosterRow(row,fleet,prefix)));
+      visible(prefix+'Table',true);
+      visible(prefix+'Status',false);
+    } catch (error) {
+      if (currentUser === user && requests.get(prefix) === request) status.textContent = error.message || 'Could not load Office profiles.';
+    }
+  }
+
+  function updateCreateAccess() {
+    const official = byId('newEmployeeDesignation').value === 'official';
+    visible('newEmployeeOfficialAccess',official);
+    visible('newEmployeePermissionOptions',!official);
+  }
+  byId('newEmployeeDesignation').addEventListener('change',updateCreateAccess);
+
+  function updateEditAccess() {
+    const official = byId('officeProfileDesignation').value === 'official';
+    visible('officeProfileOfficialAccess',official);
+    visible('officeProfilePermissionFields',!official);
+  }
+  byId('officeProfileDesignation').addEventListener('change',updateEditAccess);
+
+  function editProfile(row,fleet,prefix) {
+    if (pending) return;
+    const admin = accountTypeFor(currentUser) === 'fleet';
+    editing = { row,fleet,prefix,user:currentUser,admin };
+    byId('officeProfileIdentity').textContent = displayName(row) + ' · ' + fleet + '-' + row.employee_id;
+    byId('officeProfileDesignation').value = row.office_is_official ? 'official' : 'unofficial';
+    byId('officeProfileManage').checked = row.office_can_manage_profiles;
+    visible('officeProfileDesignationFields',admin);
+    const assigned = row.office_permissions || [];
+    byId('officeProfilePermissionOptions').replaceChildren(...permissionLabels.map(([key,label])=>{
+      const option = document.createElement('label');
+      const field = document.createElement('input');
+      field.type = 'checkbox'; field.name = 'permission'; field.value = key;
+      field.checked = assigned.includes(key);
+      field.disabled = !admin && !has(key);
+      option.append(field,' '+label);
+      return option;
+    }));
+    passwordForm.reset();
+    byId('officeProfileStatus').textContent = row.password_required ? 'A temporary password is required at sign-in.' : '';
+    updateEditAccess();
+    dialog.showModal();
+  }
+
+  function setBusy(value) {
+    pending = value;
+    const controls = [byId('officeProfileClose'),accessForm.querySelector('button[type=submit]'),passwordForm.querySelector('button[type=submit]')];
+    for (const control of controls) control.disabled = value;
+  }
+
+  async function saveChange(work, success) {
+    const selection = editing;
+    if (!selection || pending) return;
+    setBusy(true);
+    byId('officeProfileStatus').textContent = '';
+    try {
+      await work(selection);
+      if (editing !== selection || currentUser !== selection.user) return;
+      byId('officeProfileStatus').textContent = success(selection);
+      await loadRoster(selection.prefix,selection.fleet);
+    } catch (error) {
+      if (editing === selection && currentUser === selection.user) byId('officeProfileStatus').textContent = error.message || 'Could not save the profile.';
+    } finally { setBusy(false); }
+  }
+
+  accessForm.addEventListener('submit', event=>{
+    event.preventDefault();
+    const settings = { permissions:[...accessForm.querySelectorAll('[name=permission]:checked')].map(input=>input.value) };
+    if (editing?.admin) {
+      settings.is_official = byId('officeProfileDesignation').value === 'official';
+      settings.can_manage_profiles = byId('officeProfileManage').checked;
+    }
+    void saveChange(selection=>rpc('edit',selection.fleet,selection.row,settings),()=> 'Access updated.');
+  });
+
+  byId('officeGeneratePassword').addEventListener('click',()=>{
+    const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
+    const bytes = crypto.getRandomValues(new Uint8Array(15));
+    temporaryPassword.value = '9a!' + Array.from(bytes,byte=>alphabet[byte % alphabet.length]).join('');
+    temporaryPassword.focus();
+    temporaryPassword.select();
+  });
+
+  byId('officeCopyPassword').addEventListener('click',async ()=>{
+    if (!temporaryPassword.value) return;
+    try {
+      await navigator.clipboard.writeText(temporaryPassword.value);
+      byId('officeProfileStatus').textContent = 'Temporary password copied.';
+    } catch {
+      temporaryPassword.select();
+      byId('officeProfileStatus').textContent = 'Select and copy the temporary password.';
+    }
+  });
+
+  passwordForm.addEventListener('submit', event=>{
+    event.preventDefault();
+    const password = temporaryPassword.value;
+    if (password.length < 8 || new TextEncoder().encode(password).length > 72) {
+      byId('officeProfileStatus').textContent = 'Use at least 8 characters and at most 72 bytes.';
+      return;
+    }
+    void saveChange(async selection=>{
+      const {error} = await supabaseClient.functions.invoke('create-fleet-employee',{body:{
+        action:'reset_password',fleetId:selection.fleet,employeeId:selection.row.employee_id,password
+      }});
+      if (error) {
+        const result = await error.context?.json?.().catch(()=>null);
+        throw Error(result?.message || 'Could not reset the password.');
+      }
+    },selection=> 'Temporary password set for ' + selection.fleet + '-' + selection.row.employee_id + '.');
+  });
+
+  byId('officeProfileClose').addEventListener('click',()=>dialog.close());
+  dialog.addEventListener('cancel',event=>{ if (pending) event.preventDefault(); });
+  dialog.addEventListener('close',()=>{
+    editing = null;
+    passwordForm.reset();
+    byId('officeProfileStatus').textContent = '';
+  });
+
+  async function openHourly() {
+    const user = currentUser;
+    const fleet = employee?.fleet_id;
+    showPage('officeHourlyPage');
+    const status = byId('officeHourlyStatus');
+    const list = byId('officeHourlyRows');
+    status.textContent = 'Loading recent shifts…';
+    list.replaceChildren();
+    try {
+      const {data,error} = await supabaseClient.rpc('company_driver_resources',{action:'hourly_roster',fleet});
+      if (error) throw error;
+      if (user !== currentUser || fleet !== employee?.fleet_id) return;
+      status.textContent = data.length ? '' : 'No Company Driver shifts recorded.';
+      list.replaceChildren(...data.map(shift=>{
+        const row = document.createElement('article');
+        row.className = 'dispatch-load-row';
+        const name = document.createElement('strong');
+        name.textContent = shift.name;
+        const times = document.createElement('span');
+        times.textContent = clock.format(new Date(shift.started_at)) + ' → ' + (shift.ended_at ? clock.format(new Date(shift.ended_at)) : 'Clocked in');
+        row.append(name,times);
+        return row;
+      }));
+    } catch (error) {
+      if (user === currentUser) status.textContent = error.message || 'Could not load recent shifts.';
+    }
+  }
+
+  const routes = {
+    dispatch:()=>showOfficeDispatch('current'),drivers:()=>showOfficeDispatch('drivers'),
+    messages:()=>companyMessaging.open(),payroll:()=>companyDriverTools.openPayroll(),
+    settlements:()=>companyDriverTools.openPayroll('Pay Settlements'),safety:()=>companySafety.open(),
+    hourly:openHourly,profiles:()=>{ showPage('officeProfilesPage'); return loadRoster('officeProfiles',employee.fleet_id); }
+  };
+  for (const tab of tabs) tab.addEventListener('click',()=>{
+    if (tab.classList.contains('hidden') || !employee) return;
+    const open = routes[tab.dataset.officeTool];
+    if (open) void open();
+    else notAvailable(tab.firstChild.textContent.trim());
+  });
+
+  function reset() {
+    employee = null;
+    editing = null;
+    requests.clear();
+    hasPrivateThreads = false;
+    employeeRequest = null;
+    if (dialog.open) dialog.close();
+    passwordForm.reset();
+    for (const id of ['officeProfilesRows','officeHourlyRows','officeProfilePermissionOptions']) byId(id).replaceChildren();
+    visible('officeDashboardTools',false);
+    renderTools();
+  }
+
+  return { has,readEmployee,setEmployee,refreshEmployee,setPrivateThreads,openDashboard,dispatchFleet,dispatchAccess,loadRoster,updateCreateAccess,reset };
+})();

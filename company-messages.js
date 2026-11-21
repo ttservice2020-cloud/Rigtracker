@@ -189,6 +189,9 @@ const companyMessaging = (() => {
       data = result;
       contacts = contactRows;
       mechanicFleet = selectedFleet;
+      if (accountTypeFor(user) === 'employee' && typeof officeTools !== 'undefined') {
+        officeTools.setPrivateThreads(data.threads.some(thread=>thread.kind==='private'));
+      }
       showBadges();
       if (viewing) {
         byId('companyMessagesStatus').textContent = '';

@@ -155,7 +155,7 @@ const companyDriverTools = (() => {
     byId('companyPayCancelReplacement').classList.add('hidden');
   }
 
-  function paintStatements(id, records) {
+  function paintStatements(id, records, canManagePay = false) {
     const reviewing = id === 'driverPayList';
     const rows = records.map(record => {
       const row = element('article', '', 'dispatch-load-row company-pay-row');
@@ -180,10 +180,10 @@ const companyDriverTools = (() => {
         });
         row.append(correction.form);
       }
-      if (!reviewing && record.status === 'accepted') {
+      if (!reviewing && canManagePay && record.status === 'accepted') {
         actions.append(button('Submit Settlement', control => submitPay(record, control)));
       }
-      if (!reviewing && record.status === 'correction_requested') {
+      if (!reviewing && canManagePay && record.status === 'correction_requested') {
         actions.append(button('Send Corrected Statement', () => selectCorrection(record)));
       }
       return row;
@@ -302,7 +302,8 @@ const companyDriverTools = (() => {
       control.textContent = detail.enabled ? 'Time Clock On · Turn Off' : 'Time Clock Off · Turn On';
       byId('companyDriverClockArchive').classList.toggle('hidden', detail.linked);
       byId('companyDriverAdminShifts').replaceChildren(shiftList(detail.shifts));
-      paintStatements('companyDriverAdminPayList', detail.documents);
+      byId('companyDriverPayForm').classList.toggle('hidden', !detail.can_manage_pay);
+      paintStatements('companyDriverAdminPayList', detail.documents, detail.can_manage_pay);
     } catch (error) {
       if (view === selection && currentUser === selection.user) byId('companyDriverAdminStatus').textContent = error.message || 'Could not load the driver’s settings.';
     }
@@ -397,7 +398,8 @@ const companyDriverTools = (() => {
   byId('formerCompanyDrivers').addEventListener('toggle', event => { if (event.target.open) void loadFormer(); });
 
   function payrollBadges(notices, allowed) {
-    byId('companyOfficePayrollButton').classList.toggle('hidden', !allowed);
+    const officePayroll = typeof officeTools === 'undefined' || officeTools.has('payroll');
+    byId('companyOfficePayrollButton').classList.toggle('hidden', !allowed || !officePayroll);
     for (const id of ['companyFleetPayrollButton','companyOfficePayrollButton']) {
       byId(id).querySelector('.payroll-label').textContent = notices.length ? 'Payroll (' + notices.length + ')' : 'Payroll';
     }
@@ -451,23 +453,24 @@ const companyDriverTools = (() => {
     }) : [element('p', 'No settlements are awaiting review or submission.', 'muted')]));
   }
 
-  function openPayroll() {
+  function openPayroll(title = 'Payroll') {
     const page = document.querySelector('.page.active');
     if (!currentUser) return;
     if (page && !['companyPayrollPage','companyDriverAdminPage'].includes(page.id)) payrollOrigin = page.id;
+    byId('companyPayrollTitle').textContent = title;
     showPage('companyPayrollPage');
     byId('companyPayrollStatus').textContent = 'Loading payroll…';
     return refreshPayroll(true);
   }
 
   function backPayroll() {
-    if (accountTypeFor(currentUser) === 'employee') return showPage('fleetEmployeePage');
+    if (accountTypeFor(currentUser) === 'employee') return officeTools.openDashboard();
     if (payrollOrigin && payrollOrigin !== 'fleetWorkspace') return showPage(payrollOrigin);
     return showFleetSection('dashboard');
   }
 
   function backAdmin() {
-    return view?.source === 'payroll' ? openPayroll() : showFleetSection('links');
+    return view?.source === 'payroll' ? openPayroll(byId('companyPayrollTitle').textContent) : showFleetSection('links');
   }
 
   function refresh() {
