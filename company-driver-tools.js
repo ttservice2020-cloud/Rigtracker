@@ -611,18 +611,20 @@ const companyDriverTools = (() => {
 
   function payScaleLabel(scale) {
     if (!scale) return 'Pay scale not set';
-    const money = new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 4 });
+    const money = value => new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 4 }).format(Number(value));
+    const has = value => value !== null && value !== '' && value !== undefined && Number.isFinite(Number(value));
     if (scale.method === 'per_load') return 'Per load · manual pay';
     if (scale.method === 'hourly') return 'Hourly · hours need review';
-    if (scale.method === 'split') return scale.split_percent + '% split';
-    if (scale.method === 'per_mile') return money.format(Number(scale.mile_rate || 0)) + ' per loaded mile' +
-      (scale.empty_mile_rate ? ' · ' + money.format(Number(scale.empty_mile_rate)) + ' per empty mile' : '');
-    if (scale.method === 'load_percent') return scale.split_percent + '% of load gross';
-    if (scale.method === 'higher_of') return 'Higher of ' + scale.split_percent + '% or ' +
-      money.format(Number(scale.mile_rate || 0)) + ' per loaded mile';
+    if (scale.method === 'split') return has(scale.split_percent) ? Number(scale.split_percent) + '% split' : 'Split rate not set';
+    if (scale.method === 'per_mile') return has(scale.mile_rate)
+      ? money(scale.mile_rate) + ' per loaded mile' + (has(scale.empty_mile_rate) ? ' · ' + money(scale.empty_mile_rate) + ' per empty mile' : '')
+      : 'Per-mile rate not set';
+    if (scale.method === 'load_percent') return has(scale.split_percent) ? Number(scale.split_percent) + '% of load gross' : 'Load percentage not set';
+    if (scale.method === 'higher_of') return has(scale.split_percent) && has(scale.mile_rate)
+      ? 'Higher of ' + Number(scale.split_percent) + '% or ' + money(scale.mile_rate) + ' per loaded mile'
+      : 'Higher-of pay scale is incomplete';
     return 'Pay scale not set';
   }
-
   function settlementLoadPay(load) {
     const money = value => value !== null && value !== '' && value !== undefined && Number.isFinite(Number(value));
     const rawTotal = load.pay_entry?.totalPay;
