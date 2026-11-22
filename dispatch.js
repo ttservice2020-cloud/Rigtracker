@@ -754,7 +754,11 @@ const fleetDispatchApp = (() => {
   }
 
   function paintAssignment() {
-    const split = form.elements.secondDriverMode.value === 'assigned';
+    const secondDriverMode = form.elements.secondDriverMode.value;
+    const split = secondDriverMode === 'assigned';
+    for (const field of stops.receiver.querySelectorAll('[data-stop-field="date"], [data-stop-field="from"]')) {
+      field.required = secondDriverMode === 'none';
+    }
     toggle('dispatchDriver2Field', split);
     form.elements.driver2.disabled = !split;
     form.elements.driver2.required = split;
