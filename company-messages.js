@@ -128,10 +128,16 @@ const companyMessaging = (() => {
   function paint() {
     const fleet = data.staff_fleet;
     const drivers = contacts?.drivers || [];
+    const recipient = byId('companyMessageRecipient');
+    const canChooseFleet = accountTypeFor(currentUser) === 'mechanic';
     byId('companyMessageStartPanel').classList.toggle('hidden', Boolean(crew()) || !data.linked_fleets.length);
-    byId('companyMessageRecipientLabel').textContent = fleet ? 'Driver' : 'Fleet';
+    byId('companyMessageRecipientLabel').textContent = fleet ? 'Driver' : canChooseFleet ? 'Fleet' : 'Linked fleet';
     setOptions('companyMessageRecipient', fleet ? drivers.map(driver => [driver.profile_id,driver.name])
       : data.linked_fleets.map(id => [id,id]), fleet ? 'Select a driver' : 'Select a fleet');
+    recipient.disabled = !fleet && !canChooseFleet;
+    if (!fleet && !canChooseFleet && data.linked_fleets.length) {
+      recipient.value = data.linked_fleets[0];
+    }
     paintChannelChoices();
     byId('companyPrivateAccessPanel').classList.toggle('hidden', !fleet?.scope.includes('official'));
     if (fleet?.scope.includes('official')) {
