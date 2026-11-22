@@ -312,6 +312,8 @@ const dispatchProgress = (() => {
       const trailerStop = key => stops.find(stop => stop.key === key)?.company;
       const bobtail = details.trailerPickup === 'yes' && details.trailerPickupMode === 'bobtail';
       const trailerType = { fleet: 'Fleet', power_only: 'Power Only' }[details.trailerType];
+      const relayAddress = [details.relayAddress, [details.relayCity, details.relayState, details.relayZip].filter(Boolean).join(' ')]
+        .filter(Boolean).join(' · ');
       const money = value => value !== '' && value !== null && value !== undefined && Number.isFinite(Number(value))
         ? new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' }).format(Number(value)) : '';
       byId('dispatchDetailFreight').replaceChildren(
@@ -328,6 +330,8 @@ const dispatchProgress = (() => {
         fact('Broker', details.brokerName), fact('Broker contact', [details.brokerPhone, details.brokerEmail].filter(Boolean).join(' · ')),
         fact('Shipper', names(details.pickups)), fact('Receiver', names(details.receivers)),
         fact('Shipper contact', contacts(details.pickups)), fact('Receiver contact', contacts(details.receivers)),
+        ...(details.relayLocation ? [fact('Relay location', details.relayLocation)] : []),
+        ...(relayAddress ? [fact('Relay address', relayAddress)] : []),
         fact('Loaded miles', details.loadedMiles ? Number(details.loadedMiles).toLocaleString() + ' mi' : ''),
         fact('Route / shipping number', [details.routeNumber, details.brokerLoadNumber].filter(Boolean).join(' · ')),
         fact('Pickup number', details.pickupNumber), fact('BOL number', details.bolNumber), fact('Stop pay', money(details.stopPay)),
@@ -485,5 +489,5 @@ const dispatchProgress = (() => {
     return { show, close, paint, id: () => activeId, reset: () => { request = null; close(); } };
   }
 
-  return { bind, summarize, appointment, clockText, time, recordedTime };
+  return { bind, summarize, appointment, clockText, time, recordedTime, localDateTime };
 })();

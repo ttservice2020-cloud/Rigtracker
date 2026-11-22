@@ -255,7 +255,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 .driver-load-stops li[aria-current="step"]{border-color:#4c8dff;background:#13294a}
 #companySignupFields{border:0;padding:0;margin:0;min-inline-size:0}
 </style>
-<link rel="stylesheet" href="./dispatch.css?v=message-notice-1">
+<link rel="stylesheet" href="./dispatch.css?v=saved-locations-1">
 <link rel="stylesheet" href="./driver-app.css?v=return-cargo-1">
 <link rel="stylesheet" href="./office-tools.css?v=1">
 </head>
@@ -522,6 +522,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
         <button id="dispatch-tab-contract" type="button" role="tab" aria-selected="false" aria-controls="dispatch-panel-contract" data-dispatch-tab="contract" tabindex="-1">Contract Loads</button>
         <button id="dispatch-tab-history" type="button" role="tab" aria-selected="false" aria-controls="dispatch-panel-history" data-dispatch-tab="history" tabindex="-1">Load History</button>
         <button id="dispatch-tab-drivers" type="button" role="tab" aria-selected="false" aria-controls="dispatch-panel-drivers" data-dispatch-tab="drivers" tabindex="-1">Drivers</button>
+        <button id="dispatch-tab-locations" type="button" role="tab" aria-selected="false" aria-controls="dispatch-panel-locations" data-dispatch-tab="locations" tabindex="-1">Saved Locations</button>
          <button id="dispatch-tab-activity" type="button" role="tab" aria-selected="false" aria-controls="dispatch-panel-activity" data-dispatch-tab="activity" tabindex="-1">Driver Activity</button>
        </div>
        <div class="hidden panel" id="dispatchReadError">
@@ -674,7 +675,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
            </div>
           </section>
           <div class="dispatch-fields">
-           <div class="field"><label for="dispatchDriver1">Driver 1</label><select id="dispatchDriver1" name="driver1"><option value="">Select a driver</option></select></div>
+           <div class="field"><label for="dispatchDriver1">Driver 1</label><select id="dispatchDriver1" name="driver1" required><option value="">Select a driver</option></select></div>
            <div class="field"><label for="dispatchSecondDriverMode">Second driver</label><select id="dispatchSecondDriverMode" name="secondDriverMode"><option value="none">No second driver</option><option value="unknown">Assign later</option><option value="assigned">Choose Driver 2</option></select></div>
            <div class="field hidden" id="dispatchDriver2Field"><label for="dispatchDriver2">Driver 2</label><select id="dispatchDriver2" name="driver2"><option value="">Select a driver</option></select></div>
           </div>
@@ -692,7 +693,11 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
           <details class="panel" id="dispatchRelayDetails">
            <summary>Split Load Details</summary>
            <div class="dispatch-fields">
-            <div class="field"><label for="dispatchRelayLocation">Relay location</label><input id="dispatchRelayLocation" name="relayLocation" maxlength="180"></div>
+            <div class="field dispatch-wide"><label for="dispatchRelayLocation">Relay location</label><input id="dispatchRelayLocation" name="relayLocation" maxlength="180" list="dispatchLocationNames"></div>
+            <div class="field dispatch-wide"><label for="dispatchRelayAddress">Relay street address</label><input id="dispatchRelayAddress" name="relayAddress" maxlength="180"></div>
+            <div class="field"><label for="dispatchRelayCity">Relay city</label><input id="dispatchRelayCity" name="relayCity" maxlength="80"></div>
+            <div class="field"><label for="dispatchRelayState">Relay state</label><input id="dispatchRelayState" name="relayState" maxlength="2" pattern="[A-Za-z]{2}" title="Two-letter state abbreviation" autocapitalize="characters"></div>
+            <div class="field"><label for="dispatchRelayZip">Relay ZIP</label><input id="dispatchRelayZip" name="relayZip" maxlength="10" pattern="[0-9]{5}(-[0-9]{4})?" title="5-digit or ZIP+4 code" inputmode="numeric"></div>
             <div class="field"><label for="dispatchRelayDate">Relay date</label><input id="dispatchRelayDate" name="relayDate" type="date"></div>
             <div class="field"><label for="dispatchRelayDrop">Driver 1 drop time (HHMM)</label><input id="dispatchRelayDrop" name="relayDrop" inputmode="numeric" maxlength="5" pattern="(?:[01][0-9]|2[0-3]):?[0-5][0-9]" placeholder="HHMM"></div>
             <div class="field"><label for="dispatchRelayPickup">Driver 2 pickup time (HHMM)</label><input id="dispatchRelayPickup" name="relayPickup" inputmode="numeric" maxlength="5" pattern="(?:[01][0-9]|2[0-3]):?[0-5][0-9]" placeholder="HHMM"></div>
@@ -790,6 +795,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
            </div>
           </details>
          </fieldset>
+         <p class="dispatch-form-issues hidden" id="dispatchSubmitFeedback" role="alert"></p>
          <div class="dispatch-actions">
           <button class="primary-btn" id="dispatchSubmit" type="submit" value="current">Submit</button>
           <button class="outline" id="dispatchSaveDraft" type="submit" value="draft" formnovalidate>Save Draft</button>
@@ -798,6 +804,24 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
           <button class="outline" id="dispatchNewLoad" type="button">New Load</button>
          </div>
         </form>
+       </section>
+       <datalist id="dispatchLocationNames"></datalist>
+       <section id="dispatch-panel-locations" class="dispatch-panel hidden" role="tabpanel" aria-labelledby="dispatch-tab-locations" tabindex="0">
+        <form class="panel" id="dispatchLocationForm">
+         <h2 id="dispatchLocationHeading">Add a location</h2>
+         <div class="dispatch-fields">
+          <div class="field dispatch-wide"><label for="dispatchLocationName">Location name</label><input id="dispatchLocationName" name="name" maxlength="120" required></div>
+          <div class="field dispatch-wide"><label for="dispatchLocationAddress">Street address</label><input id="dispatchLocationAddress" name="address" maxlength="180" required></div>
+          <div class="field"><label for="dispatchLocationCity">City</label><input id="dispatchLocationCity" name="city" maxlength="80" required></div>
+          <div class="field"><label for="dispatchLocationState">State</label><input id="dispatchLocationState" name="state" maxlength="2" pattern="[A-Za-z]{2}" title="Two-letter state abbreviation" autocapitalize="characters" required></div>
+          <div class="field"><label for="dispatchLocationZip">ZIP</label><input id="dispatchLocationZip" name="zip" maxlength="10" pattern="[0-9]{5}(-[0-9]{4})?" title="5-digit or ZIP+4 code" inputmode="numeric" required></div>
+         </div>
+         <p class="dispatch-form-issues hidden" id="dispatchLocationIssues" role="alert"></p>
+         <div class="dispatch-actions"><button class="primary-btn" id="dispatchLocationSave" type="submit">Save Location</button><button class="outline hidden" id="dispatchLocationCancel" type="button">Cancel Edit</button></div>
+        </form>
+        <div class="field"><label for="dispatchLocationSearch">Search saved locations</label><input id="dispatchLocationSearch" type="search"></div>
+        <p id="dispatchLocationStatus" class="muted" role="status"></p>
+        <div id="dispatchLocationList" class="dispatch-load-list"></div>
        </section>
        <section id="dispatch-panel-contract" class="dispatch-panel hidden" role="tabpanel" aria-labelledby="dispatch-tab-contract" tabindex="0">
         <p id="dispatchContractEmpty" class="muted" role="status"></p>
@@ -1433,14 +1457,14 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 </dialog>
 <div id="modal"><div class="modal-card"><h2 id="modalTitle"></h2><div id="modalBody"></div><button class="primary-btn" onclick="closeModal()">Close</button></div></div>
 
-<script src="./dispatch-progress.js?v=trailer-plan-1"></script>
+<script src="./dispatch-progress.js?v=saved-locations-1"></script>
 <script src="./dispatch-rate-confirmation.js?v=1"></script>
-<script src="./dispatch.js?v=trailer-plan-1"></script>
+<script src="./dispatch.js?v=saved-locations-1"></script>
 <script src="./linked-profiles.js?v=short-profile-id-1"></script>
 <script src="./company-driver-tools.js?v=paperwork-1"></script>
 <script src="./company-messages.js?v=message-notice-1"></script>
 <script src="./driver-paperwork.js?v=1"></script>
-<script src="./driver-workflow.js?v=trailer-plan-1"></script>
+<script src="./driver-workflow.js?v=saved-locations-1"></script>
 <script src="./fleet-admin-driver.js?v=1"></script>
 <script src="./company-safety.js?v=1"></script>
 <script src="./driver-app.js?v=load-screen-1"></script>

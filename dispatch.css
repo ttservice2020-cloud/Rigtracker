@@ -24,6 +24,10 @@
 .dispatch-panel input[type="date"],.dispatch-panel input[type="time"]{-webkit-appearance:none;appearance:none}
 .dispatch-panel input::-webkit-date-and-time-value{min-width:0;margin:0;text-align:left}
 .dispatch-fields .field label{font-size:14px}
+.dispatch-panel .field label:has(+ :required:not(:disabled))::after,
+.dispatch-panel label.field:has(> :required:not(:disabled))>span::after{content:" *";color:#ff8585;font-weight:700}
+.dispatch-validation-active :is(input,select,textarea):invalid{border-color:#ff8585}
+.dispatch-form-issues{color:#ffc3c3;border-left:3px solid #ff8585;padding:8px 12px;white-space:pre-line;overflow-wrap:anywhere}
 .dispatch-wide{grid-column:1/-1}
 .dispatch-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
 .dispatch-actions button{min-height:42px}

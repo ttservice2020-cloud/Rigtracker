@@ -257,8 +257,11 @@ const driverLoadWorkflow = (() => {
 
   function paintOffer(load, panel) {
     const cards = node('div', '', 'load-offer-grid');
+    const freight = load.offer?.freight || load.freight || {};
     cards.append(offerStops(load, 'pickup'), offerStops(load, 'delivery'),
-      offerFreight(load.offer?.freight || {}));
+      offerFreight(freight));
+    const relay = relayCard(load, freight);
+    if (relay) cards.append(relay);
     if (accountTypeFor(currentUser) !== 'fleet' || load.offer?.pay) cards.append(offerPay(load.offer?.pay));
     const actions = node('div', '', 'dispatch-actions load-offer-actions');
     const respond = async (control, action, message) => {
@@ -281,7 +284,7 @@ const driverLoadWorkflow = (() => {
     return response.data;
   }
 
-  async function mutate(control, role, action, id, payload, success, after) {
+  async function mutate(control, role, action, id, payload, success, after, onError = showToast) {
     if (control.disabled) return;
     const user = currentUser;
     control.disabled = true;
@@ -296,7 +299,7 @@ const driverLoadWorkflow = (() => {
         await fleetDispatchApp.reload();
       }
     } catch (error) {
-      if (currentUser === user) showToast(error.message || 'Could not save the load update.');
+      if (currentUser === user) onError(error.message || 'Could not save the load update.');
     } finally { control.disabled = false; }
   }
 
@@ -682,22 +685,28 @@ const driverLoadWorkflow = (() => {
     host.append(disclosure);
   }
 
-  function paintLoadInfo(load, panel) {
-    const freight = load.freight || {};
-    const cards = node('div', '', 'load-offer-grid');
-    cards.append(offerFreight(freight), offerStops(load, 'pickup', true), offerStops(load, 'delivery', true));
+  function relayCard(load, freight) {
+    const address = [freight.relayAddress, [freight.relayCity, freight.relayState, freight.relayZip].filter(Boolean).join(' ')]
+      .filter(Boolean).join(' · ');
     const relay = offerFields([
-      ['Relay location', freight.relayLocation], ['Relay date', freight.relayDate],
+      ['Relay location', freight.relayLocation], ['Relay address', address], ['Relay date', freight.relayDate],
       ['Driver 1 drop time', offerTime(freight.relayDrop)], ['Driver 2 pickup time', offerTime(freight.relayPickup)],
       ['Driver 1 loaded miles', offerNumber(freight.firstLegMiles, quantity, ' mi')],
       ['Driver 1 empty miles', offerNumber(freight.firstLegEmptyMiles, quantity, ' mi')],
       ['Yard handoff', load.yard_handoff?.yard], ['Yard trailer', load.yard_handoff?.trailer]
     ], 'load-offer-freight');
-    if (relay.childElementCount) {
-      const card = offerCard('Relay & Yard');
-      card.append(relay);
-      cards.append(card);
-    }
+    if (!relay.childElementCount) return null;
+    const card = offerCard('Relay & Yard');
+    card.append(relay);
+    return card;
+  }
+
+  function paintLoadInfo(load, panel) {
+    const freight = load.freight || {};
+    const cards = node('div', '', 'load-offer-grid');
+    cards.append(offerFreight(freight), offerStops(load, 'pickup', true), offerStops(load, 'delivery', true));
+    const relay = relayCard(load, freight);
+    if (relay) cards.append(relay);
     if (load.pay) cards.append(offerPay(load.pay));
     panel.replaceChildren(cards);
   }
@@ -934,21 +943,59 @@ const driverLoadWorkflow = (() => {
       ['Weight', offerNumber(freight.weight, quantity, ' lb')], ['Pieces', offerNumber(freight.pieces, quantity)]
     ], 'dispatch-detail-facts');
     if (cargo.childElementCount) form.append(cargo);
-    form.append(fields(
-      input('Shipper', 'shipper', { value:load.shipper || '', maxLength:160, required:true }),
-      input('Receiver', 'receiver', { value:load.receiver || '', maxLength:160, required:true }),
-      input('Delivery address', 'address', { value:load.address || '', maxLength:180 }),
-      input('Yard for a split (optional)', 'yard', { maxLength:160 }),
-      input('Trailer for the yard split', 'trailer', { maxLength:40 })
-    ));
+    const shipper = input('Shipper', 'shipper', { value:load.shipper || '', maxLength:160, required:true });
+    const receiver = input('Receiver', 'receiver', { value:load.receiver || '', maxLength:160, required:true });
+    const pickupNow = input('Use current time for pickup', 'pickup_now', { type:'checkbox', value:'yes' });
+    pickupNow.classList.add('dispatch-checkbox');
+    const pickupZone = node('select');
+    pickupZone.name = 'pickup_zone';
+    setOptions(pickupZone, Object.entries(zoneNames), 'Select time zone');
+    pickupZone.value = load.pickup?.zone || '';
+    const zoneField = field('Pickup time zone', pickupZone);
+    const addresses = node('details', '', 'panel');
+    addresses.append(node('summary', 'Pickup & Delivery Addresses'));
+    const addAddress = (prefix, label, source, nameField) => {
+      const address = input(label + ' street address', prefix + '_address', { value:source.address || '', maxLength:180 });
+      const city = input(label + ' city', prefix + '_city', { value:source.city || '', maxLength:80 });
+      const region = input(label + ' state', prefix + '_state', { value:source.state || '', maxLength:2, pattern:'[A-Za-z]{2}', title:'Two-letter state abbreviation' });
+      const zip = input(label + ' ZIP', prefix + '_zip', { value:source.zip || '', maxLength:10, pattern:'[0-9]{5}(-[0-9]{4})?', title:'5-digit or ZIP+4 code', inputMode:'numeric' });
+      addresses.append(fields(address, city, region, zip));
+      fleetDispatchApp.useSavedLocation(nameField.querySelector('input'), location => {
+        for (const [key, wrapper] of [['address', address], ['city', city], ['state', region], ['zip', zip]]) {
+          wrapper.querySelector('input').value = location[key];
+        }
+        addresses.open = true;
+      });
+    };
+    addAddress('pickup', 'Pickup', load.pickup || {}, shipper);
+    addAddress('receiver', 'Delivery', load.delivery || { address:load.address }, receiver);
+    const yard = input('Yard for a split', 'yard', { maxLength:160 });
+    const trailer = input('Trailer for the yard split', 'trailer', { maxLength:40 });
+    const yardInput = yard.querySelector('input');
+    const trailerInput = trailer.querySelector('input');
+    const updateRequired = () => {
+      const useNow = pickupNow.querySelector('input').checked;
+      zoneField.classList.toggle('hidden', !useNow);
+      pickupZone.disabled = !useNow;
+      pickupZone.required = useNow;
+      yardInput.required = Boolean(trailerInput.value.trim());
+      trailerInput.required = Boolean(yardInput.value.trim());
+    };
+    form.addEventListener('input', updateRequired);
+    updateRequired();
+    form.append(fields(shipper, receiver, pickupNow, zoneField), addresses, fields(yard, trailer));
     const post = submitButton('Post to Current Loads');
     const deny = button('Deny', control => mutate(control, 'dispatch', 'deny_return', load.id, {}, 'Return load denied.'));
     const actions = node('div', '', 'dispatch-actions');
     actions.append(post, deny);
-    form.append(actions);
+    const feedback = node('p', '', 'dispatch-form-issues hidden');
+    feedback.setAttribute('role', 'alert');
+    const showIssue = fleetDispatchApp.validationFeedback(form, feedback);
+    form.append(feedback, actions);
     form.addEventListener('submit', event => {
       event.preventDefault();
-      void mutate(post, 'dispatch', 'post_return', load.id, values(form), 'Return posted to Current Loads.');
+      showIssue('');
+      void mutate(post, 'dispatch', 'post_return', load.id, values(form), 'Return posted to Current Loads.', null, showIssue);
     });
     return form;
   }

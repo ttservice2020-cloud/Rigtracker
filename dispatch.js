@@ -3,6 +3,7 @@ const fleetDispatchApp = (() => {
   const toggle = (id, visible) => byId(id).classList.toggle('hidden', !visible);
   const form = byId('dispatchLoadForm');
   const driverForm = byId('dispatchDriverForm');
+  const locationForm = byId('dispatchLocationForm');
   const tabs = [...byId('dispatchTabs').querySelectorAll('[role=tab]')];
   const stops = { pickup: byId('dispatchPickups'), receiver: byId('dispatchReceivers') };
   const stopContacts = { pickup: byId('dispatchShipperContacts'), receiver: byId('dispatchReceiverContacts') };
@@ -13,6 +14,7 @@ const fleetDispatchApp = (() => {
     'trailerPickup', 'trailerPickupMode', 'trailerPickupNumber', 'trailerPickupStopId', 'trailerPickupNotes',
     'nextTrailerLocation', 'bobtailInstructions',
     'brokerName', 'brokerLoadNumber', 'payGross', 'driver1AdditionalPay', 'driver2AdditionalPay', 'loadedMiles', 'relayLocation', 'relayDate', 'relayDrop',
+    'relayAddress', 'relayCity', 'relayState', 'relayZip',
     'relayPickup', 'firstLegMiles', 'driver1Pay', 'driver2Pay', 'emptyMiles', 'firstLegEmptyMiles', 'emptyRate', 'fuelSurchargeOverride', 'stopPay'
   ].filter(key => form.elements.namedItem(key));
   const conditionalFreightFields = [
@@ -27,6 +29,9 @@ const fleetDispatchApp = (() => {
   ];
   const loadTable = 'fleet_dispatch_loads';
   const driverTable = 'fleet_dispatch_drivers';
+  const locationTable = 'fleet_dispatch_locations';
+  const addressParts = ['address', 'city', 'state', 'zip'];
+  const relayAddressFields = { address: 'relayAddress', city: 'relayCity', state: 'relayState', zip: 'relayZip' };
   const payLabels = { hourly: 'Hourly', split: 'Split Load', per_mile: 'Per mile', load_percent: 'Load %', higher_of: 'Whichever is higher' };
   const companyCalculatedMethods = new Set(['load_percent', 'per_mile', 'higher_of']);
   const payCurrency = new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' });
@@ -58,6 +63,145 @@ const fleetDispatchApp = (() => {
     return node;
   }
 
+  function validationFeedback(target, message) {
+    const reported = new Set();
+    let pending = false;
+    const show = text => {
+      message.textContent = text;
+      message.classList.toggle('hidden', !text);
+    };
+    const update = () => {
+      for (const control of reported) if (!target.contains(control) || !control.willValidate || control.validity.valid) reported.delete(control);
+      target.classList.toggle('dispatch-validation-active', reported.size > 0);
+      const problems = [...reported].map(control => {
+        const label = control.labels?.[0];
+        const name = label?.querySelector('span')?.textContent || label?.textContent || control.name;
+        const stop = control.closest('[data-stop-id]')?.querySelector('legend')?.textContent;
+        const reason = control.validity.valueMissing
+          ? control.name === 'driver1' && !state?.drivers.length ? 'Add a driver in the Drivers tab first.' : 'Required.'
+          : control.validationMessage;
+        return [stop, name, reason].filter(Boolean).join(' · ');
+      });
+      show(problems.join('\n'));
+    };
+    const schedule = () => {
+      if (pending) return;
+      pending = true;
+      queueMicrotask(() => { pending = false; update(); });
+    };
+    target.addEventListener('invalid', event => {
+      for (let panel = event.target.closest('details'); panel; panel = panel.parentElement.closest('details')) panel.open = true;
+      reported.add(event.target);
+      schedule();
+    }, true);
+    target.addEventListener('input', schedule);
+    target.addEventListener('reset', () => { reported.clear(); update(); });
+    return show;
+  }
+
+  const showLoadIssue = validationFeedback(form, byId('dispatchSubmitFeedback'));
+  const showLocationIssue = validationFeedback(locationForm, byId('dispatchLocationIssues'));
+
+  function savedLocation(name) {
+    return state?.locations?.find(location => location.name.toLowerCase() === name.trim().toLowerCase());
+  }
+
+  function useSavedLocation(field, apply) {
+    field.setAttribute('list', 'dispatchLocationNames');
+    field.addEventListener('change', () => {
+      const location = savedLocation(field.value);
+      if (!location) return;
+      field.value = location.name;
+      apply(location);
+      field.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+  }
+
+  function paintLocations() {
+    const locations = state?.locations || [];
+    byId('dispatchLocationNames').replaceChildren(...locations.map(location => new Option(location.address, location.name)));
+    const query = byId('dispatchLocationSearch').value.trim().toLowerCase();
+    const matches = locations.filter(location => [location.name, ...addressParts.map(part => location[part])].join(' ').toLowerCase().includes(query));
+    byId('dispatchLocationList').replaceChildren(...matches.map(location => {
+      const row = element('article', '', 'dispatch-load-row');
+      const info = element('div');
+      info.append(element('strong', location.name), element('p', [location.address, location.city + ', ' + location.state + ' ' + location.zip].join(' · ')));
+      row.append(info, button('Edit', () => editLocation(location)));
+      return row;
+    }));
+    byId('dispatchLocationStatus').textContent = state?.locationReadError
+      ? 'Could not load saved locations. Select Saved Locations to retry.'
+      : state?.locationsPending ? 'Loading saved locations…'
+      : matches.length ? '' : query ? 'No matching locations.' : 'No saved locations yet.';
+  }
+
+  async function readLocations(scope) {
+    if (!scope.access.dispatch || scope.locationsPending) return;
+    scope.locationsPending = true;
+    scope.locationReadError = false;
+    const version = scope.locationVersion;
+    try {
+      const locations = await readRecords(scope, locationTable, 'name', true);
+      if (state === scope && scope.locationVersion === version) scope.locations = locations;
+    } catch {
+      if (state === scope) scope.locationReadError = true;
+    } finally {
+      scope.locationsPending = false;
+      if (state === scope) paintLocations();
+    }
+  }
+
+  function editLocation(location = null) {
+    if (!state || state.locationSaving) return;
+    state.locationEdit = location;
+    locationForm.reset();
+    for (const field of ['name', ...addressParts]) if (location) locationForm.elements.namedItem(field).value = location[field];
+    byId('dispatchLocationHeading').textContent = location ? 'Edit location' : 'Add a location';
+    toggle('dispatchLocationCancel', Boolean(location));
+    if (location) byId('dispatchLocationName').focus();
+  }
+
+  async function saveLocation(event) {
+    event.preventDefault();
+    const scope = state;
+    if (!scope?.access.dispatch || scope.locationSaving) return;
+    const location = scope.locationEdit;
+    const value = Object.fromEntries([...new FormData(locationForm)].map(([key, part]) => [key, part.trim()]));
+    if (Object.values(value).some(part => !part)) {
+      showLocationIssue('Enter the location name, street address, city, state, and ZIP.');
+      return;
+    }
+    value.state = value.state.toUpperCase();
+    const table = scope.client.from(locationTable);
+    const save = byId('dispatchLocationSave');
+    scope.locationSaving = save.disabled = byId('dispatchLocationCancel').disabled = true;
+    showLocationIssue('');
+    try {
+      const result = location
+        ? await table.update(value).eq('fleet_id', scope.fleetId).eq('id', location.id).select().single()
+        : await table.insert({ ...value, fleet_id: scope.fleetId }).select().single();
+      if (state !== scope) return;
+      if (result.error) throw result.error;
+      scope.locationVersion++;
+      scope.locations = [...scope.locations.filter(row => row.id !== result.data.id), result.data]
+        .sort((a, b) => a.name.localeCompare(b.name));
+      scope.locationSaving = false;
+      editLocation();
+      paintLocations();
+      showToast('Location saved.');
+    } catch (error) {
+      if (state === scope) showLocationIssue(error.code === '23505' ? 'That name is already saved. Edit the existing location or use a different name.'
+        : 'Could not save the location. Try again.');
+    } finally {
+      scope.locationSaving = false;
+      if (state === scope) save.disabled = byId('dispatchLocationCancel').disabled = false;
+    }
+  }
+
+  locationForm.addEventListener('submit', saveLocation);
+  byId('dispatchLocationCancel').addEventListener('click', () => editLocation());
+  byId('dispatchLocationSearch').addEventListener('input', paintLocations);
+
   function availableTabs() {
     if (!state) return [];
     return tabs.filter(node => node.dataset.dispatchTab === 'drivers' ? state.access.drivers : state.access.dispatch);
@@ -81,6 +225,10 @@ const fleetDispatchApp = (() => {
       if (selected && focus) node.focus();
     }
     if (tab === 'activity') void driverLoadWorkflow.refreshOffice(false, true);
+    if (['activity', 'create', 'locations'].includes(tab)) {
+      void readLocations(state);
+      if (tab === 'locations') paintLocations();
+    }
   }
 
   byId('dispatchTabs').addEventListener('keydown', event => {
@@ -438,7 +586,8 @@ const fleetDispatchApp = (() => {
       return node;
     };
     const required = { required: true };
-    field('company', kind === 'pickup' ? 'Shipper name' : 'Receiver company name', input('text', 120), { required: true, wide: true });
+    const company = input('text', 120);
+    field('company', kind === 'pickup' ? 'Shipper name' : 'Receiver company name', company, { required: true, wide: true });
     field('date', kind === 'pickup' ? 'Pickup date' : 'Receiver date', input('date'), required);
     const zone = element('select');
     zone.append(new Option('Select time zone', ''), ...zones.map(([value, label]) => new Option(label, value)));
@@ -451,18 +600,38 @@ const fleetDispatchApp = (() => {
       node.placeholder = 'HHMM';
       return node;
     };
-    field('from', progressEnabled ? 'From time (HHMM)' : 'From time', timeInput(), required);
-    field('to', progressEnabled ? 'To time (HHMM, optional)' : 'To time (optional)', timeInput());
+    const start = timeInput();
+    const end = timeInput();
+    field('from', progressEnabled ? 'From time (HHMM)' : 'From time', start, required);
+    field('to', progressEnabled ? 'To time (HHMM, optional)' : 'To time (optional)', end);
+    if (kind === 'pickup' && edit?.row?.return_of) {
+      const actions = element('div', '', 'dispatch-actions dispatch-wide');
+      actions.dataset.returnPickupTime = '';
+      actions.append(button('Use Current Time', () => {
+        if (!zone.reportValidity()) return;
+        const [date, time] = dispatchProgress.localDateTime(Date.now(), zone.value).split('T');
+        group.querySelector('[data-stop-field=date]').value = date;
+        start.value = time;
+        end.value = '';
+        start.dispatchEvent(new Event('input', { bubbles: true }));
+      }));
+      fields.append(actions);
+    }
     field('address', 'Street address', input('text', 180), { required: true, wide: true });
     field('city', 'City', input('text', 80), required);
     const region = input('text', 2);
     region.pattern = '[A-Za-z]{2}';
+    region.title = 'Two-letter state abbreviation';
     region.autocapitalize = 'characters';
     field('state', 'State', region, required);
     const zip = input('text', 10);
     zip.inputMode = 'numeric';
     zip.pattern = '[0-9]{5}(-[0-9]{4})?';
+    zip.title = '5-digit or ZIP+4 code';
     field('zip', 'ZIP', zip, required);
+    useSavedLocation(company, location => {
+      for (const key of addressParts) group.querySelector('[data-stop-field=' + key + ']').value = location[key];
+    });
     const contact = element('div');
     const contactName = input('text', 120);
     const phone = input('tel', 40);
@@ -503,6 +672,7 @@ const fleetDispatchApp = (() => {
       phoneLabel.textContent = party + ' phone number (optional)';
       const recorded = edit?.row?.progress?.stops?.[group.dataset.stopId];
       group.querySelector('.dispatch-remove').classList.toggle('hidden', groups.length === 1 || Boolean(recorded));
+      group.querySelector('[data-return-pickup-time]')?.classList.toggle('hidden', index !== 0);
     });
   }
 
@@ -581,6 +751,10 @@ const fleetDispatchApp = (() => {
   function paintAssignment() {
     const split = form.elements.secondDriverMode.value === 'assigned';
     toggle('dispatchDriver2Field', split);
+    form.elements.driver2.disabled = !split;
+    form.elements.driver2.required = split;
+    form.elements.driver2.setCustomValidity(split && form.elements.driver2.value && form.elements.driver2.value === form.elements.driver1.value
+      ? 'Choose a different driver for Driver 2.' : '');
     toggle('dispatchFirstEmptyLegField', split);
     form.elements.firstLegEmptyMiles.disabled = !split;
     for (const [selection, description, field] of conditionalFreightFields) {
@@ -590,6 +764,7 @@ const fleetDispatchApp = (() => {
       toggle(field, visible);
     }
     paintTrailerPlan();
+    paintRelayRequirements();
     const loaded = form.elements.loadedMiles.value;
     const first = form.elements.firstLegMiles.value;
     let note = '';
@@ -605,6 +780,20 @@ const fleetDispatchApp = (() => {
     }
     byId('dispatchLegAllocation').textContent = note;
   }
+
+  const relayFields = ['relayLocation', ...Object.values(relayAddressFields)];
+  function paintRelayRequirements() {
+    const prior = edit?.row?.details;
+    const configuredFields = [...relayFields, 'relayDate', 'relayDrop', 'relayPickup'];
+    const configured = configuredFields.some(key => form.elements[key].value.trim());
+    const unchangedLegacyRelay = prior && edit.row.status !== 'draft' && Object.values(relayAddressFields).every(key => !prior[key]) &&
+      configuredFields.every(key => form.elements[key].value.trim() === (prior[key] || ''));
+    for (const field of relayFields) form.elements[field].required = configured && !unchangedLegacyRelay;
+  }
+
+  useSavedLocation(form.elements.relayLocation, location => {
+    for (const [key, name] of Object.entries(relayAddressFields)) form.elements[name].value = location[key];
+  });
 
   function installEditor(row = null, fromContract = false) {
     const data = row?.details ?? {};
@@ -779,7 +968,8 @@ const fleetDispatchApp = (() => {
     if (!scope?.access.dispatch || draft.saving || draft.row?.status === 'completed') return;
     if (draft.row && !canEditLoad(draft.row.id)) return;
     if (status === 'completed' && !form.reportValidity()) return;
-    if (status !== 'draft' && ['trailerDropStopId', 'trailerPickupStopId'].some(name => !form.elements[name].reportValidity())) return;
+    if (status !== 'draft' && ['trailerDropStopId', 'trailerPickupStopId', ...relayFields]
+      .some(name => !form.elements[name].reportValidity())) return;
     for (const name of ['payGross', 'weightLbs', 'pieces', 'driver1AdditionalPay', 'driver2AdditionalPay',
       'emptyMiles', 'firstLegEmptyMiles', 'fuelSurchargeOverride']) {
       const field = form.elements.namedItem(name);
@@ -793,34 +983,37 @@ const fleetDispatchApp = (() => {
     }
     details.relayDrop = militaryTime(details.relayDrop) || details.relayDrop;
     details.relayPickup = militaryTime(details.relayPickup) || details.relayPickup;
+    details.relayState = details.relayState.toUpperCase();
     details.pickups = getStops('pickup');
     details.receivers = getStops('receiver');
     const driver1 = data.get('driver1') || null;
     const driver2 = details.secondDriverMode === 'assigned' ? data.get('driver2') || null : null;
     if ((driver2 && (!driver1 || driver1 === driver2)) ||
         (status === 'current' && (!driver1 || (details.secondDriverMode === 'assigned' && !driver2)))) {
-      showToast(state.drivers.length ? 'Select a driver for each assignment. Driver 1 and Driver 2 must be different.'
+      showLoadIssue(state.drivers.length ? 'Select a driver for each assignment. Driver 1 and Driver 2 must be different.'
         : 'Add a driver in the Drivers tab before submitting.');
       return;
     }
     if (status !== 'draft' && [details.pickups, details.receivers].some(list => list.some(stop => !stop.company))) {
-      showToast('Enter a name for each shipper and receiver.');
+      showLoadIssue('Enter a name for each shipper and receiver.');
       return;
     }
     if ((status === 'current' || status === 'completed') && details.loadedMiles !== '' && Number(details.firstLegMiles) > Number(details.loadedMiles)) {
-      showToast('Driver 1 leg miles cannot exceed route loaded miles.');
+      showLoadIssue('Driver 1 leg miles cannot exceed route loaded miles.');
       return;
     }
     if (details.emptyMiles !== '' && Number(details.firstLegEmptyMiles) > Number(details.emptyMiles)) {
-      showToast('Driver 1 empty miles cannot exceed the total empty miles.');
+      showLoadIssue('Driver 1 empty miles cannot exceed the total empty miles.');
       return;
     }
 
+    showLoadIssue('');
     draft.saving = true;
     paintEditor();
     try {
       const number = await reservePro();
-      if (!number || state !== scope || edit !== draft) return;
+      if (state !== scope || edit !== draft) return;
+      if (!number) { showLoadIssue('Could not assign a PRO number. Retry the PRO number before submitting.'); return; }
       if (draft.row?.details.rateConfirmation) details.rateConfirmation = draft.row.details.rateConfirmation;
       if (draft.row?.details.bolNumber) details.bolNumber = draft.row.details.bolNumber;
       if (draft.ratePhoto) {
@@ -831,7 +1024,7 @@ const fleetDispatchApp = (() => {
             .upload(path, photo.file, { contentType: photo.contentType });
           if (state !== scope || edit !== draft) return;
           if (error && (error.statusCode !== '409' || error.error !== 'Duplicate')) {
-            showToast('Could not upload the rate confirmation photo. Try saving again.');
+            showLoadIssue('Could not upload the rate confirmation photo. Try saving again.');
             return;
           }
           photo.uploaded = true;
@@ -863,7 +1056,7 @@ const fleetDispatchApp = (() => {
       if (state !== scope || edit !== draft) return;
       if (result.error) throw result.error;
       if (!result.data) {
-        showToast('This load changed in another session. Reopen it from the list before saving.');
+        showLoadIssue('This load changed in another session. Reopen it from the list before saving.');
         await refresh();
         return;
       }
@@ -880,7 +1073,7 @@ const fleetDispatchApp = (() => {
       void refresh();
     } catch (error) {
       if (state === scope && edit === draft) {
-        showToast(['22023', '55P03'].includes(error.code) ? error.message : 'Could not save the load. Try again.');
+        showLoadIssue(['22023', '55P03'].includes(error.code) ? error.message : 'Could not save the load. Try again.');
         if (error.code === '55P03') void renewLease();
       }
     } finally {
@@ -1227,10 +1420,6 @@ const fleetDispatchApp = (() => {
     if (event.target.dataset.stopField === 'company') paintTrailerStops();
     markEdited();
   });
-  form.addEventListener('invalid', event => {
-    const panel = event.target.closest('details');
-    if (panel) panel.open = true;
-  }, true);
   form.addEventListener('submit', event => {
     event.preventDefault();
     void saveLoad(event.submitter?.value || 'current');
@@ -1520,6 +1709,12 @@ const fleetDispatchApp = (() => {
     selectedTab = 'current';
     form.reset();
     driverForm.reset();
+    locationForm.reset();
+    byId('dispatchLocationSearch').value = '';
+    byId('dispatchLocationHeading').textContent = 'Add a location';
+    byId('dispatchLocationSave').disabled = byId('dispatchLocationCancel').disabled = false;
+    toggle('dispatchLocationCancel', false);
+    paintLocations();
     toggle('dispatchPayProfile', false);
     byId('dispatchLoadSearch').value = '';
     byId('dispatchDriverSearch').value = '';
@@ -1549,12 +1744,13 @@ const fleetDispatchApp = (() => {
     if (state?.fleetId !== fleetId || state.client !== client || JSON.stringify(state.access) !== JSON.stringify(access)) {
       const destination = tab || selectedTab;
       reset();
-      state = { client, fleetId, access, loads: [], drivers: [], updates: new Map(), loaded: false, failed: false };
+      state = { client, fleetId, access, loads: [], drivers: [], locations: [], locationVersion: 0, updates: new Map(), loaded: false, failed: false };
       watch(state);
       paintLoads();
       paintDrivers();
       installEditor();
       selectTab(destination);
+      void readLocations(state);
     } else if (tab) {
       selectTab(tab);
     }
@@ -1574,6 +1770,6 @@ const fleetDispatchApp = (() => {
     return Boolean(driver);
   }
 
-  return { open, reset, reload: refresh, openRecord, openPayProfile, pageChanged,
+  return { open, reset, reload: refresh, openRecord, openPayProfile, pageChanged, useSavedLocation, validationFeedback,
     refreshPayPreview: () => paintDriverPay({ recalculate: true }) };
 })();
