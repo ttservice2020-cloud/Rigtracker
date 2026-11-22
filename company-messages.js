@@ -42,7 +42,7 @@ const companyMessaging = (() => {
   function showBadges() {
     const unread = (data?.threads || []).filter(thread => thread.unread);
     const ids = new Set(unread.map(thread => thread.last_message?.id || thread.id));
-    if (initialized && [...ids].some(id => !noticeIds.has(id))) showToast('New company driver message.');
+    const fresh = initialized ? unread.filter(thread => !noticeIds.has(thread.last_message?.id || thread.id)) : [];
     noticeIds = ids;
     initialized = true;
     if (typeof rigTrackerApp !== 'undefined') rigTrackerApp.badge('messages', unread.length, 'unread conversations');
@@ -50,6 +50,25 @@ const companyMessaging = (() => {
       const control = byId(id);
       if (control) control.textContent = unread.length ? 'Messages (' + unread.length + ')' : 'Messages';
     }
+    const panel = byId('companyMessageNoticePanel');
+    const list = byId('companyMessageNoticeList');
+    if (!panel || !list) return;
+    list.replaceChildren(...(unread.length ? unread.map(thread => {
+      const card = element('button', '', 'company-message-notice-card');
+      card.type = 'button';
+      card.dataset.kind = thread.kind || 'dispatch';
+      card.append(element('strong', thread.contact || 'Driver'),
+        element('small', channels[thread.kind] || 'Message'));
+      if (thread.last_message?.body) card.append(element('span', thread.last_message.body));
+      card.addEventListener('click', async () => {
+        panel.classList.add('hidden');
+        await open();
+        const current = data?.threads.find(item => item.id === thread.id);
+        if (current) await openThread(current);
+      });
+      return card;
+    }) : [element('p', 'No unread messages.', 'muted')]));
+    if (fresh.length) panel.classList.remove('hidden');
   }
 
   function paintChannelChoices() {
@@ -302,6 +321,7 @@ const companyMessaging = (() => {
     } finally { control.disabled = false; }
   }
 
+  byId('companyMessageNoticeClose')?.addEventListener('click', () => byId('companyMessageNoticePanel').classList.add('hidden'));
   byId('companyMessageRecipient').addEventListener('change',paintChannelChoices);
   byId('companyMessageDriverPicker').addEventListener('change',selectDriver);
   byId('companyMessageCrewFleet').addEventListener('change', event => {
