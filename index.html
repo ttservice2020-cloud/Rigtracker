@@ -243,6 +243,9 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 #formerCompanyDrivers{margin-top:14px}
 #companyDriverPayForm{margin-top:18px}
 #companyDriverExtras{gap:8px}
+.company-driver-record-nav{display:flex;flex-wrap:wrap;gap:8px}
+.company-driver-record-nav button[aria-pressed="true"]{background:#173a58;border-color:#358ce0;color:#edf6ff}
+.company-driver-record-nav button{min-height:42px}
 .company-pay-row{flex-wrap:wrap}
 .company-pay-row form{flex-basis:100%;min-width:0}
 .company-pay-row [hidden]{display:none}
@@ -735,6 +738,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
         <div id="dispatchHistoryList" class="dispatch-load-list"></div>
        </section>
        <section id="dispatch-panel-drivers" class="dispatch-panel hidden" role="tabpanel" aria-labelledby="dispatch-tab-drivers" tabindex="0">
+        <button class="outline hidden" type="button" id="dispatchCreateCompanyDriver" onclick="openCompanyDriverCreate()">Create Company Driver</button>
         <div class="dispatch-fields">
          <div class="field"><label for="dispatchDriverSearch">Search drivers</label><input id="dispatchDriverSearch" type="search" placeholder="Name or equipment"></div>
          <div class="field"><label for="dispatchDriverFilter">Availability</label><select id="dispatchDriverFilter"><option value="">All drivers</option><option value="available">Available</option><option value="assigned">On a load</option><option value="off-duty">Off duty</option></select></div>
@@ -1035,17 +1039,37 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
    <div id="companyDriverClockList"></div>
   </section>
   <section id="companyDriverAdminPage" class="page fleet-account-page">
-   <div class="page-head"><div><button class="back" type="button" onclick="companyDriverTools.backAdmin()">← Back</button><h1 id="companyDriverAdminTitle">Company Driver</h1></div></div>
+   <div class="page-head"><div><button class="back" type="button" onclick="companyDriverTools.backAdmin()">← Back</button><h1 id="companyDriverAdminTitle">Company Driver</h1></div>
+    <button class="outline hidden" type="button" id="companyDriverAdminMessage">Message Driver</button>
+   </div>
    <p id="companyDriverAdminStatus" class="muted" role="status"></p>
    <div id="companyDriverAdminContent" class="hidden">
-    <section class="panel" id="companyDriverAdminClockPanel">
+    <nav class="company-driver-record-nav" aria-label="Driver profile sections">
+     <button class="outline" type="button" data-company-driver-section="overview" aria-controls="companyDriverAdminOverview" aria-pressed="true">Overview</button>
+     <button class="outline" type="button" data-company-driver-section="history" aria-controls="companyDriverAdminHistory" aria-pressed="false">Load History</button>
+     <button class="outline" type="button" data-company-driver-section="clock" aria-controls="companyDriverAdminClockPanel" aria-pressed="false">Time Clock</button>
+     <button class="outline" type="button" data-company-driver-section="documents" aria-controls="companyDriverAdminDocuments" aria-pressed="false">Documents</button>
+    </nav>
+    <section class="panel" id="companyDriverAdminOverview">
+     <h2>General Info</h2>
+     <p class="muted" id="companyDriverAdminOverviewStatus" role="status"></p>
+     <dl class="dispatch-detail-facts" id="companyDriverAdminFacts"></dl>
+     <p id="companyDriverAdminPresence"></p>
+    </section>
+    <section class="panel hidden" id="companyDriverAdminHistory">
+     <h2>Completed loads</h2>
+     <p class="muted" id="companyDriverHistoryStatus" role="status"></p>
+     <div class="dispatch-load-list" id="companyDriverHistoryList"></div>
+     <button class="outline hidden" type="button" id="companyDriverHistoryMore">Load More</button>
+    </section>
+    <section class="panel hidden" id="companyDriverAdminClockPanel">
      <h2>Time Clock</h2>
      <button class="outline" id="companyDriverClockSwitch" type="button" aria-pressed="false"></button>
      <p id="companyDriverClockArchive" class="muted hidden">Fleet link ended.</p>
      <h3>Recent shifts</h3>
      <div id="companyDriverAdminShifts"></div>
     </section>
-    <section class="panel">
+    <section class="panel hidden" id="companyDriverAdminDocuments">
      <h2>Pay Settlements</h2>
      <div id="companyDriverAdminPayList" class="dispatch-load-list"></div>
      <form id="companyDriverPayForm">
@@ -1281,9 +1305,9 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 <div id="modal"><div class="modal-card"><h2 id="modalTitle"></h2><div id="modalBody"></div><button class="primary-btn" onclick="closeModal()">Close</button></div></div>
 
 <script src="./dispatch-progress.js?v=driver-workflow-1"></script>
-<script src="./dispatch.js?v=office-access-1"></script>
-<script src="./linked-profiles.js?v=company-signup-1"></script>
-<script src="./company-driver-tools.js?v=office-access-1"></script>
+<script src="./dispatch.js?v=company-driver-record-1"></script>
+<script src="./linked-profiles.js?v=company-driver-record-1"></script>
+<script src="./company-driver-tools.js?v=company-driver-record-1"></script>
 <script src="./company-messages.js?v=office-access-1"></script>
 <script src="./driver-workflow.js?v=fleet-admin-driver-1"></script>
 <script src="./fleet-admin-driver.js?v=1"></script>

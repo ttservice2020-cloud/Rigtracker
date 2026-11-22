@@ -213,6 +213,8 @@ const fleetDispatchApp = (() => {
   }
 
   function paintDrivers() {
+    const fleetAdmin = accountTypeFor(currentUser) === 'fleet';
+    toggle('dispatchCreateCompanyDriver', fleetAdmin);
     const search = byId('dispatchDriverSearch').value.trim().toLowerCase();
     const filter = byId('dispatchDriverFilter').value;
     const assignments = new Map();
@@ -234,7 +236,9 @@ const fleetDispatchApp = (() => {
       const info = element('div');
       const label = active ? 'On a load · ' + active.join(', ') : availability === 'available' ? 'Available' : 'Off duty';
       if (driver.driver_type === 'company' && typeof companyMessaging !== 'undefined') {
-        const profile = button(driver.name, () => void companyMessaging.openDriver({ dispatchId: driver.id }));
+        const profile = button(driver.name, () => fleetAdmin
+          ? companyDriverTools.openRoster(driver)
+          : companyMessaging.openDriver({ dispatchId: driver.id }));
         profile.className = 'link-btn company-driver-profile-link';
         info.append(profile);
       } else info.append(element('strong', driver.name));
