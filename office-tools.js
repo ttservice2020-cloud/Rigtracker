@@ -284,6 +284,7 @@ const officeTools = (() => {
 
   const routes = {
     'link-profiles':openProfileLink,
+    bol_payments:()=>fleetBolPayments.open(employee.fleet_id),
     dispatch:()=>showOfficeDispatch('current'),drivers:()=>showOfficeDispatch('drivers'),
     messages:()=>companyMessaging.open(),payroll:()=>companyDriverTools.openPayroll(),
     settlements:()=>companyDriverTools.openPayroll('Pay Settlements'),safety:()=>companySafety.open(),
