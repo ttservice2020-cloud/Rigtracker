@@ -225,6 +225,17 @@ const companyDriverTools = (() => {
     return list;
   }
 
+  async function openRateConfirmation(path) {
+    const tab = window.open('about:blank', '_blank');
+    if (!tab) { showToast('Allow a new tab to open the rate confirmation.'); return; }
+    tab.opener = null;
+    try {
+      const { data, error } = await supabaseClient.storage.from('dispatch-rate-confirmations').createSignedUrl(path, 120);
+      if (error || !data?.signedUrl) throw error || new Error();
+      tab.location.replace(data.signedUrl);
+    } catch { tab.close(); showToast('Could not open the rate confirmation.'); }
+  }
+
   async function openStatement(record) {
     const tab = window.open('about:blank', '_blank');
     if (!tab) { showToast('Allow a new tab to open the statement.'); return; }
@@ -752,17 +763,53 @@ const companyDriverTools = (() => {
         checkbox.value = load.load_id;
         checkbox.dataset.settlementLoad = 'true';
         checkbox.disabled = Boolean(load.created_settlement);
-        choose.append(checkbox, element('span', load.created_settlement
-          ? 'Draft ' + load.created_settlement.number
-          : 'Include'));
+        const add = button(load.created_settlement ? 'Already in settlement' : 'Add load to this settlement', () => {
+          if (load.created_settlement) return;
+          checkbox.checked = !checkbox.checked;
+          add.textContent = checkbox.checked ? 'Added · Remove from settlement' : 'Add load to this settlement';
+          byId('companyPayrollCreateSettlement').disabled = !byId('companyPayrollLoadSettlements').querySelector('[data-settlement-load]:checked');
+        });
+        add.disabled = Boolean(load.created_settlement);
+        checkbox.addEventListener('change', () => {
+          add.textContent = checkbox.checked ? 'Added · Remove from settlement' : 'Add load to this settlement';
+          byId('companyPayrollCreateSettlement').disabled = !byId('companyPayrollLoadSettlements').querySelector('[data-settlement-load]:checked');
+        });
+        choose.append(checkbox, element('span', load.created_settlement ? 'Draft ' + load.created_settlement.number : 'Select load'));
         if (load.created_settlement) {
           summary.append(element('p', 'Saved in draft ' + load.created_settlement.number +
             ' · ' + currency.format(Number(load.created_settlement.line_total || 0)), 'muted'));
         }
-        row.append(summary, choose);
+        const freight = load.freight || {};
+        const more = element('details', '', 'settlement-load-details');
+        more.append(element('summary', 'View load details'));
+        const facts = element('dl', '', 'settlement-load-facts');
+        const fact = (label, value) => { if (value !== null && value !== undefined && String(value).trim()) {
+          const pair = element('div'); pair.append(element('dt', label), element('dd', String(value))); facts.append(pair);
+        }};
+        fact('Truck number', freight.truckNumber); fact('Trailer number', freight.trailerNumber);
+        fact('Commodity', freight.commodity === 'Other' ? freight.commodityOther : freight.commodity);
+        fact('Weight', freight.weightLbs ? Number(freight.weightLbs).toLocaleString() + ' lb' : '');
+        fact('Pieces', freight.pieces); fact('Equipment', freight.equipmentType === 'Other' ? freight.equipmentTypeOther : freight.equipmentType);
+        fact('Trailer drop', freight.trailerDrop === 'yes' ? freight.trailerDropNotes || 'Yes' : 'No');
+        fact('Broker', freight.brokerName); fact('Broker contact', [freight.brokerPhone, freight.brokerEmail].filter(Boolean).join(' · '));
+        fact('Shipper contact', [load.pickup?.company, load.pickup?.phone, load.pickup?.email].filter(Boolean).join(' · '));
+        fact('Receiver contact', [load.receiver?.company, load.receiver?.phone, load.receiver?.email].filter(Boolean).join(' · '));
+        fact('Route / shipping number', [freight.routeNumber, freight.brokerLoadNumber].filter(Boolean).join(' · '));
+        fact('Pickup number', freight.pickupNumber); fact('Loaded miles', load.loaded_miles != null ? Number(load.loaded_miles).toLocaleString() + ' mi' : '');
+        fact('Stop pay', load.stop_pay ? currency.format(Number(load.stop_pay)) : '');
+        fact('Additional pay', load.additional_pay ? currency.format(Number(load.additional_pay)) : '');
+        more.append(facts);
+        for (const report of [...(load.pickup_reports || []), ...(load.receiver_reports || [])].filter(Boolean)) {
+          const doc = report.report?.document;
+          if (doc) more.append(button(report.kind === 'pickup' ? 'View signed pickup BOL' : 'View signed delivery BOL', () => driverLoadWorkflow.openDocument(doc)));
+          const lumper = report.report?.lumperFee;
+          more.append(element('p', lumper && Number(lumper) > 0 ? 'Lumper fee reported: ' + currency.format(Number(lumper)) : 'Lumper fee: None reported', 'muted'));
+        }
+        if (freight.rateConfirmation?.path) more.append(button('View Rate Confirmation', () => openRateConfirmation(freight.rateConfirmation.path)));
+        row.append(summary, more, choose, add);
         return row;
       }) : [element('p', 'No completed loads are assigned to this driver.', 'muted')]));
-      byId('companyPayrollCreateSettlement').disabled = !payrollSettlementLoads.some(load => !load.created_settlement);
+      byId('companyPayrollCreateSettlement').disabled = !list.querySelector('[data-settlement-load]:checked');
     } catch (error) {
       if (active()) list.replaceChildren(element('p', error.message || 'Could not load completed loads.', 'muted'));
     }
