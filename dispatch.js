@@ -7,6 +7,7 @@ const fleetDispatchApp = (() => {
   const stops = { pickup: byId('dispatchPickups'), receiver: byId('dispatchReceivers') };
   const formDetails = [
     'secondDriverMode', 'routeNumber', 'pickupNumber', 'commodity', 'commodityOther', 'weightLbs', 'pieces', 'equipmentType', 'equipmentTypeOther',
+    'truckNumber', 'trailerNumber', 'brokerPhone', 'brokerEmail',
     'trailerDrop', 'trailerDropNotes', 'trailerPickup', 'trailerPickupNotes',
     'brokerName', 'brokerLoadNumber', 'payGross', 'driver1AdditionalPay', 'driver2AdditionalPay', 'loadedMiles', 'relayLocation', 'relayDate', 'relayDrop',
     'relayPickup', 'firstLegMiles', 'driver1Pay', 'driver2Pay', 'emptyMiles', 'firstLegEmptyMiles', 'emptyRate', 'fuelSurchargeOverride', 'stopPay'
@@ -402,7 +403,8 @@ const fleetDispatchApp = (() => {
     zip.inputMode = 'numeric';
     zip.pattern = '[0-9]{5}(-[0-9]{4})?';
     field('zip', 'ZIP', zip, required);
-    if (kind === 'receiver') field('phone', 'Contact number (optional)', input('tel', 40));
+    field('phone', 'Contact number (optional)', input('tel', 40));
+    field('email', 'Contact email (optional)', input('email', 254));
     const notes = element('textarea');
     notes.maxLength = 1200;
     notes.rows = 2;
@@ -1263,7 +1265,8 @@ const fleetDispatchApp = (() => {
     progressView = dispatchProgress.bind({
       byId, toggle, element, button, getLoad, getLoads: () => state?.loads || [], getRouteNumber,
       loadDrivers, proLabel, describeRoute: route, editLoad: load => openLoad(load), back: () => selectTab(selectedTab, true),
-      setProgress: recordProgress, hasUpdate: id => Boolean(state?.updates.has(id))
+      setProgress: recordProgress, hasUpdate: id => Boolean(state?.updates.has(id)),
+      openRateConfirmation: attachment => viewRateConfirmation(attachment)
     });
     document.addEventListener('visibilitychange', () => {
       if (state && visible()) {
