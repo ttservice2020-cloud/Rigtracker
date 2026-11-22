@@ -2032,7 +2032,7 @@ function renderFleetSections(){
 function showFleetSection(section,dispatchTab='current'){
  if(!currentUser||accountTypeFor(currentUser)!=='fleet')return;
  if(section==='messages')return companyMessaging.open();
- if(section==='payroll')return officePayroll.open();
+ if(section==='payroll')return officePayroll.open(adminFleetId);
  if(!Object.hasOwn(fleetSectionTitles,section)&&!Object.hasOwn(fleetTools,section))return;
  fleetSection=section;
  if(section==='links')resetFleetLinkForm();
