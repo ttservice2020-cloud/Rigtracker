@@ -274,7 +274,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 .driver-load-stops li[aria-current="step"]{border-color:#4c8dff;background:#13294a}
 #companySignupFields{border:0;padding:0;margin:0;min-inline-size:0}
 </style>
-<link rel="stylesheet" href="./dispatch.css?v=load-history-table-1">
+<link rel="stylesheet" href="./dispatch.css?v=payroll-time-1">
 <link rel="stylesheet" href="./driver-app.css?v=equipment-status-1">
 <link rel="stylesheet" href="./office-tools.css?v=1">
 </head>
@@ -509,7 +509,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
         <button class="card fleet-tool" type="button" onclick="showFleetSection('hr')">HR <span aria-hidden="true">›</span></button>
         <button class="card fleet-tool" type="button" id="companyFleetPayrollButton" onclick="showFleetSection('payroll')"><span class="payroll-label">Payroll</span> <span aria-hidden="true">›</span></button>
         <button class="card fleet-tool" type="button" onclick="companyDriverTools.openPayroll('Load Settlements')">Load Settlements <span aria-hidden="true">›</span></button>
-        <button class="card fleet-tool" type="button" onclick="showFleetSection('hourly')">Hourly Time <span aria-hidden="true">›</span></button>
+        <button class="card fleet-tool" type="button" onclick="officePayroll.open(adminFleetId)">Hourly Time <span aria-hidden="true">›</span></button>
        </div>
       </section>
       <section class="fleet-tools-group">
@@ -1123,9 +1123,10 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
    <div class="hidden" id="rigTrackerProfileDetails">
     <div class="employee-setup-actions">
      <button class="primary-btn hidden" id="profileDriverLoadsButton" type="button" onclick="driverLoadWorkflow.open()">Loads</button>
+     <button class="outline hidden" type="button" id="ownDriverDocumentsButton" onclick="companyDriverTools.openDocuments()">Documents</button>
+     <button class="outline hidden" type="button" id="ownDriverSettlementsButton" onclick="showPage('spreadsheetPage')">Settlements</button>
      <div class="employee-setup-actions hidden" id="companyDriverExtras">
-      <button class="outline" type="button" id="companyDriverDocumentsButton" onclick="companyDriverTools.openDocuments()">Documents</button>
-      <button class="outline" type="button" id="companyDriverPayButton" onclick="companyDriverTools.openDocuments()">Pay</button>
+      <button class="outline" type="button" id="companyDriverPayButton" onclick="companyDriverTools.openSettlements()">Settlements</button>
       <button class="outline hidden" type="button" id="companyDriverClockButton" onclick="companyDriverTools.openClock()">Time Clock</button>
       <button class="outline" type="button" id="companyDriverMessagesButton" onclick="companyMessaging.open()">Messages</button>
      </div>
@@ -1234,8 +1235,15 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
     <div class="employee-setup-actions"><button class="primary-btn" type="submit">Save password</button></div>
    </form>
   </section>
+  <section id="ownDriverDocumentsPage" class="page fleet-account-page">
+   <div class="page-head"><div><button class="back" type="button" onclick="showPage('rigTrackerProfilePage')">← Back to Profile</button><h1>Documents</h1></div></div>
+   <section class="panel" aria-label="Your driver documents">
+    <p id="ownDriverDocumentStatus" class="muted" role="status"></p>
+    <div id="ownDriverDocumentList" class="dispatch-load-list"></div>
+   </section>
+  </section>
   <section id="driverDocumentsPage" class="page fleet-account-page">
-   <div class="page-head"><div><button class="back" type="button" onclick="showPage('rigTrackerProfilePage')">← Back to Dashboard</button><h1>Pay Settlements</h1></div></div>
+   <div class="page-head"><div><button class="back" type="button" onclick="showPage('rigTrackerProfilePage')">← Back to Profile</button><h1>Pay Settlements</h1></div></div>
    <section class="panel" id="driverPaySettlements" aria-label="Pay settlements">
     <p id="driverPayStatus" class="muted" role="status"></p>
     <div id="driverPayList" class="dispatch-load-list"></div>
@@ -1367,7 +1375,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
   </section>
   <section id="officePayrollPage" class="page fleet-account-page">
    <div class="page-head"><div><button class="back" type="button" onclick="officePayroll.back()">← Back</button><h1>Office Payroll</h1></div><button class="outline" type="button" id="officePayrollRefresh">Refresh</button></div>
-   <p class="muted">Each shift counts in full on its payroll date.</p>
+   <p class="muted">Hours are totaled by payroll date. Open a day to review or correct its shifts.</p>
    <p id="officePayrollStatus" class="muted" role="status"></p>
    <section class="panel">
     <div class="dispatch-fields">
@@ -1390,6 +1398,10 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
     <section class="panel"><h2>Driver load settlements</h2><div class="field">
      <label for="companyPayrollDriver">Company Driver</label><select id="companyPayrollDriver"></select>
     </div><button class="outline" id="companyPayrollOpenDriver" type="button">Open Driver Records</button></section>
+    <section class="panel"><h2>Saved settlement drafts</h2>
+     <p class="muted" id="companyPayrollDraftStatus" role="status"></p>
+     <div id="companyPayrollDraftList" class="dispatch-load-list"></div>
+    </section>
     <section class="panel"><h2>Create Load Settlement</h2>
      <p class="muted">Select completed loads to preview driver pay. Loads become available at the top of the hour at least two hours after Dispatch marks them complete.</p>
      <div id="companyPayrollLoadSettlements" class="dispatch-load-list"><p class="muted">Select a driver to view completed loads.</p></div>
@@ -1601,6 +1613,21 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
  <p id="driverInstallSteps"></p>
  <form method="dialog"><button class="primary-btn" type="submit">Done</button></form>
 </dialog>
+<dialog class="office-profile-dialog" id="officePayrollShiftDialog" aria-labelledby="officePayrollShiftTitle">
+ <form id="officePayrollShiftForm">
+  <h2 id="officePayrollShiftTitle">Edit shift</h2>
+  <div class="dispatch-fields">
+   <div class="field"><label for="officePayrollShiftDate">Payroll date</label><input id="officePayrollShiftDate" name="payroll_date" type="date" required></div>
+   <div class="field"><label for="officePayrollShiftStart">Clock in</label><input id="officePayrollShiftStart" name="started_at" type="datetime-local" required></div>
+   <div class="field"><label for="officePayrollShiftEnd">Clock out (optional)</label><input id="officePayrollShiftEnd" name="ended_at" type="datetime-local"></div>
+  </div>
+  <p id="officePayrollShiftStatus" class="dispatch-form-issues hidden" role="alert"></p>
+  <div class="dispatch-actions">
+   <button class="outline" type="button" id="officePayrollShiftCancel">Cancel</button>
+   <button class="primary-btn" type="submit" id="officePayrollShiftSave">Save Shift</button>
+  </div>
+ </form>
+</dialog>
 <dialog class="office-profile-dialog" id="officeReviewIssueDialog" aria-labelledby="officeReviewIssueTitle">
  <div class="office-profile-heading"><h2 id="officeReviewIssueTitle">File a Review Issue</h2><button class="outline" type="button" id="officeReviewIssueClose">Close</button></div>
  <p id="officeReviewIssueContext" class="muted"></p>
@@ -1658,18 +1685,18 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 <script src="./dispatch-progress.js?v=relay-resume-1"></script>
 <script src="./dispatch-rate-confirmation.js?v=1"></script>
 <script src="./dispatch.js?v=relay-resume-1"></script>
-<script src="./linked-profiles.js?v=driver-profile-1"></script>
+<script src="./linked-profiles.js?v=driver-documents-1"></script>
 <script src="./fleet-equipment.js?v=profile-links-1"></script>
-<script src="./company-driver-tools.js?v=settlement-release-1"></script>
+<script src="./company-driver-tools.js?v=saved-settlements-1"></script>
 <script src="./company-messages.js?v=driver-messages-1"></script>
 <script src="./driver-paperwork.js?v=1"></script>
 <script src="./driver-workflow.js?v=lumper-payer-1"></script>
 <script src="./fleet-admin-driver.js?v=1"></script>
 <script src="./company-safety.js?v=1"></script>
-<script src="./driver-app.js?v=load-screen-1"></script>
+<script src="./driver-app.js?v=driver-documents-1"></script>
 <script src="./fleet-bol-payments.js?v=paperwork-1"></script>
-<script src="./office-tools.js?v=equipment-registry-1"></script>
-<script src="./office-payroll.js?v=payroll-date-1"></script>
+<script src="./office-tools.js?v=payroll-time-1"></script>
+<script src="./office-payroll.js?v=payroll-time-1"></script>
 <script>
 const SUPABASE_URL = 'https://pxxikzzfrcncwufpzdfp.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_7yQMjUtCtnHC6jgRF4ROLA_CmgsHaZo';

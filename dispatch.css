@@ -252,21 +252,19 @@
 .office-payroll-employee-heading h2{margin:0}
 .office-payroll-employee-heading strong{font-size:20px;color:#9dceff;font-variant-numeric:tabular-nums}
 .office-payroll-shifts{display:grid;gap:6px;margin-top:10px}
-.office-payroll-shift{display:grid;grid-template-columns:minmax(100px,1fr) minmax(180px,2fr) auto;gap:10px;padding:8px;border-top:1px solid #2b4059;color:#c1d1e2}
+.office-payroll-day{border-top:1px solid #2b4059;padding:8px 0}
+.office-payroll-day summary{cursor:pointer;font-weight:700}
+.office-payroll-day summary strong{float:right;color:#9dceff;font-variant-numeric:tabular-nums}
+.office-payroll-shift{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:10px;padding:8px;border-top:1px solid #2b4059;color:#c1d1e2}
 .office-payroll-shift>span:last-of-type{font-variant-numeric:tabular-nums}
-.office-payroll-date-editor{grid-column:1/-1;display:flex;align-items:center;flex-wrap:wrap;gap:8px 12px}
-.office-payroll-date-editor .field{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin:0}
-.office-payroll-date-editor input{width:auto;min-width:0}
-#officePayrollPage .office-payroll-date-editor button{margin:0}
-.office-payroll-date-editor [role=alert]{color:#ffc3c3}
-.office-payroll-date-editor [role=alert]:empty{display:none}
+.office-payroll-shift button{margin:0;white-space:nowrap}
 #officePayrollTotal{margin:12px 0 0;font-size:20px}
 @media(max-width:580px){
  .office-clock-widget{gap:6px;padding:5px}
  .office-clock-widget span{font-size:11px}
  .office-clock-widget button{min-height:34px;padding:5px 9px}
- .office-payroll-shift{grid-template-columns:1fr auto;gap:4px}
- .office-payroll-shift strong{grid-column:1/-1}
+ .office-payroll-shift{grid-template-columns:1fr auto;gap:6px}
+ .office-payroll-shift button{justify-self:start}
 }
 .company-message-photo-draft{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:8px 0}
 .company-message-photo-draft img{max-width:160px;max-height:120px;object-fit:contain;border-radius:8px}

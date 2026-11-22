@@ -335,6 +335,7 @@ const officeTools = (() => {
   async function openHourly() {
     const user = currentUser;
     const fleet = employee?.fleet_id;
+    if (fleet && has('payroll')) return officePayroll.open(fleet);
     showPage('officeHourlyPage');
     const status = byId('officeHourlyStatus');
     const list = byId('officeHourlyRows');

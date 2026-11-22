@@ -24,6 +24,9 @@ const companyDriverTools = (() => {
   let payroll;
   let payrollRequest;
   let settlementView;
+  let settlementPreviewRequest;
+  let savedSettlementsRequest;
+  let ownDocumentsRequest;
   let payrollQueueSignature;
   let payrollOrigin;
   let payrollSection;
@@ -742,8 +745,7 @@ const companyDriverTools = (() => {
     } catch { /* The screen still works without access to this browser’s storage. */ }
     const count = records.filter(record => Date.parse(record.published_at) > viewedAt).length;
     if (typeof rigTrackerApp !== 'undefined') rigTrackerApp.badge('settlements', count, 'new settlements');
-    byId('companyDriverDocumentsButton').textContent = count ? 'Documents (' + count + ')' : 'Documents';
-    byId('companyDriverPayButton').textContent = count ? 'Pay (' + count + ')' : 'Pay';
+    byId('companyDriverPayButton').textContent = count ? 'Settlements (' + count + ')' : 'Settlements';
   }
 
   async function refreshPay(showList = false) {
@@ -767,11 +769,50 @@ const companyDriverTools = (() => {
     } finally { if (payRequest === request) payRequest = null; }
   }
 
-  function openDocuments() {
+  function openSettlements() {
     activeReview = null;
     showPage('driverDocumentsPage');
     byId('driverPayStatus').textContent = 'Loading pay statements…';
     return refreshPay(true);
+  }
+
+  async function openDocuments() {
+    const user = currentUser;
+    if (!user || !['driver','company'].includes(accountTypeFor(user))) return;
+    const request = {};
+    ownDocumentsRequest = request;
+    const active = () => ownDocumentsRequest === request && currentUser === user &&
+      byId('ownDriverDocumentsPage').classList.contains('active');
+    const status = byId('ownDriverDocumentStatus');
+    const list = byId('ownDriverDocumentList');
+    list.replaceChildren();
+    status.textContent = 'Loading your documents…';
+    showPage('ownDriverDocumentsPage');
+    try {
+      const { data: links, error } = await supabaseClient.from('rigtracker_fleet_links')
+        .select('fleet_id,dispatch_driver_id').eq('profile_user_id', user.id).is('unlinked_at', null);
+      if (error) throw error;
+      if (!active()) return;
+      const bucket = supabaseClient.storage.from(profileFileBucket);
+      const groups = await Promise.all(links.filter(link => link.dispatch_driver_id).map(async link => {
+        const folder = [link.fleet_id, link.dispatch_driver_id, 'documents'].join('/');
+        const { data, error } = await bucket.list(folder, { limit:100, sortBy:{column:'created_at',order:'desc'} });
+        if (error) throw error;
+        return data.filter(file => file.id).map(file => ({ name:file.name, fleet:link.fleet_id, path:folder + '/' + file.name }));
+      }));
+      if (!active()) return;
+      const files = groups.flat();
+      list.replaceChildren(...files.map(file => {
+        const row = element('article', '', 'dispatch-load-row');
+        const info = element('div');
+        info.append(element('strong', file.name.replace(/^[0-9a-f-]{36}-/i, '')), element('p', file.fleet));
+        row.append(info, button('Open', () => openProfileFile(file.path)));
+        return row;
+      }));
+      status.textContent = files.length ? '' : 'No documents are on your profile yet.';
+    } catch (error) {
+      if (active()) status.textContent = error.message || 'Could not load your documents.';
+    }
   }
 
   async function clockAction(control, company, openShift) {
@@ -985,6 +1026,7 @@ const companyDriverTools = (() => {
         const queue = await rpc('payroll_queue', data.fleet_id);
         if (currentUser !== user || payrollRequest !== request || !page.classList.contains('active') || payrollSection !== 'records') return;
         paintPayroll(queue);
+        void loadSavedSettlements(user, data.fleet_id);
         byId('companyPayrollStatus').textContent = '';
       }
     } catch (error) {
@@ -1043,10 +1085,96 @@ const companyDriverTools = (() => {
     byId('companyPayrollCreateSettlement').disabled = Boolean(settlementView?.saving) || !checkedSettlementIds().length;
   }
 
+  function payrollRecordsActive(user, fleet) {
+    return currentUser === user && payroll?.fleet_id === fleet &&
+      byId('companyPayrollPage').classList.contains('active') && payrollSection === 'records';
+  }
+
   function activeSettlementView(selection) {
-    return settlementView === selection && currentUser === selection.user && payroll?.fleet_id === selection.fleet &&
-      byId('companyPayrollPage').classList.contains('active') && payrollSection === 'records' &&
+    return settlementView === selection && payrollRecordsActive(selection.user, selection.fleet) &&
       byId('companyPayrollDriver').value === selection.profileId;
+  }
+
+  async function savedSettlements(fleet, id) {
+    const { data, error } = await supabaseClient.rpc('company_payroll_saved_settlements', {
+      target_fleet: fleet, ...(id ? {requested_settlement_id:id} : {})
+    });
+    if (error) throw error;
+    return data;
+  }
+
+  async function loadSavedSettlements(user, fleet) {
+    const request = {};
+    savedSettlementsRequest = request;
+    const active = () => savedSettlementsRequest === request && payrollRecordsActive(user, fleet);
+    const status = byId('companyPayrollDraftStatus');
+    try {
+      const drafts = await savedSettlements(fleet);
+      if (!active()) return;
+      byId('companyPayrollDraftList').replaceChildren(...drafts.map(draft => {
+        const row = element('article', '', 'dispatch-load-row');
+        const info = element('div');
+        info.append(element('strong', draft.settlement_number),
+          element('p', [draft.driver, clockFormat.format(new Date(draft.created_at)),
+            settlementCurrency.format(Number(draft.total_pay))].filter(Boolean).join(' · ')));
+        row.append(info, button('View Draft', () => openSavedSettlement(draft.id)));
+        return row;
+      }));
+      status.textContent = drafts.length ? '' : 'No saved settlement drafts.';
+    } catch (error) {
+      if (active()) status.textContent = error.message || 'Could not load saved settlement drafts.';
+    }
+  }
+
+  const settlementCurrency = new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' });
+
+  function showSettlementPreview(settlement, lines, status) {
+    const preview = byId('companyPayrollSettlementPreview');
+    const rows = lines.map(line => {
+      const label = (line.is_return ? 'B-' : 'A-') + line.pro_number;
+      const row = element('div', '', 'settlement-preview-line');
+      const miles = [line.loaded_miles != null ? Number(line.loaded_miles).toLocaleString() + ' loaded mi' : '',
+        line.empty_miles != null ? Number(line.empty_miles).toLocaleString() + ' empty mi' : ''].filter(Boolean).join(' · ');
+      row.append(element('strong', label), element('span', miles || 'Miles not recorded'),
+        element('span', 'Pay scale: ' + payScaleLabel(line.pay_scale)));
+      if (line.base_pay_entered) row.append(element('span', 'Base / saved pay: ' + settlementCurrency.format(Number(line.base_pay))));
+      else row.append(element('span', 'Base pay not entered · review needed', 'muted'));
+      for (const [amount, title] of [[line.empty_mile_pay,'Empty-mile pay'],[line.stop_pay,'Stop pay'],[line.additional_pay,'Additional pay']]) {
+        if (Number(amount)) row.append(element('span', title + ': ' + settlementCurrency.format(Number(amount))));
+      }
+      return row;
+    });
+    const missingBase = lines.some(line => !line.base_pay_entered);
+    preview.replaceChildren(
+      element('h3', 'Settlement ' + settlement.settlement_number + ' · ' + status),
+      element('p', [settlement.driver, lines.length + ' completed load' + (lines.length === 1 ? '' : 's')].filter(Boolean).join(' · ')),
+      ...rows,
+      element('strong', 'Known pay items: ' + settlementCurrency.format(Number(settlement.total_pay)), 'settlement-preview-total'),
+      ...(missingBase ? [element('p', 'Review the loads with missing base pay before issuing this settlement.', 'muted')] : []),
+      button('Print / Save as PDF', () => window.print())
+    );
+    preview.classList.remove('hidden');
+    preview.scrollIntoView?.({ block:'nearest' });
+  }
+
+  async function openSavedSettlement(id) {
+    const user = currentUser;
+    const fleet = payroll?.fleet_id;
+    if (!fleet || !payrollRecordsActive(user, fleet)) return;
+    const request = {};
+    settlementPreviewRequest = request;
+    const active = () => settlementPreviewRequest === request && payrollRecordsActive(user, fleet);
+    const preview = byId('companyPayrollSettlementPreview');
+    preview.replaceChildren(element('p', 'Loading saved settlement…', 'muted'));
+    preview.classList.remove('hidden');
+    try {
+      const [record] = await savedSettlements(fleet, id);
+      if (!active()) return;
+      if (!record) throw new Error('This saved settlement is unavailable.');
+      showSettlementPreview(record, record.lines, record.sent_for_review ? 'Sent for review' : 'Draft saved');
+    } catch (error) {
+      if (active()) preview.replaceChildren(element('p', error.message || 'Could not open this settlement.', 'muted'));
+    }
   }
 
   function settlementHourStart(now = new Date()) {
@@ -1081,6 +1209,8 @@ const companyDriverTools = (() => {
       return;
     }
     const { fleet, profileId } = selection;
+    const request = {};
+    settlementPreviewRequest = request;
     selection.saving = true;
     updateSettlementButton();
     preview.replaceChildren(element('p', 'Saving settlement draft…', 'muted'));
@@ -1090,42 +1220,24 @@ const companyDriverTools = (() => {
         target_fleet: fleet, target_profile: profileId, requested_load_ids: selected.map(load => load.load_id)
       });
       if (error) throw error;
+      if (payrollRecordsActive(selection.user, fleet)) void loadSavedSettlements(selection.user, fleet);
       if (!activeSettlementView(selection)) return;
       paintSettlementLoads(selection, selection.loads.map(load => ids.has(load.load_id) ? {
-        ...load, created_settlement: { number: created.settlement_number }
+        ...load, created_settlement: { id: created.id, number: created.settlement_number }
       } : load));
       await loadSettlementLoads(fleet, profileId, true);
-      if (!activeSettlementView(selection)) return;
+      if (!activeSettlementView(selection) || settlementPreviewRequest !== request) return;
       const driver = byId('companyPayrollDriver').selectedOptions[0]?.textContent || 'Company Driver';
-      const currency = new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' });
-      const rows = selected.map(load => {
-        const label = (load.is_return ? 'B-' : 'A-') + load.pro_number;
+      const lines = selected.map(load => {
         const pay = settlementLoadPay(load);
-        const row = element('div', '', 'settlement-preview-line');
-        const miles = [load.loaded_miles != null ? Number(load.loaded_miles).toLocaleString() + ' loaded mi' : '',
-          load.empty_miles != null ? Number(load.empty_miles).toLocaleString() + ' empty mi' : ''].filter(Boolean).join(' · ');
-        row.append(element('strong', label), element('span', miles || 'Miles not recorded'),
-          element('span', 'Pay scale: ' + payScaleLabel(load.pay_scale)));
-        if (pay.baseKnown) row.append(element('span', 'Base / saved pay: ' + currency.format(pay.base - pay.additional - pay.empty)));
-        else row.append(element('span', 'Base pay not entered · review needed', 'muted'));
-        if (pay.empty) row.append(element('span', 'Empty-mile pay: ' + currency.format(pay.empty)));
-        if (pay.stop) row.append(element('span', 'Stop pay: ' + currency.format(pay.stop)));
-        if (pay.additional) row.append(element('span', 'Additional pay: ' + currency.format(pay.additional)));
-        return row;
+        return { ...load, base_pay:pay.base-pay.additional-pay.empty, base_pay_entered:pay.baseKnown,
+          empty_mile_pay:pay.empty, stop_pay:pay.stop, additional_pay:pay.additional };
       });
-      const missingBase = selected.some(load => !settlementLoadPay(load).baseKnown);
-      preview.replaceChildren(
-        element('h3', 'Settlement ' + created.settlement_number + ' · Draft saved'),
-        element('p', driver + ' · ' + selected.length + ' completed load' + (selected.length === 1 ? '' : 's')),
-        ...rows,
-        element('strong', 'Known pay items: ' + currency.format(Number(created.total_pay)), 'settlement-preview-total'),
-        ...(missingBase ? [element('p', 'Some loads have no base pay entered. The saved draft includes recorded stop and additional pay; review it before issuing.', 'muted')] : []),
-        button('Print / Save as PDF', () => window.print())
-      );
-      preview.classList.remove('hidden');
-      preview.scrollIntoView?.({ block: 'nearest' });
+      showSettlementPreview({ ...created, driver }, lines, 'Draft saved');
     } catch (error) {
-      if (activeSettlementView(selection)) preview.replaceChildren(element('p', error.message || 'Could not create this settlement.', 'muted'));
+      if (activeSettlementView(selection) && settlementPreviewRequest === request) {
+        preview.replaceChildren(element('p', error.message || 'Could not create this settlement.', 'muted'));
+      }
     } finally {
       selection.saving = false;
       if (settlementView === selection) {
@@ -1140,6 +1252,7 @@ const companyDriverTools = (() => {
     const user = currentUser;
     if (!settlementView || settlementView.user !== user || settlementView.fleet !== fleet || settlementView.profileId !== profileId) {
       settlementView = { user, fleet, profileId, loads: [] };
+      settlementPreviewRequest = null;
       const preview = byId('companyPayrollSettlementPreview');
       preview.replaceChildren();
       preview.classList.add('hidden');
@@ -1212,18 +1325,20 @@ const companyDriverTools = (() => {
         add.textContent = addLabel();
         updateSettlementButton();
       };
-      const add = button(addLabel(), () => {
-        if (load.created_settlement) return;
+      const savedId = load.created_settlement?.id;
+      const add = button(savedId ? 'View Settlement' : addLabel(), () => {
+        if (savedId) return openSavedSettlement(savedId);
+        if (checkbox.disabled) return;
         checkbox.checked = !checkbox.checked;
         onSelectionChange();
       });
-      add.disabled = checkbox.disabled;
+      add.disabled = checkbox.disabled && !savedId;
       checkbox.addEventListener('change', onSelectionChange);
-      choose.append(checkbox, element('span', load.created_settlement ? 'Draft ' + load.created_settlement.number : 'Select load'));
+      choose.append(checkbox, element('span', load.created_settlement ? 'Settlement ' + load.created_settlement.number : 'Select load'));
       if (load.created_settlement) {
         const { number, line_total } = load.created_settlement;
         const amount = line_total == null ? '' : ' · ' + currency.format(Number(line_total));
-        summary.append(element('p', 'Saved in draft ' + number + amount, 'muted'));
+        summary.append(element('p', 'Included in settlement ' + number + amount, 'muted'));
       }
       const freight = load.freight || {};
       const more = element('details', '', 'settlement-load-details');
@@ -1417,7 +1532,7 @@ const companyDriverTools = (() => {
     if (accountTypeFor(currentUser) === 'company') {
       void recordPresence();
       void refreshClock();
-      void refreshPay();
+      if (!byId('driverDocumentsPage').classList.contains('active')) void refreshPay();
       return;
     }
     void refreshAdminPresence();
@@ -1434,11 +1549,16 @@ const companyDriverTools = (() => {
     clearPayForm();
     payrollBadges([], false);
     byId('companyPayrollQueue').replaceChildren();
+    byId('companyPayrollDraftList').replaceChildren();
+    byId('companyPayrollDraftStatus').textContent = '';
     byId('companyPayrollLoadSettlements').replaceChildren();
     byId('companyPayrollSettlementPreview').replaceChildren();
     byId('companyPayrollSettlementPreview').classList.add('hidden');
     byId('companyPayrollCreateSettlement').disabled = true;
     settlementView = null; payrollQueueSignature = null;
+    savedSettlementsRequest = null; settlementPreviewRequest = null; ownDocumentsRequest = null;
+    byId('ownDriverDocumentList').replaceChildren();
+    byId('ownDriverDocumentStatus').textContent = '';
     byId('companyPayrollDriver').replaceChildren();
     byId('companyPayrollOpenDriver').onclick = null;
     adminRequest = null; clockRequest = null; payRequest = null;
@@ -1446,12 +1566,13 @@ const companyDriverTools = (() => {
     for (const id of ['driverPayList','companyDriverClockList','companyDriverAdminShifts','companyDriverAdminPayList',
       'formerCompanyDriverList','companyDriverAdminFacts','companyDriverHistoryList','companyDriverAdminPresence']) byId(id).replaceChildren();
     byId('companyDriverClockButton').classList.add('hidden');
-    byId('companyDriverPayButton').textContent = 'Pay';
-    byId('companyDriverDocumentsButton').textContent = 'Documents';
+    byId('companyDriverPayButton').textContent = 'Settlements';
   }
 
-  setInterval(() => { if (!document.hidden) refresh(); },24000);
+  setInterval(() => {
+    if (!document.hidden && !byId('companyPayrollPage').classList.contains('active')) refresh();
+  },24000);
   scheduleSettlementHour();
   document.addEventListener('visibilitychange', refreshSettlementHour);
-  return { openDocuments, openClock, openAdmin, openRoster, openPayroll, backPayroll, backAdmin, loadFormer, refresh, reset };
+  return { openDocuments, openSettlements, openClock, openAdmin, openRoster, openPayroll, backPayroll, backAdmin, loadFormer, refresh, reset };
 })();

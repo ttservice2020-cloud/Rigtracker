@@ -248,6 +248,8 @@ async function openOwnRigTrackerProfile({openLoads=false}={}){
  const details=document.getElementById('rigTrackerProfileDetails');
  const driver=role==='company';
  document.getElementById('companyDriverExtras')?.classList.toggle('hidden',!driver);
+ document.getElementById('ownDriverDocumentsButton')?.classList.toggle('hidden',role!=='driver'&&!driver);
+ document.getElementById('ownDriverSettlementsButton')?.classList.toggle('hidden',role!=='driver');
  document.getElementById('mechanicMessagesButton')?.classList.toggle('hidden',role!=='mechanic');
  document.getElementById('profileDriverLoadsButton')?.classList.toggle('hidden',role!=='driver'&&!driver);
  title.textContent=driver?'Company Driver Dashboard':role==='mechanic'?'Mechanic Dashboard':'RigTracker Profile';

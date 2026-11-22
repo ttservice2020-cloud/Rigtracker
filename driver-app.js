@@ -6,11 +6,11 @@ const rigTrackerApp = (() => {
   const sections = {
     company: {
       driverLoadsPage: 'loads', driverLoadDetailPage: 'loads', companyMessagesPage: 'messages', driverDocumentsPage: 'settlements',
-      rigTrackerProfilePage: 'profile', companyDriverClockPage: 'profile', companySafetyPage: 'safety'
+      rigTrackerProfilePage: 'profile', ownDriverDocumentsPage: 'profile', companyDriverClockPage: 'profile', companySafetyPage: 'safety'
     },
     driver: {
       driverLoadsPage: 'loads', driverLoadDetailPage: 'loads', spreadsheetPage: 'settlements', settlementPage: 'settlements',
-      dashboardPage: 'dashboard', rigTrackerProfilePage: 'dashboard', taxPage: 'dashboard', perDiemPage: 'dashboard'
+      dashboardPage: 'dashboard', rigTrackerProfilePage: 'dashboard', ownDriverDocumentsPage: 'dashboard', taxPage: 'dashboard', perDiemPage: 'dashboard'
     }
   };
   const allowedTabs = {
@@ -82,7 +82,7 @@ const rigTrackerApp = (() => {
     if (tab === 'messages') void companyMessaging.open();
     if (tab === 'safety') void companySafety.open();
     if (tab === 'settlements') {
-      if (role === 'company') void companyDriverTools.openDocuments();
+      if (role === 'company') void companyDriverTools.openSettlements();
       else showPage('spreadsheetPage');
     }
     if (tab === 'profile') showPage('rigTrackerProfilePage');
