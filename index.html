@@ -258,7 +258,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 .driver-load-stops li[aria-current="step"]{border-color:#4c8dff;background:#13294a}
 #companySignupFields{border:0;padding:0;margin:0;min-inline-size:0}
 </style>
-<link rel="stylesheet" href="./dispatch.css?v=payroll-date-1">
+<link rel="stylesheet" href="./dispatch.css?v=driver-messages-1">
 <link rel="stylesheet" href="./driver-app.css?v=return-cargo-1">
 <link rel="stylesheet" href="./office-tools.css?v=1">
 </head>
@@ -1321,16 +1321,6 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
     <button class="outline" type="button" onclick="companyMessaging.openTeam('maintenance')">Maintenance</button>
     <button class="outline" type="button" onclick="companyMessaging.openTeam('safety')">Safety</button>
    </div>
-   <section class="panel hidden" id="companyMessageDirectory">
-    <h2>Find a driver</h2>
-    <div class="field hidden" id="companyMessageCrewFleetField"><label for="companyMessageCrewFleet">Fleet</label><select id="companyMessageCrewFleet"></select></div>
-    <div class="field"><label for="companyMessageDriverPicker">Driver</label><select id="companyMessageDriverPicker"></select></div>
-    <div class="panel hidden" id="companyMessageDriverCard">
-     <h3 id="companyMessageDriverName"></h3>
-     <p class="muted" id="companyMessageDriverProfile"></p>
-     <div class="driver-page-actions" id="companyMessageDriverLines" aria-label="Driver's conversations" role="group"></div>
-    </div>
-   </section>
    <section id="companyMessageStartPanel" class="panel hidden">
     <h2>Start a conversation</h2>
     <form id="companyMessageStart">
@@ -1354,6 +1344,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
    </section>
    <section class="panel">
     <h2>Conversations</h2>
+    <div class="field hidden" id="companyMessageCrewFleetField"><label for="companyMessageCrewFleet">Fleet</label><select id="companyMessageCrewFleet"></select></div>
     <div id="companyMessageThreads" class="dispatch-load-list"></div>
    </section>
    <section id="companyMessageThread" class="panel hidden">
@@ -1368,8 +1359,13 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
      </div>
      <div class="dispatch-actions">
       <input id="companyMessagePhoto" type="file" accept="image/jpeg,image/png,image/webp,image/gif,image/heic,image/heif,.heic,.heif" hidden>
-      <button class="outline" type="button" id="companyMessageAddPhoto">Attach photo</button>
+      <input id="companyMessageCamera" type="file" accept="image/*" capture="environment" hidden>
+      <button class="outline company-message-add-photo" id="companyMessageAddPhoto" type="button" aria-label="Add photo" aria-controls="companyMessagePhotoOptions" aria-expanded="false">+</button>
       <button class="primary-btn" type="submit">Send</button>
+     </div>
+     <div class="dispatch-actions hidden" id="companyMessagePhotoOptions" aria-label="Photo options" role="group">
+      <button class="outline" id="companyMessageTakePhoto" type="button">Take photo</button>
+      <button class="outline" id="companyMessageUploadPhoto" type="button">Upload photo</button>
      </div>
     </form>
    </section>
@@ -1522,7 +1518,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 <script src="./dispatch.js?v=driver-profile-1"></script>
 <script src="./linked-profiles.js?v=driver-profile-1"></script>
 <script src="./company-driver-tools.js?v=settlement-number-1"></script>
-<script src="./company-messages.js?v=message-notice-1"></script>
+<script src="./company-messages.js?v=driver-messages-1"></script>
 <script src="./driver-paperwork.js?v=1"></script>
 <script src="./driver-workflow.js?v=saved-locations-1"></script>
 <script src="./fleet-admin-driver.js?v=1"></script>

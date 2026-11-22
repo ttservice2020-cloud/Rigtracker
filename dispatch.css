@@ -202,6 +202,12 @@
 .company-message-watch-choice{display:flex;align-items:center;gap:8px;padding:4px 2px;color:var(--white);font-size:13px}
 .company-message-watch-choice input{width:16px;height:16px;margin:0;accent-color:#358ce0}
 .company-message-watch-settings form button{min-height:34px;padding:5px 9px;font-size:12px}
+.company-message-driver{border:1px solid #30445e;border-radius:8px;overflow-wrap:anywhere}
+.company-message-driver>summary{padding:11px 12px;cursor:pointer;font-weight:700}
+.company-message-driver>summary:focus-visible{outline-offset:-3px;border-radius:8px}
+.company-message-driver-lines{padding:0 12px 12px}
+.company-message-unread{display:inline-block;width:8px;height:8px;margin-inline-start:8px;border-radius:50%;background:#9dceff;vertical-align:middle}
+.company-message-add-photo{font-size:24px;line-height:1;min-width:44px}
 
 .company-pay-load-row{grid-template-columns:minmax(0,1fr) auto;align-items:center}
 .settlement-load-include{display:flex;align-items:center;gap:6px;white-space:nowrap;color:#b8c9dd;font-size:13px}
