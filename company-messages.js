@@ -39,8 +39,38 @@ const companyMessaging = (() => {
     return data;
   }
 
+  function watchedProfiles() {
+    try {
+      const raw = localStorage.getItem('rigtracker-message-watch:' + (currentUser?.id || ''));
+      return raw == null ? null : new Set(JSON.parse(raw));
+    } catch { return null; }
+  }
+
+  function watchedThreads(threads) {
+    const profiles = watchedProfiles();
+    return profiles === null ? threads : threads.filter(thread => profiles.has(thread.profile_id));
+  }
+
+  function paintWatchChoices() {
+    const host = byId('companyMessageWatchChoices');
+    const profiles = watchedProfiles();
+    const accounts = new Map();
+    for (const thread of data?.threads || []) {
+      if (thread.profile_id) accounts.set(thread.profile_id, thread.contact || 'Driver');
+    }
+    host.replaceChildren(...(accounts.size ? [...accounts].sort((a,b)=>a[1].localeCompare(b[1])).map(([id,label]) => {
+      const wrapper = element('label', '', 'company-message-watch-choice');
+      const input = document.createElement('input');
+      input.type = 'checkbox';
+      input.value = id;
+      input.checked = profiles === null || profiles.has(id);
+      wrapper.append(input, element('span', label));
+      return wrapper;
+    }) : [element('p', 'Open Messages once to load driver conversations for this account.', 'muted')]));
+  }
+
   function showBadges() {
-    const unread = (data?.threads || []).filter(thread => thread.unread);
+    const unread = watchedThreads((data?.threads || []).filter(thread => thread.unread));
     const ids = new Set(unread.map(thread => thread.last_message?.id || thread.id));
     const fresh = initialized ? unread.filter(thread => !noticeIds.has(thread.last_message?.id || thread.id)) : [];
     noticeIds = ids;
@@ -321,6 +351,16 @@ const companyMessaging = (() => {
     } finally { control.disabled = false; }
   }
 
+  byId('companyMessageWatchEdit')?.addEventListener('click', () => {
+    paintWatchChoices();
+    byId('companyMessageWatchSettings').classList.toggle('hidden');
+  });
+  byId('companyMessageWatchSave')?.addEventListener('click', () => {
+    const selected = [...byId('companyMessageWatchChoices').querySelectorAll('input:checked')].map(input => input.value);
+    try { localStorage.setItem('rigtracker-message-watch:' + (currentUser?.id || ''), JSON.stringify(selected)); } catch {}
+    byId('companyMessageWatchSettings').classList.add('hidden');
+    showBadges();
+  });
   byId('companyMessageNoticeClose')?.addEventListener('click', () => byId('companyMessageNoticePanel').classList.add('hidden'));
   byId('companyMessageRecipient').addEventListener('change',paintChannelChoices);
   byId('companyMessageDriverPicker').addEventListener('change',selectDriver);
