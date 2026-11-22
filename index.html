@@ -265,7 +265,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
   <span class="truck-emblem truck" aria-hidden="true"></span>
   <span>RigTracker Pro</span>
  </div>
- <div class="top-actions"><span id="accountLabel">Owner Op</span><button onclick="signOut()">Sign Out</button></div>
+ <div class="top-actions"><span id="accountLabel">Owner Op</span><div class="office-clock-widget hidden" id="officeClockWidget"><span id="officeClockStatus">Not clocked in</span><button type="button" class="outline" id="officeClockToggle">Start</button></div><button onclick="signOut()">Sign Out</button></div>
 </header>
 
 <main>
@@ -1263,7 +1263,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
    </section>
   </section>
   <section id="fleetEmployeePage" class="page fleet-account-page">
-  <div class="page-head"><div><h1>Office Dashboard</h1><p class="muted" id="employeeAccountSummary" role="status">Loading your profile…</p></div><div class="office-clock-widget hidden" id="officeClockWidget"><span id="officeClockStatus">Not clocked in</span><button type="button" class="outline" id="officeClockToggle">Start</button></div></div>
+  <div class="page-head"><div><h1>Office Dashboard</h1><p class="muted" id="employeeAccountSummary" role="status">Loading your profile…</p></div></div>
   <div id="officeDashboardTools" class="hidden fleet-tools">
    <section class="fleet-tools-group" data-office-group>
     <h2>Operations</h2>
