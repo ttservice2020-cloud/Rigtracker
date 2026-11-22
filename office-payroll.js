@@ -5,6 +5,7 @@ const officePayroll = (() => {
   let request;
   let data;
   let origin;
+  let fleet;
 
   function hours(seconds) {
     const value = Math.max(0, Number(seconds) || 0);
@@ -18,9 +19,10 @@ const officePayroll = (() => {
     return year + '-' + String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0');
   }
 
-  function open() {
+  function open(targetFleet = null) {
     if (!currentUser) return;
     origin = accountTypeFor(currentUser) === 'fleet' ? 'fleet' : 'employee';
+    fleet = targetFleet;
     const now = new Date();
     const first = new Date(now.getFullYear(), now.getMonth(), 1);
     byId('officePayrollFrom').value ||= localDate(first);
@@ -46,12 +48,13 @@ const officePayroll = (() => {
     byId('officePayrollTotal').textContent = '';
     try {
       const { data: result, error } = await supabaseClient.rpc('fleet_employee_time_clock', {
-        action: 'payroll_roster',
+        action: 'payroll_roster', target_fleet: fleet,
         params: { from: byId('officePayrollFrom').value, to: byId('officePayrollTo').value }
       });
       if (error) throw error;
       if (user !== currentUser || request !== token || !byId('officePayrollPage').classList.contains('active')) return;
       data = result;
+      fleet = result?.fleet_id || fleet;
       const people = result?.employees || [];
       const picker = byId('officePayrollEmployee');
       const selected = picker.value;
