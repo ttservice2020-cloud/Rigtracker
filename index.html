@@ -250,6 +250,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 .driver-load-stops li{border:1px solid #283e60;border-radius:10px;background:#111d30;padding:12px}
 .driver-load-stops p{margin:5px 0}
 .driver-load-stops li[aria-current="step"]{border-color:#4c8dff;background:#13294a}
+#companySignupFields{border:0;padding:0;margin:0;min-inline-size:0}
 </style>
 <link rel="stylesheet" href="./dispatch.css?v=load-offers-1">
 <link rel="stylesheet" href="./driver-app.css?v=2">
@@ -284,6 +285,12 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
     <div class="login-field"><label for="email">Email address</label><input id="email" type="email" autocomplete="username" placeholder="Enter your email address" required></div>
     <div class="login-field hidden"><label for="employeeUsername">Username</label><input id="employeeUsername" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="tts-106106" maxlength="27" required disabled></div>
     <div class="login-field hidden"><label for="signupFleetId">Fleet ID</label><input id="signupFleetId" maxlength="20" pattern="[A-Za-z0-9]{1,20}" autocapitalize="none" placeholder="tts" required disabled></div>
+    <fieldset id="companySignupFields" class="hidden" aria-label="Company Driver profile details" disabled>
+     <div class="login-field"><label for="signupCompanyFirstName">First name</label><input id="signupCompanyFirstName" name="first_name" autocomplete="given-name" maxlength="100" required></div>
+     <div class="login-field"><label for="signupCompanyLastName">Last name</label><input id="signupCompanyLastName" name="last_name" autocomplete="family-name" maxlength="100" required></div>
+     <div class="login-field"><label for="signupCompanyPhone">Phone number</label><input id="signupCompanyPhone" name="phone" type="tel" autocomplete="tel" maxlength="40" required></div>
+     <div class="login-field"><label for="signupCompanyLicense">Driver’s license number</label><input id="signupCompanyLicense" name="license_number" autocomplete="off" spellcheck="false" maxlength="80" required></div>
+    </fieldset>
     <div class="login-field"><label for="password">Password</label><input id="password" type="password" autocomplete="current-password" placeholder="Enter your password" required></div>
     <div class="login-actions"><button id="authSubmit" class="primary-btn full" type="submit">Sign In</button></div>
    </form>
@@ -1254,7 +1261,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 
 <script src="./dispatch-progress.js?v=driver-workflow-1"></script>
 <script src="./dispatch.js?v=office-access-1"></script>
-<script src="./linked-profiles.js?v=office-link-permission-1"></script>
+<script src="./linked-profiles.js?v=company-signup-1"></script>
 <script src="./company-driver-tools.js?v=office-access-1"></script>
 <script src="./company-messages.js?v=office-access-1"></script>
 <script src="./driver-workflow.js?v=bol-payments-1"></script>
@@ -1310,7 +1317,6 @@ function accountTypeFor(user){
  return (trustedType||user?.user_metadata?.account_type)==='fleet'?'fleet':'driver';
 }
 const accountLabels={driver:'Owner Op',company:'Company Driver',fleet:'Fleet Admin',employee:'Office',mechanic:'Mechanic'};
-const fleetManagedSignInRoles=new Set(['company','employee']);
 let passwordRecoveryRequested=new URLSearchParams(window.location.hash.slice(1)).get('type')==='recovery';
 let adminFleetId=null;
 let fleetSection='dashboard';
@@ -1325,6 +1331,7 @@ let signingOut=false;
 function updateAuthForm(){
  const employee=selectedRole==='employee';
  const fleetSignup=selectedRole==='fleet'&&signUpMode;
+ const companySignup=selectedRole==='company'&&signUpMode;
  document.getElementById('authHeading').textContent=fleetSignup?'Create your Fleet Admin account'
   :signUpMode?'Create your '+accountLabels[selectedRole]+' account':accountLabels[selectedRole]+' sign-in';
  document.getElementById('authSubmit').textContent=signUpMode?'Create Account':'Sign In';
@@ -1336,9 +1343,12 @@ function updateAuthForm(){
   field.closest('.login-field').classList.toggle('hidden',!visible);
   field.disabled=!visible;
  }
- document.getElementById('authForgotRow').classList.toggle('hidden',employee);
- document.getElementById('authSwitchRow').classList.toggle('hidden',fleetManagedSignInRoles.has(selectedRole));
- document.getElementById('companyConfirmRow').classList.toggle('hidden',selectedRole!=='company');
+ const companyFields=document.getElementById('companySignupFields');
+ companyFields.disabled=!companySignup;
+ companyFields.classList.toggle('hidden',!companySignup);
+ document.getElementById('authForgotRow').classList.toggle('hidden',employee||companySignup);
+ document.getElementById('authSwitchRow').classList.toggle('hidden',employee);
+ document.getElementById('companyConfirmRow').classList.toggle('hidden',selectedRole!=='company'||companySignup);
 }
 function chooseRole(role){
  if(authBusy)return;
@@ -1348,7 +1358,7 @@ function chooseRole(role){
  updateAuthForm();
 }
 function toggleAuthMode(){
- if(authBusy||fleetManagedSignInRoles.has(selectedRole))return;
+ if(authBusy||selectedRole==='employee')return;
  signUpMode=!signUpMode;
  updateAuthForm();
 }
@@ -1374,13 +1384,20 @@ async function submitAuth(event){
  authBusy=true;
  button.disabled=true;
  try{
-  if(signUpMode&&!fleetManagedSignInRoles.has(role)){
+  if(signUpMode&&role!=='employee'){
    if(!meetsPasswordRequirements(password)){showToast(passwordRequirements);return}
-   const data={account_type:role};
+   const data={account_type:role==='company'?'company_driver':role};
    if(role==='fleet')data.requested_fleet_id=document.getElementById('signupFleetId').value.trim().toLowerCase();
+   const companyFields=role==='company'?document.querySelectorAll('#companySignupFields input'):[];
+   for(const field of companyFields){
+    const value=field.value.trim();
+    if(!value){showToast('Complete all Company Driver fields.');field.focus();return}
+    data[field.name]=value;
+   }
    const result=await supabaseClient.auth.signUp({email,password,options:{data,emailRedirectTo:window.location.origin}});
    if(result.error)throw result.error;
    passwordField.value='';
+   for(const field of companyFields)field.value='';
    signUpMode=false;
    updateAuthForm();
    if(result.data.session)await openSignedInApp(result.data.user);
