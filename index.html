@@ -466,6 +466,8 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
         <button class="card fleet-tool" type="button" onclick="showFleetSection('dispatch')">Dispatch <span aria-hidden="true">›</span></button>
         <button class="card fleet-tool" type="button" onclick="fleetBolPayments.open(adminFleetId)">BOLs &amp; Payments <span aria-hidden="true">›</span></button>
         <button class="card fleet-tool" type="button" onclick="showFleetSection('dispatch','drivers')">Drivers <span aria-hidden="true">›</span></button>
+        <button class="card fleet-tool" type="button" onclick="fleetAdminDriver.open('loads')">My Loads <span aria-hidden="true">›</span></button>
+        <button class="card fleet-tool" type="button" onclick="fleetAdminDriver.open()">My Driver Profile <span aria-hidden="true">›</span></button>
          <button class="card fleet-tool" type="button" onclick="showFleetSection('links')">Linked Profiles <span aria-hidden="true">›</span></button>
         <button class="card fleet-tool" type="button" onclick="showFleetSection('assets')">Assets <span aria-hidden="true">›</span></button>
         <button class="card fleet-tool" id="companyFleetMessagesButton" type="button" onclick="showFleetSection('messages')">Messages <span aria-hidden="true">›</span></button>
@@ -963,9 +965,28 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
     </section>
    </div>
   </section>
+  <section id="fleetAdminDriverPage" class="page fleet-account-page">
+   <div class="page-head"><div>
+    <button class="back" type="button" onclick="showFleetSection('dashboard')">← Back to Dashboard</button>
+    <h1>My Driver Profile</h1>
+   </div><button class="outline hidden" id="fleetAdminOpenMyLoads" type="button" onclick="driverLoadWorkflow.open()">Open My Loads</button></div>
+   <p class="muted" id="fleetAdminDriverStatus" role="status"></p>
+   <form class="panel hidden" id="fleetAdminDriverForm">
+    <div class="form-grid fleet-account-fields">
+     <div class="field"><label for="fleetAdminDriverFirstName">First name</label><input id="fleetAdminDriverFirstName" name="first_name" autocomplete="given-name" maxlength="100" required></div>
+     <div class="field"><label for="fleetAdminDriverLastName">Last name</label><input id="fleetAdminDriverLastName" name="last_name" autocomplete="family-name" maxlength="100" required></div>
+    </div>
+    <div class="field" id="fleetAdminDriverRosterField">
+     <label for="fleetAdminDriverRoster">Dispatch driver record</label>
+     <select id="fleetAdminDriverRoster" name="roster_driver"></select>
+    </div>
+    <p class="muted hidden" id="fleetAdminDriverRosterName"></p>
+    <button class="primary-btn" type="submit">Save Driver Profile</button>
+   </form>
+  </section>
   <section id="driverLoadsPage" class="page fleet-account-page">
    <div class="page-head">
-    <div><button class="back" type="button" onclick="driverLoadWorkflow.back()">← Back to Dashboard</button><h1>Loads</h1></div>
+    <div><button class="back" type="button" onclick="driverLoadWorkflow.back()">← Back to Dashboard</button><h1 id="driverLoadsTitle">Loads</h1></div>
     <div class="driver-page-actions">
      <button class="outline hidden" type="button" data-company-team-link onclick="companyMessaging.openTeam('maintenance')">Contact Maintenance</button>
      <button class="outline" type="button" onclick="driverLoadWorkflow.refresh()">Refresh</button>
@@ -1264,7 +1285,8 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 <script src="./linked-profiles.js?v=company-signup-1"></script>
 <script src="./company-driver-tools.js?v=office-access-1"></script>
 <script src="./company-messages.js?v=office-access-1"></script>
-<script src="./driver-workflow.js?v=office-access-1"></script>
+<script src="./driver-workflow.js?v=fleet-admin-driver-1"></script>
+<script src="./fleet-admin-driver.js?v=1"></script>
 <script src="./company-safety.js?v=1"></script>
 <script src="./driver-app.js?v=1"></script>
 <script src="./fleet-bol-payments.js?v=1"></script>
@@ -1485,6 +1507,7 @@ async function signOut(){
   companyDriverTools.reset();
   companyMessaging.reset();
   driverLoadWorkflow.reset();
+  fleetAdminDriver.reset();
   companySafety.reset();
   rigTrackerApp.reset();
   officeTools.reset();
