@@ -269,9 +269,10 @@ const dispatchProgress = (() => {
           else docs.append(element('p', 'Pickup BOL: Not uploaded · ' + (stop.company || 'Pickup ' + (stop.index + 1)), 'dispatch-document-missing'));
         } else if (report?.document) docs.append(button('View signed delivery BOL · ' + (stop.company || 'Delivery ' + (stop.index + 1)), () => driverLoadWorkflow.openDocument(report.document)));
         const lumper = report?.lumperFee;
-        docs.append(element('p', lumper !== undefined && lumper !== '' && Number(lumper) > 0
-          ? 'Lumper fee reported: ' + money(lumper) + ' · ' + (stop.company || 'Stop')
-          : 'Lumper fee: None reported · ' + (stop.company || 'Stop'), 'muted'));
+        docs.append(element('p', !report ? 'Lumper fee: Driver update pending · ' + (stop.company || 'Stop')
+          : lumper !== undefined && lumper !== '' && Number(lumper) > 0
+            ? 'Lumper fee reported: ' + money(lumper) + ' · ' + (stop.company || 'Stop')
+            : 'Lumper fee: None reported · ' + (stop.company || 'Stop'), 'muted'));
       }
       history(load);
     }
