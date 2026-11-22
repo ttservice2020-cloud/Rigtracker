@@ -269,10 +269,24 @@ const fleetDispatchApp = (() => {
     return [cityState(pickups?.[0]), cityState(receivers?.at(-1))].filter(Boolean).join(' → ');
   }
 
+  function displayedDriverIds(load) {
+    if (load.status === 'current' && load.progress?.relay?.droppedAt) {
+      return load.progress.relay.departedAt || load.progress.yardPickedUpAt ? [load.second_driver_id].filter(Boolean) : [];
+    }
+    return [load.driver_id, load.second_driver_id].filter(Boolean);
+  }
+
   function loadDrivers(load) {
-    return [load.driver_id, load.second_driver_id]
+    return displayedDriverIds(load)
       .map(id => state.drivers.find(driver => driver.id === id)?.name)
       .filter(Boolean).join(' / ');
+  }
+
+  function unassignedDriver(tag = 'span') {
+    const marker = element(tag, '', 'dispatch-unassigned-driver');
+    marker.title = 'No driver currently attached';
+    marker.append(element('span', marker.title, 'dispatch-unassigned-text'));
+    return marker;
   }
 
   function loadContactKey(load) {
@@ -366,6 +380,7 @@ const fleetDispatchApp = (() => {
     const number = getRouteNumber(load);
     const label = [load.status !== 'contract' && number && 'Route ' + number, route(load), driverLabel].filter(Boolean).join(' · ');
     if (label) info.append(element('p', label));
+    if (load.status === 'current' && !drivers) info.append(unassignedDriver());
     const { commodity, commodityOther, weightLbs, equipmentType, equipmentTypeOther, trailerDrop, trailerPickup } = load.details;
     const weight = Number(weightLbs);
     const freight = [
@@ -420,6 +435,7 @@ const fleetDispatchApp = (() => {
         return row;
       }
       const number = getRouteNumber(load);
+      const drivers = loadDrivers(load);
       const { next, status } = dispatchProgress.summarize(load);
       const arrival = next?.progress.arrivalAt
         ? 'Arrived · ' + dispatchProgress.recordedTime(next.progress.arrivalAt, next.zone)
@@ -429,7 +445,7 @@ const fleetDispatchApp = (() => {
       row.dataset.tone = status[1];
       row.dataset.updated = String(state.updates.has(load.id));
       row.append(element('small', number ? 'Route ' + number : 'Route not set', 'dispatch-rail-route'),
-        element('small', loadDrivers(load) || 'Driver not assigned'),
+        drivers ? element('small', drivers) : unassignedDriver('small'),
         element('small', arrival, 'dispatch-rail-arrival'), badge);
       return row;
     }));
@@ -451,7 +467,7 @@ const fleetDispatchApp = (() => {
     const filter = byId('dispatchDriverFilter').value;
     const assignments = new Map();
     for (const load of state.loads.filter(entry => entry.status === 'current')) {
-      for (const id of [load.driver_id, load.second_driver_id].filter(Boolean)) {
+      for (const id of displayedDriverIds(load)) {
         if (load.progress?.driverResponses?.[id]?.decision === 'rejected') continue;
         if (!assignments.has(id)) assignments.set(id, []);
         assignments.get(id).push(proLabel(load.pro_number));
@@ -1655,6 +1671,7 @@ const fleetDispatchApp = (() => {
       if (error) throw error;
       mergeLoad(data, true);
       paintLoads();
+      if (action === 'relay_drop' || action === 'relay_depart') paintDrivers();
       return true;
     } catch (error) {
       if (state === scope) {
@@ -1721,7 +1738,7 @@ const fleetDispatchApp = (() => {
   if (progressEnabled) {
     progressView = dispatchProgress.bind({
       byId, toggle, element, button, getLoad, getLoads: () => state?.loads || [], getRouteNumber,
-      loadDrivers, loadDriverContacts, messageDriver, proLabel, describeRoute: route,
+      loadDrivers, loadDriverContacts, displayedDriverIds, unassignedDriver, messageDriver, proLabel, describeRoute: route,
       editLoad: load => openLoad(load), back: () => selectTab(selectedTab, true),
       setProgress: recordProgress, hasUpdate: id => Boolean(state?.updates.has(id)),
       canEdit: canEditLoad, paintLeaseStatus, saveLoadAction,

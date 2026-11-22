@@ -104,10 +104,12 @@ const driverLoadWorkflow = (() => {
   function label(load) {
     if (load.review === 'pending' || load.review === 'denied') return statusText[load.review];
     if (load.status === 'completed') return 'Completed';
+    if (load.relayState === 'released') return 'Relay handoff complete';
+    if (load.relayState === 'waiting' && load.decision === 'accepted') return 'Waiting at relay';
     return statusText[load.decision] || 'New assignment';
   }
 
-  const isOffer = load => load?.status === 'current' && !load.decision;
+  const isOffer = load => load?.status === 'current' && !load.decision && load.relayState !== 'released';
   const isQueued = load => Number(load?.queuePosition) > 1;
 
   function offerNumber(value, formatter, unit = '') {
@@ -366,7 +368,7 @@ const driverLoadWorkflow = (() => {
     const handoffComplete = load.yard_handoff?.first_driver && load.yard_handoff?.picked_up_at;
     for (const stop of load.stops) {
       const row = node('li');
-      if (stop === active && !isQueued(load) && !handoffComplete && load.decision === 'accepted' && load.review !== 'denied' &&
+      if (stop === active && !isQueued(load) && !load.relayState && !handoffComplete && load.decision === 'accepted' && load.review !== 'denied' &&
           (load.status === 'current' || load.review === 'pending')) row.setAttribute('aria-current', 'step');
       const schedule = stopAppointment(stop.info);
       const stage = stop.progress?.completedAt ? 'Departed' : stop.progress?.arrivalAt ? 'Arrived' : 'Scheduled';
@@ -629,13 +631,17 @@ const driverLoadWorkflow = (() => {
   }
 
   function paintProgress(load, panel) {
+    if (load.relayState) {
+      panel.append(node('p', load.relayState === 'released' ? 'Your leg ended at the relay.' :
+        'Dispatch will record your relay departure before you continue.', 'muted'));
+    }
     if (isQueued(load)) {
       const current = driverData.loads.find(row => Number(row.queuePosition) === 1);
       panel.append(node('p', current ? 'Finish ' + pro(current) + ' before starting this load.' :
         'Finish your current load before starting this one.', 'driver-load-queued'));
     }
     panel.append(node('h2', 'Stops', 'driver-load-stop-title'), showAllStops(load));
-    const canReport = !isQueued(load) && load.status === 'current' && load.decision === 'accepted' &&
+    const canReport = !isQueued(load) && !load.relayState && load.status === 'current' && load.decision === 'accepted' &&
       !(load.yard_handoff?.first_driver && load.yard_handoff?.picked_up_at);
     if (canReport) {
       for (const kind of ['breakdown', 'traffic']) {
@@ -645,7 +651,7 @@ const driverLoadWorkflow = (() => {
         panel.append(report);
       }
     }
-    if (!isQueued(load) && load.decision === 'accepted' && load.review !== 'denied') {
+    if (!isQueued(load) && !load.relayState && load.decision === 'accepted' && load.review !== 'denied') {
       const actions = node('div');
       actions.id = 'driverLoadProgressActions';
       paintProgressActions(load, actions);
@@ -927,7 +933,7 @@ const driverLoadWorkflow = (() => {
     const relay = relayCard(load, freight);
     if (relay) cards.append(relay);
     if (load.pay) cards.append(offerPay(load.pay));
-    if (load.decision === 'accepted' && ['current', 'completed'].includes(load.status)) {
+    if (load.decision === 'accepted' && load.relayState !== 'waiting' && ['current', 'completed'].includes(load.status)) {
       const signature = JSON.stringify([load.id, load.status, isQueued(load), load.stops.every(stop => stop.progress?.completedAt)]);
       let mileage = panel.querySelector('[data-load-mileage]');
       if (mileage?.dataset.loadMileage !== signature) {
@@ -1068,7 +1074,7 @@ const driverLoadWorkflow = (() => {
   function updateOpenLoad(load, previous) {
     if (!previous || isOffer(load) || isOffer(previous) || previous.status !== load.status ||
       previous.decision !== load.decision || previous.review !== load.review ||
-      previous.queuePosition !== load.queuePosition ||
+      previous.queuePosition !== load.queuePosition || previous.relayState !== load.relayState ||
       JSON.stringify(previous.yard_handoff) !== JSON.stringify(load.yard_handoff)) {
       paintDetails();
       return;

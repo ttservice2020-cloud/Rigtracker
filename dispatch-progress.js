@@ -65,6 +65,23 @@ const dispatchProgress = (() => {
     catch { return clockText(instant); }
   }
 
+  function loadSplit(load) {
+    const { details } = load;
+    const location = details.relayLocation;
+    const address = [details.relayAddress, [details.relayCity, details.relayState, details.relayZip].filter(Boolean).join(' ')]
+      .filter(Boolean).join(' · ');
+    const date = details.relayDate;
+    const drop = time(details.relayDrop);
+    const pickup = time(details.relayPickup);
+    const progress = load.progress?.relay || {};
+    const departedAt = progress.departedAt || load.progress?.yardPickedUpAt;
+    if (!load.second_driver_id && !['assigned', 'unknown'].includes(details.secondDriverMode) &&
+        ![location, address, date, drop, pickup, progress.droppedAt, departedAt].some(Boolean)) return null;
+    const status = departedAt ? 'Departed relay' : progress.droppedAt ? 'Dropped at relay' : 'Planned';
+    return { location, address, date, drop, pickup, droppedAt: progress.droppedAt, departedAt, status,
+      dropDriver: progress.dropDriver, departDriver: progress.departDriver };
+  }
+
   function summarize(load, now = Date.now()) {
     const stops = stopsFor(load);
     const next = stops.find(stop => !stop.progress.completedAt);
@@ -80,12 +97,14 @@ const dispatchProgress = (() => {
       : [next.kind === 'pickup' ? 'At Pickup' : 'At Receiver', 'progress'];
     else if (next.due <= now) status = ['Late', 'late'];
     else if (next.due - now <= 30 * minute) status = ['Warning', 'warning'];
+    if (load.status === 'current' && load.progress?.relay?.droppedAt &&
+        !load.progress.relay.departedAt && !load.progress.yardPickedUpAt) status = ['At Relay', 'progress'];
     if (load.progress?.breakdown?.active) status = ['Breakdown reported', 'breakdown'];
     else if (load.progress?.traffic?.active) status = ['Held up in traffic', 'traffic'];
     return { stops, next, stage, status };
   }
 
-  function bind({ byId, toggle, element, button, getLoad, getLoads, getRouteNumber, loadDrivers, loadDriverContacts, messageDriver,
+  function bind({ byId, toggle, element, button, getLoad, getLoads, getRouteNumber, loadDrivers, loadDriverContacts, displayedDriverIds, unassignedDriver, messageDriver,
     proLabel, describeRoute, editLoad,
     back, setProgress, hasUpdate, openRateConfirmation, canEdit, paintLeaseStatus, saveLoadAction }) {
     const view = byId('dispatchLoadDetail');
@@ -109,8 +128,11 @@ const dispatchProgress = (() => {
     }
 
     function driverAssignment(drivers) {
-      if (!drivers.length) return fact('Assigned driver', '');
       const pair = element('div');
+      if (!drivers.length) {
+        pair.append(element('dt', 'Assigned driver'), unassignedDriver('dd'));
+        return pair;
+      }
       const values = element('dd');
       for (const driver of drivers) {
         const contact = element('div', '', 'dispatch-assigned-driver');
@@ -126,8 +148,49 @@ const dispatchProgress = (() => {
       return pair;
     }
 
+    function paintSplit(load, split, drivers, readOnly) {
+      toggle('dispatchDetailSplit', Boolean(split));
+      if (!split) return;
+      const { location, address, date, drop, pickup, droppedAt, departedAt, status, dropDriver, departDriver } = split;
+      set('dispatchSplitStatus', status);
+      byId('dispatchSplitStatus').dataset.tone = departedAt ? 'complete' : droppedAt ? 'progress' : 'assigned';
+      const first = dropDriver || drivers.find(driver => driver.id === load.driver_id)?.name;
+      const second = departDriver || drivers.find(driver => driver.id === load.second_driver_id)?.name;
+      const facts = [
+        ['Relay location', location], ['Relay address', address], ['Relay date', date],
+        [droppedAt ? 'Dropped by' : 'Driver 1', first],
+        [departedAt ? 'Departed with' : droppedAt ? 'Scheduled Driver 2' : 'Driver 2', second || 'Pending assignment'],
+        ['Planned drop', drop],
+        ['Planned pickup', pickup], ['Dropped', droppedAt && recordedTime(droppedAt)],
+        ['Departed', departedAt && recordedTime(departedAt)]
+      ];
+      byId('dispatchSplitFacts').replaceChildren(...facts.filter(([, value]) => value).map(([label, value]) => fact(label, value)));
+      const active = load.status === 'current' && !departedAt;
+      toggle('dispatchSplitActions', active);
+      toggle('dispatchSplitDrop', !droppedAt);
+      toggle('dispatchSplitDepart', Boolean(droppedAt));
+      byId('dispatchSplitDrop').disabled = readOnly || Boolean(request);
+      const departure = byId('dispatchSplitDepart');
+      departure.disabled = readOnly || Boolean(request) || !load.second_driver_id;
+      departure.title = load.second_driver_id ? '' : 'Assign Driver 2 before departing the relay.';
+    }
+
+    function splitStop(split) {
+      const entry = element('li', '', 'dispatch-detail-stop');
+      entry.dataset.stopState = split.departedAt ? 'complete' : 'scheduled';
+      entry.append(element('small', 'Load Split · ' + split.status, 'muted'),
+        element('strong', split.location || 'Relay stop'));
+      if (split.address) entry.append(element('p', split.address));
+      const times = [split.date, split.drop && 'Planned drop ' + split.drop, split.pickup && 'Planned pickup ' + split.pickup];
+      if (times.some(Boolean)) entry.append(element('p', times.filter(Boolean).join(' · '), 'muted'));
+      if (split.droppedAt) entry.append(element('p', 'Dropped ' + recordedTime(split.droppedAt)));
+      if (split.departedAt) entry.append(element('p', 'Departed ' + recordedTime(split.departedAt)));
+      return entry;
+    }
+
     function reachableDrivers(load) {
-      return loadDriverContacts(load).filter(driver => driver.canMessage || driver.dial);
+      const assigned = displayedDriverIds(load);
+      return loadDriverContacts(load).filter(driver => assigned.includes(driver.id) && (driver.canMessage || driver.dial));
     }
 
     function closeMessageDrivers() {
@@ -190,6 +253,7 @@ const dispatchProgress = (() => {
       }
       const summary = summarize(load);
       const { stops, next, stage, status } = summary;
+      const split = loadSplit(load);
       const current = load.status === 'current';
       const contract = load.status === 'contract';
       const readOnly = !canEdit(load.id);
@@ -220,7 +284,10 @@ const dispatchProgress = (() => {
       toggle('dispatchDetailEdit', current);
       toggle('dispatchDetailComplete', current);
       const drivers = loadDriverContacts(load);
-      toggle('dispatchDetailMessage', drivers.length > 0);
+      paintSplit(load, contract ? null : split, drivers, readOnly);
+      const assigned = displayedDriverIds(load);
+      const currentDrivers = drivers.filter(driver => assigned.includes(driver.id));
+      toggle('dispatchDetailMessage', currentDrivers.length > 0);
       const reachable = reachableDrivers(load);
       messageButton.disabled = reachable.length === 0;
       messageButton.title = reachable.length ? '' : 'No linked conversation or phone number on file.';
@@ -251,7 +318,7 @@ const dispatchProgress = (() => {
       const trailer = Object.hasOwn(load.progress || {}, 'dispatchTrailerOverride') ? load.progress.dispatchTrailerOverride
         : lastTrailerReport?.bobtail ? 'Bobtail' : load.details.trailerNumber || lastTrailerReport?.trailer;
       byId('dispatchDetailAssignment').replaceChildren(
-        driverAssignment(drivers), fact('Truck number', load.details.truckNumber), fact('Trailer number', trailer),
+        driverAssignment(currentDrivers), fact('Truck number', load.details.truckNumber), fact('Trailer number', trailer),
         fact('Loaded miles', load.details.loadedMiles), fact('Pickup number', load.details.pickupNumber)
       );
       toggle('dispatchDetailArrival', Boolean(next) && current);
@@ -262,6 +329,7 @@ const dispatchProgress = (() => {
           : (next.company || progressLabel(next)) + ' · ' + appointment(next));
         toggle('dispatchArrivedNow', !next.progress.arrivalAt);
         toggle('dispatchFinishStop', Boolean(next.progress.arrivalAt));
+        set('dispatchFinishStop', 'Depart ' + progressLabel(next));
         set('dispatchManualArrival', next.progress.arrivalAt ? 'Correct Arrival' : 'Enter Time Manually');
         for (const id of ['dispatchArrivedNow', 'dispatchManualArrival', 'dispatchFinishStop']) byId(id).disabled = readOnly || Boolean(request);
         byId('dispatchManualArrival').disabled ||= !next.zone;
@@ -269,7 +337,7 @@ const dispatchProgress = (() => {
       if (selectedStop && selectedStop.loadId !== load.id) selectedStop = null;
       toggle('dispatchArrivalForm', Boolean(selectedStop) && current);
       manual.querySelector('[type=submit]').disabled = readOnly || Boolean(request);
-      byId('dispatchDetailStops').replaceChildren(...stops.map(stop => {
+      const stopRows = stops.map(stop => {
         const entry = element('li', '', 'dispatch-detail-stop');
         entry.dataset.stopState = stop.progress.completedAt ? 'complete' : stop === next ? 'next' : 'scheduled';
         entry.append(element('small', progressLabel(stop) + (stop === next ? ' · Next stop' : ''), 'muted'),
@@ -304,7 +372,13 @@ const dispatchProgress = (() => {
           entry.append(...driverLoadWorkflow.paperworkButtons(report, label, button));
         }
         return entry;
-      }));
+      });
+      if (split && !contract) {
+        const secondLeg = stops.findIndex(stop => stop.driver2 && stop.driver1 === false);
+        const firstDelivery = stops.findIndex(stop => stop.kind === 'receiver');
+        stopRows.splice(secondLeg >= 0 ? secondLeg : firstDelivery >= 0 ? firstDelivery : stopRows.length, 0, splitStop(split));
+      }
+      byId('dispatchDetailStops').replaceChildren(...stopRows);
       const details = load.details || {};
       const commodity = details.commodity === 'Other' ? details.commodityOther : details.commodity;
       const names = items => (items || []).map(stop => stop.company).filter(Boolean).join(' / ');
@@ -312,8 +386,7 @@ const dispatchProgress = (() => {
       const trailerStop = key => stops.find(stop => stop.key === key)?.company;
       const bobtail = details.trailerPickup === 'yes' && details.trailerPickupMode === 'bobtail';
       const trailerType = { fleet: 'Fleet', power_only: 'Power Only' }[details.trailerType];
-      const relayAddress = [details.relayAddress, [details.relayCity, details.relayState, details.relayZip].filter(Boolean).join(' ')]
-        .filter(Boolean).join(' · ');
+      const relayAddress = split?.address;
       const money = value => value !== '' && value !== null && value !== undefined && Number.isFinite(Number(value))
         ? new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' }).format(Number(value)) : '';
       byId('dispatchDetailFreight').replaceChildren(
@@ -454,6 +527,8 @@ const dispatchProgress = (() => {
       { note: byId('dispatchLoadNoteText').value.trim() }, true));
     byId('dispatchClearTraffic').addEventListener('click', () => void updateLoad('clear_traffic',
       { report_id: active()?.progress?.traffic?.id }));
+    byId('dispatchSplitDrop').addEventListener('click', () => void updateLoad('relay_drop'));
+    byId('dispatchSplitDepart').addEventListener('click', () => void updateLoad('relay_depart'));
     byId('dispatchDetailEdit').addEventListener('click', () => { if (active()) editLoad(active()); });
     byId('dispatchDetailStart').addEventListener('click', () => { void record('en_route'); });
     byId('dispatchDetailComplete').addEventListener('click', () => {

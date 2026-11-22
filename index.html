@@ -274,7 +274,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 .driver-load-stops li[aria-current="step"]{border-color:#4c8dff;background:#13294a}
 #companySignupFields{border:0;padding:0;margin:0;min-inline-size:0}
 </style>
-<link rel="stylesheet" href="./dispatch.css?v=driver-tracking-1">
+<link rel="stylesheet" href="./dispatch.css?v=relay-progress-1">
 <link rel="stylesheet" href="./driver-app.css?v=equipment-status-1">
 <link rel="stylesheet" href="./office-tools.css?v=1">
 </head>
@@ -580,6 +580,14 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
         <section class="panel" id="dispatchDetailProgress">
          <h3>Current Load Progress</h3>
          <ol id="dispatchMilestones" class="dispatch-milestones"></ol>
+         <section class="dispatch-relay-progress hidden" id="dispatchDetailSplit" aria-labelledby="dispatchSplitHeading">
+          <div class="dispatch-detail-title"><h3 id="dispatchSplitHeading">Load Split</h3><span class="dispatch-status" id="dispatchSplitStatus"></span></div>
+          <dl class="dispatch-detail-facts" id="dispatchSplitFacts"></dl>
+          <div class="dispatch-actions" id="dispatchSplitActions">
+           <button class="outline" id="dispatchSplitDrop" type="button">Record Relay Drop</button>
+           <button class="primary-btn" id="dispatchSplitDepart" type="button">Depart Relay</button>
+          </div>
+         </section>
          <button class="outline hidden" id="dispatchDetailStart" type="button">Start Toward Pickup</button>
          <div id="dispatchDetailArrival">
           <div class="dispatch-arrival-header">
@@ -1642,15 +1650,15 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 </dialog>
 <div id="modal"><div class="modal-card"><h2 id="modalTitle"></h2><div id="modalBody"></div><button class="primary-btn" onclick="closeModal()">Close</button></div></div>
 
-<script src="./dispatch-progress.js?v=saved-locations-1"></script>
+<script src="./dispatch-progress.js?v=relay-progress-1"></script>
 <script src="./dispatch-rate-confirmation.js?v=1"></script>
-<script src="./dispatch.js?v=split-appointment-1"></script>
+<script src="./dispatch.js?v=relay-progress-1"></script>
 <script src="./linked-profiles.js?v=driver-profile-1"></script>
 <script src="./fleet-equipment.js?v=profile-links-1"></script>
 <script src="./company-driver-tools.js?v=equipment-match-1"></script>
 <script src="./company-messages.js?v=driver-messages-1"></script>
 <script src="./driver-paperwork.js?v=1"></script>
-<script src="./driver-workflow.js?v=equipment-status-1"></script>
+<script src="./driver-workflow.js?v=relay-progress-1"></script>
 <script src="./fleet-admin-driver.js?v=1"></script>
 <script src="./company-safety.js?v=1"></script>
 <script src="./driver-app.js?v=load-screen-1"></script>
