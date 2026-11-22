@@ -141,9 +141,10 @@ const fleetEquipment = (() => {
     editDetails.setAttribute('aria-expanded', String(open));
   }
 
-  function edit(row = null) {
+  function edit(row = null, back = null) {
     if (!workspace || workspace.selection?.saving) return;
-    workspace.selection = { row, id: row?.id || crypto.randomUUID() };
+    workspace.selection = { row, id: row?.id || crypto.randomUUID(), back };
+    byId('fleetEquipmentClose').textContent = back ? 'Back to Driver Profile' : 'Close record';
     for (const field of fields) detailsForm.elements.namedItem(field).value = row?.[field] ?? '';
     editDetails.classList.toggle('hidden', !row);
     showDetailsForm(!row);
@@ -203,7 +204,7 @@ const fleetEquipment = (() => {
         .sort((a, b) => a.unit_number.localeCompare(b.unit_number));
       renderList();
       selection.saving = false;
-      edit(result.data);
+      edit(result.data, selection.back);
       showToast('Equipment saved.');
       if (scope.editDriver) void fleetDispatchApp.reload();
     } catch (error) {
@@ -500,6 +501,17 @@ const fleetEquipment = (() => {
     }
   }
 
+  async function openRecord(fleet, id, back) {
+    const scope = workspace;
+    if (scope?.fleet !== fleet || !active(scope)) throw Error('Equipment access is required.');
+    const { data, error } = await supabaseClient.from(table).select(columns)
+      .eq('fleet_id', fleet).eq('id', id).maybeSingle();
+    if (!active(scope)) return;
+    if (error) throw error;
+    if (!data) throw Error('This unit is no longer available in Equipment.');
+    edit(data, back);
+  }
+
   function reset() {
     workspace = pick = null;
     if (picker.open) picker.close();
@@ -522,9 +534,14 @@ const fleetEquipment = (() => {
     if (workspace?.selection?.row && note) void maintain(workspace, workspace.selection, 'add_record', note);
   });
   byId('fleetEquipmentClose').addEventListener('click', () => {
-    if (workspace.selection?.saving) return;
+    const selection = workspace?.selection;
+    if (!selection || selection.saving) return;
     workspace.selection = null;
     record.classList.add('hidden');
+    if (selection.back) {
+      void selection.back();
+      return;
+    }
     byId('fleetEquipmentSearch').focus();
   });
   editDetails.addEventListener('click', () => {
@@ -537,5 +554,5 @@ const fleetEquipment = (() => {
   byId('fleetEquipmentPickerQuery').addEventListener('input', renderPicker);
   picker.addEventListener('close', () => { if (!picker.open) pick = null; });
 
-  return { open, setDrivers, openPicker, reset };
+  return { open, openRecord, setDrivers, openPicker, reset };
 })();

@@ -436,16 +436,52 @@ const driverLoadWorkflow = (() => {
     const droppedNumber = dropped.querySelector('input');
     const picked = input('Trailer pickup number (optional)', 'picked_trailer', { maxLength:40 });
     const pickedNumber = picked.querySelector('input');
+    const numbers = [trailerNumber, droppedNumber, pickedNumber];
+    const trailerTypes = node('fieldset', '', 'equipment-trailer-choices');
+    trailerTypes.append(node('legend', 'Trailer Type'),
+      input('Fleet', 'trailer_type', { type:'radio', value:'fleet' }),
+      input('Power Only', 'trailer_type', { type:'radio', value:'power_only' }));
     const alert = node('p', '', 'driver-trailer-alert');
     alert.setAttribute('role', 'alert');
     alert.id = 'driver-trailer-alert';
-    trailerNumber.setAttribute('aria-describedby', alert.id);
+    const serviceAlert = node('p', '', 'driver-trailer-alert');
+    serviceAlert.setAttribute('role', 'status');
+    serviceAlert.id = 'driver-trailer-service-alert';
+    for (const control of numbers) control.setAttribute('aria-describedby', alert.id + ' ' + serviceAlert.id);
+    const normalizeNumber = control => control.value.trim().toUpperCase();
+    let inventory;
+    let lookupKey;
+    let lookupTimer;
+    function scheduleTrailerLookup() {
+      const units = [...new Set(numbers.filter(control => !control.disabled).map(normalizeNumber).filter(Boolean))].sort();
+      const key = JSON.stringify(units);
+      if (key === lookupKey) return;
+      lookupKey = key;
+      inventory = null;
+      clearTimeout(lookupTimer);
+      if (!units.length) return;
+      const user = currentUser;
+      lookupTimer = setTimeout(async () => {
+        if (!form.isConnected || currentUser !== user) return;
+        try {
+          const { data, error } = await supabaseClient.rpc('driver_trailer_status', {
+            target_load: load.id, unit_numbers: units
+          });
+          if (!error && form.isConnected && currentUser === user && lookupKey === key) {
+            inventory = data;
+            updateTrailer();
+          }
+        } catch {}
+      }, 250);
+    }
     function updateTrailer() {
       trailerNumber.disabled = pickedNumber.disabled = state.disabled = check.checked;
+      trailerTypes.disabled = check.checked;
+      scheduleTrailerLookup();
       const incoming = trailerNumber.dataset.incomingTrailer;
-      const departure = trailerNumber.value.trim().toUpperCase();
-      const dropped = droppedNumber.value.trim().toUpperCase();
-      const picked = pickedNumber.value.trim().toUpperCase();
+      const departure = normalizeNumber(trailerNumber);
+      const dropped = normalizeNumber(droppedNumber);
+      const picked = normalizeNumber(pickedNumber);
       const plannedDrop = freight.trailerDropStopId === stop.key && freight.trailerDropNumber;
       const plannedPickup = freight.trailerPickupStopId === stop.key && freight.trailerPickupNumber;
       const plannedBobtail = freight.trailerPickupStopId === stop.key && freight.trailerPickupMode === 'bobtail';
@@ -458,6 +494,17 @@ const driverLoadWorkflow = (() => {
       const unreportedHook = !check.checked && dropped && !picked && departure && departure !== dropped;
       const mismatch = incoming != null && departure !== incoming.toUpperCase()
         && !check.checked && !droppedNumber.value.trim() && !picked;
+      const fleetSelected = trailerTypes.querySelector('input:checked')?.value === 'fleet';
+      const unregisteredFleet = fleetSelected && !check.checked && departure &&
+        (!dropped || picked || departure !== dropped) && inventory && !Object.hasOwn(inventory, departure);
+      const unavailable = new Set();
+      for (const control of numbers) {
+        const unit = normalizeNumber(control);
+        const outOfService = !control.disabled && inventory?.[unit] === true;
+        control.dataset.outOfService = String(outOfService);
+        if (outOfService) unavailable.add(unit);
+      }
+      serviceAlert.textContent = [...unavailable].map(unit => 'Trailer ' + unit + ' is out of service.').join(' ');
       alert.textContent = wrongDrop ? 'Enter the planned drop trailer number ' + plannedDrop + '.'
         : wrongArrivalDrop ? 'The drop trailer must match your arrival trailer ' + incoming + '.'
         : missingBobtail ? 'Select Bobtail to confirm you are leaving without a trailer.'
@@ -467,9 +514,10 @@ const driverLoadWorkflow = (() => {
         : mismatch
         ? 'Trailer mismatch. ' + (incoming ? 'Arrival trailer: ' + incoming + '. ' : 'You arrived bobtail. ') +
           'Enter the same trailer, record a trailer drop or pickup, or select Bobtail.'
+        : unregisteredFleet ? 'Select a trailer saved in Equipment or choose Power Only.'
         : '';
-      const invalid = wrongDrop || wrongArrivalDrop || wrongPickup || missingBobtail || hookMismatch || unreportedHook || mismatch;
-      trailerNumber.setAttribute('aria-invalid', String(Boolean(hookMismatch || unreportedHook || mismatch)));
+      const invalid = wrongDrop || wrongArrivalDrop || wrongPickup || missingBobtail || hookMismatch || unreportedHook || mismatch || unregisteredFleet;
+      trailerNumber.setAttribute('aria-invalid', String(Boolean(hookMismatch || unreportedHook || mismatch || unregisteredFleet)));
       droppedNumber.setAttribute('aria-invalid', String(Boolean(wrongDrop || wrongArrivalDrop)));
       pickedNumber.setAttribute('aria-invalid', String(Boolean(wrongPickup)));
       check.setAttribute('aria-invalid', String(Boolean(missingBobtail)));
@@ -477,6 +525,7 @@ const driverLoadWorkflow = (() => {
       return !invalid;
     }
     check.addEventListener('change', updateTrailer);
+    trailerTypes.addEventListener('change', updateTrailer);
     for (const control of [trailerNumber, droppedNumber]) control.addEventListener('input', updateTrailer);
     pickedNumber.addEventListener('input', () => {
       if (pickedNumber.value.trim()) trailerNumber.value = pickedNumber.value.trim();
@@ -499,7 +548,7 @@ const driverLoadWorkflow = (() => {
       dropped,
       picked, field('Picked-up trailer status', state)
     ));
-    form.append(alert);
+    form.append(trailerTypes, serviceAlert, alert);
     const paperworkTitle = stop.kind === 'pickup' ? 'BOL' : 'proof of delivery';
     const paperwork = button('', () => {
       if (!draft.saving) driverPaperwork.edit(draft, 'Upload ' + paperworkTitle, pro(load) + ' · ' + stop.info.company, updatePaperwork);

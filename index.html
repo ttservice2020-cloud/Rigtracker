@@ -251,6 +251,15 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 .company-driver-summary a{color:inherit;text-decoration:underline}
 .company-driver-equipment{margin-top:12px}
 .company-driver-equipment-form{margin-top:10px}
+.company-driver-summary .company-driver-equipment-link{background:none;border:0;color:inherit;cursor:pointer;font:inherit;font-weight:inherit;padding:0;text-align:left;text-decoration:underline}
+.company-driver-trailer-type{display:block;margin-top:4px}
+.equipment-trailer-choices{display:flex;flex-wrap:wrap;gap:8px 16px;margin:10px 0;border:1px solid #2b4058;border-radius:8px;padding:8px 12px}
+.equipment-trailer-choices label{display:flex;align-items:center;gap:6px}
+.equipment-trailer-choices input{appearance:none;display:grid;place-content:center;flex:0 0 auto;width:18px;height:18px;margin:0;padding:0;border:1px solid #66809c;border-radius:4px}
+.equipment-trailer-choices input:checked{background:var(--accent);border-color:var(--accent);color:#071322}
+.equipment-trailer-choices input:checked::after{content:"✓";font-size:14px;font-weight:700;line-height:1}
+.equipment-trailer-choices input:disabled{opacity:.55}
+.equipment-trailer-choices .field{display:flex;flex-direction:row-reverse;align-items:center;margin:0}
 .equipment-required{color:#ff8585}
 .fleet-equipment-units{display:flex;flex-wrap:wrap;gap:8px}
 .fleet-equipment-units .outline[data-status="good"]{color:#a4edbe;border-color:#449769}
@@ -266,7 +275,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 #companySignupFields{border:0;padding:0;margin:0;min-inline-size:0}
 </style>
 <link rel="stylesheet" href="./dispatch.css?v=driver-tracking-1">
-<link rel="stylesheet" href="./driver-app.css?v=return-cargo-1">
+<link rel="stylesheet" href="./driver-app.css?v=equipment-status-1">
 <link rel="stylesheet" href="./office-tools.css?v=1">
 </head>
 <body>
@@ -1238,7 +1247,13 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
         <div class="field"><label for="companyDriverTruckNumber">Truck number</label><input id="companyDriverTruckNumber" name="truck_number" maxlength="40" autocomplete="off" autocapitalize="characters" spellcheck="false"></div>
         <div class="field"><label for="companyDriverTrailerNumber">Trailer number</label><input id="companyDriverTrailerNumber" name="trailer_number" maxlength="40" autocomplete="off" autocapitalize="characters" spellcheck="false"></div>
        </div>
-       <p class="muted">Enter Bobtail in the trailer field when the driver has no trailer.</p>
+       <fieldset class="equipment-trailer-choices" id="companyDriverTrailerTypeChoices">
+        <legend>Trailer Type</legend>
+        <label><input type="radio" name="trailer_type" value="fleet"> Fleet</label>
+        <label><input type="radio" name="trailer_type" value="power_only"> Power Only</label>
+       </fieldset>
+       <label class="office-toggle"><input type="checkbox" name="bobtail"> Bobtail (no trailer)</label>
+       <p class="muted">Search Equipment for saved trucks and fleet trailers. Choose Power Only for an outside trailer.</p>
        <p class="dispatch-form-issues hidden" id="companyDriverEquipmentError" role="alert"></p>
        <div class="dispatch-actions">
         <button class="primary-btn" type="submit">Save Equipment</button>
@@ -1631,11 +1646,11 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 <script src="./dispatch-rate-confirmation.js?v=1"></script>
 <script src="./dispatch.js?v=equipment-registry-1"></script>
 <script src="./linked-profiles.js?v=driver-profile-1"></script>
-<script src="./fleet-equipment.js?v=1"></script>
-<script src="./company-driver-tools.js?v=equipment-registry-1"></script>
+<script src="./fleet-equipment.js?v=profile-links-1"></script>
+<script src="./company-driver-tools.js?v=equipment-match-1"></script>
 <script src="./company-messages.js?v=driver-messages-1"></script>
 <script src="./driver-paperwork.js?v=1"></script>
-<script src="./driver-workflow.js?v=equipment-registry-1"></script>
+<script src="./driver-workflow.js?v=equipment-status-1"></script>
 <script src="./fleet-admin-driver.js?v=1"></script>
 <script src="./company-safety.js?v=1"></script>
 <script src="./driver-app.js?v=load-screen-1"></script>

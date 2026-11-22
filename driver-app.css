@@ -28,6 +28,7 @@
 .driver-trailer-alert{color:#ffb1ba;font-weight:600;margin:8px 0}
 .driver-trailer-alert:empty{display:none}
 #driverWorkflowDetail input[aria-invalid="true"]{border-color:#f45065}
+#driverWorkflowDetail input[data-out-of-service="true"]{color:#ff8b9a}
 .driver-load-tabs{display:flex;gap:8px;margin-top:12px}
 .driver-load-tabs button{flex:1;min-width:0;min-height:44px}
 .driver-load-tabs button[aria-selected="true"]{background:#182f4f;border-color:#81c4ff;color:#fff}

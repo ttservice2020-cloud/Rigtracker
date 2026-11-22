@@ -7,6 +7,10 @@ const companyDriverTools = (() => {
   const equipmentForm = byId('companyDriverEquipmentForm');
   const equipmentSave = equipmentForm.querySelector('button[type=submit]');
   const equipmentCancel = byId('companyDriverEquipmentCancel');
+  const trailerType = equipmentForm.elements.trailer_type;
+  const trailerNumber = equipmentForm.elements.trailer_number;
+  const bobtailInput = equipmentForm.elements.bobtail;
+  const trailerTypeChoices = byId('companyDriverTrailerTypeChoices');
   const historyPageSize = 25;
   const clockFormat = new Intl.DateTimeFormat(undefined, {
     year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
@@ -156,14 +160,46 @@ const companyDriverTools = (() => {
     }
   }
 
+  function equipmentFact(label, number, id) {
+    const fact = quickFact(label, number);
+    if (!id) return fact;
+    const link = button(number, () => openProfileEquipment(id));
+    link.className = 'company-driver-equipment-link';
+    link.setAttribute('aria-label', 'Open ' + label.toLowerCase() + ' ' + number + ' equipment profile');
+    fact.querySelector('dd').replaceChildren(link);
+    return fact;
+  }
+
+  async function openProfileEquipment(id) {
+    const selection = view;
+    if (!selection) return;
+    try {
+      if (selection.owner) await showFleetSection('dispatch', 'equipment');
+      else await showOfficeDispatch('equipment');
+      if (!sameAdmin(selection)) return;
+      await fleetEquipment.openRecord(selection.fleet, id, () => {
+        if (sameAdmin(selection)) return openAdmin(selection.profile, selection.source, undefined, selection.fleet);
+      });
+    } catch (error) {
+      if (sameAdmin(selection)) showToast(error.message || 'Could not open the equipment profile.');
+    }
+  }
+
   function paintQuickReference(profile) {
     const type = { company: 'Company Driver', owner_op: 'Owner Op' }[profile.driver_type];
     const phoneNumber = profile.phone?.replace(/[^+\d]/g, '');
+    const trailer = equipmentFact('Trailer', profile.trailer, profile.trailer_equipment_id);
+    const typeLabel = { fleet: 'Fleet', power_only: 'Power Only' }[profile.trailer_type];
+    if (typeLabel) {
+      const detail = trailer.querySelector('dd');
+      if (!detail.childElementCount) detail.replaceChildren(element('span', profile.trailer));
+      detail.append(element('small', typeLabel, 'muted company-driver-trailer-type'));
+    }
     byId('companyDriverAdminFacts').replaceChildren(
       quickFact('Name', name(profile)), quickFact('Phone', profile.phone, phoneNumber ? 'tel:' + phoneNumber : null),
       quickFact('Email', profile.email, profile.email ? 'mailto:' + profile.email : null),
       quickFact('Driver type', type), quickFact('DL number', profile.license_number),
-      quickFact('Truck', profile.truck), quickFact('Trailer', profile.trailer)
+      equipmentFact('Truck', profile.truck, profile.truck_equipment_id), trailer
     );
     equipmentEditor.classList.toggle('hidden', !profile.can_edit_equipment);
   }
@@ -181,6 +217,16 @@ const companyDriverTools = (() => {
       input.value = assignment || '';
       input.placeholder = !assignment && profile[value] ? 'Current load · ' + profile[value] : '';
     }
+    const assignment = profile.assigned_trailer_number;
+    bobtailInput.checked = assignment?.toLowerCase() === 'bobtail';
+    const type = assignment && !bobtailInput.checked ? profile.trailer_type : null;
+    for (const option of trailerType) option.checked = option.value === type;
+    if (bobtailInput.checked) trailerNumber.value = '';
+    paintTrailerInputs();
+  }
+
+  function paintTrailerInputs() {
+    trailerNumber.disabled = trailerTypeChoices.disabled = bobtailInput.checked;
   }
 
   function closeEquipmentForm(restoreFocus = true) {
@@ -202,12 +248,22 @@ const companyDriverTools = (() => {
     byId('companyDriverTruckNumber').focus();
   });
   equipmentCancel.addEventListener('click', () => closeEquipmentForm());
+  equipmentForm.addEventListener('change', event => {
+    if (!['bobtail', 'trailer_type'].includes(event.target.name)) return;
+    paintTrailerInputs();
+    showEquipmentError();
+  });
   byId('companyDriverEquipmentSearch').addEventListener('click', () => {
     const selection = view;
     if (!selection?.profile.can_edit_equipment || equipmentSave.disabled) return;
     void fleetEquipment.openPicker(selection.fleet, unit => {
       if (!sameAdmin(selection)) return;
       equipmentForm.elements.namedItem(unit.equipment_type + '_number').value = unit.unit_number;
+      if (unit.equipment_type === 'trailer') {
+        trailerType.value = 'fleet';
+        bobtailInput.checked = false;
+        paintTrailerInputs();
+      }
       showEquipmentError();
     });
   });
@@ -216,14 +272,21 @@ const companyDriverTools = (() => {
     event.preventDefault();
     const selection = view;
     if (!selection?.profile.can_edit_equipment || !selection.dispatchDriverId || equipmentSave.disabled) return;
-    const { truck_number, trailer_number } = Object.fromEntries(new FormData(equipmentForm));
-    const { assigned_truck_number, assigned_trailer_number } = selection.profile;
+    const { truck_number, trailer_number = '', trailer_type, bobtail } = Object.fromEntries(new FormData(equipmentForm));
+    if (trailer_number.trim() && trailer_number.trim().toLowerCase() !== 'bobtail' && !trailer_type) {
+      showEquipmentError('Choose Fleet or Power Only for this trailer.');
+      trailerType[0].focus();
+      return;
+    }
+    const { assigned_truck_number, assigned_trailer_number, assigned_trailer_type } = selection.profile;
     equipmentSave.disabled = equipmentCancel.disabled = true;
     showEquipmentError();
     try {
       const { data: profile, error } = await supabaseClient.rpc('set_dispatch_driver_equipment', {
         target_fleet: selection.fleet, target_driver: selection.dispatchDriverId,
-        truck_number, trailer_number, expected_truck: assigned_truck_number ?? null, expected_trailer: assigned_trailer_number ?? null
+        truck_number, trailer_number: bobtail ? 'Bobtail' : trailer_number, trailer_type: trailer_type ?? null,
+        expected_truck: assigned_truck_number ?? null, expected_trailer: assigned_trailer_number ?? null,
+        expected_trailer_type: assigned_trailer_type ?? null
       });
       if (error) throw error;
       if (!sameAdmin(selection)) return;
