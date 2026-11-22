@@ -628,17 +628,17 @@ const companyDriverTools = (() => {
     const rawTotal = load.pay_entry?.totalPay;
     const rawBase = load.pay_entry?.amount ?? load.manual_pay;
     const additional = Number(load.pay_entry?.additionalPay ?? load.additional_pay ?? 0) || 0;
-    const empty = Number(load.pay_entry?.emptyPay ?? 0) || 0;
+    const scale = load.pay_scale || {};
+    const emptyMiles = money(load.empty_miles) ? Number(load.empty_miles) : 0;
+    const empty = money(load.pay_entry?.emptyPay) ? Number(load.pay_entry.emptyPay)
+      : money(scale.empty_mile_rate) && money(load.empty_miles) ? emptyMiles * Number(scale.empty_mile_rate) : 0;
     const stop = Number(load.stop_pay ?? 0) || 0;
     let calculatedBase = null;
-    const scale = load.pay_scale || {};
     const loadedMiles = Number(load.loaded_miles);
-    const emptyMiles = money(load.empty_miles) ? Number(load.empty_miles) : 0;
     const gross = Number(load.gross);
     const rate = Number(scale.mile_rate);
     const percentage = Number(scale.split_percent);
-    const perMile = money(load.loaded_miles) && money(scale.mile_rate)
-      ? loadedMiles * rate + emptyMiles * (Number(scale.empty_mile_rate) || 0) : null;
+    const perMile = money(load.loaded_miles) && money(scale.mile_rate) ? loadedMiles * rate : null;
     const percent = money(load.gross) && money(scale.split_percent) ? gross * percentage / 100 : null;
     if (scale.method === 'per_mile') calculatedBase = perMile;
     else if (scale.method === 'load_percent') calculatedBase = percent;
@@ -646,10 +646,9 @@ const companyDriverTools = (() => {
     const baseKnown = money(rawTotal) || money(rawBase) || calculatedBase !== null;
     const base = money(rawTotal) ? Number(rawTotal)
       : money(rawBase) ? Number(rawBase) + empty + additional
-      : calculatedBase !== null ? calculatedBase + additional : additional;
+      : calculatedBase !== null ? calculatedBase + empty + additional : additional;
     return { baseKnown, base, empty, additional, stop, total: base + stop };
   }
-
   function createSettlementPreview() {
     const selected = [...byId('companyPayrollLoadSettlements').querySelectorAll('[data-settlement-load]:checked')]
       .map(input => payrollSettlementLoads.find(load => load.load_id === input.value)).filter(Boolean);
