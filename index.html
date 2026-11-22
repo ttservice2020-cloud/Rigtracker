@@ -274,7 +274,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 .driver-load-stops li[aria-current="step"]{border-color:#4c8dff;background:#13294a}
 #companySignupFields{border:0;padding:0;margin:0;min-inline-size:0}
 </style>
-<link rel="stylesheet" href="./dispatch.css?v=relay-driver-1">
+<link rel="stylesheet" href="./dispatch.css?v=load-history-table-1">
 <link rel="stylesheet" href="./driver-app.css?v=equipment-status-1">
 <link rel="stylesheet" href="./office-tools.css?v=1">
 </head>
@@ -858,7 +858,12 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
        </section>
        <section id="dispatch-panel-history" class="dispatch-panel hidden" role="tabpanel" aria-labelledby="dispatch-tab-history" tabindex="0">
         <p id="dispatchHistoryEmpty" class="muted" role="status"></p>
-        <div id="dispatchHistoryList" class="dispatch-load-list"></div>
+        <div id="dispatchHistoryTable" class="dispatch-history-scroll hidden">
+         <table class="dispatch-history-table" aria-label="Completed loads">
+          <thead><tr><th scope="col">Date</th><th scope="col">PRO</th><th scope="col">BOL</th><th scope="col">Shipper</th><th scope="col">Receiver</th><th scope="col">Load info</th></tr></thead>
+          <tbody id="dispatchHistoryList"></tbody>
+         </table>
+        </div>
        </section>
        <section class="dispatch-panel hidden" id="dispatch-panel-equipment" role="tabpanel" aria-labelledby="dispatch-tab-equipment">
         <section class="panel">
@@ -1650,9 +1655,9 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 </dialog>
 <div id="modal"><div class="modal-card"><h2 id="modalTitle"></h2><div id="modalBody"></div><button class="primary-btn" onclick="closeModal()">Close</button></div></div>
 
-<script src="./dispatch-progress.js?v=relay-driver-list-1"></script>
+<script src="./dispatch-progress.js?v=relay-resume-1"></script>
 <script src="./dispatch-rate-confirmation.js?v=1"></script>
-<script src="./dispatch.js?v=relay-driver-1"></script>
+<script src="./dispatch.js?v=relay-resume-1"></script>
 <script src="./linked-profiles.js?v=driver-profile-1"></script>
 <script src="./fleet-equipment.js?v=profile-links-1"></script>
 <script src="./company-driver-tools.js?v=lumper-payer-1"></script>

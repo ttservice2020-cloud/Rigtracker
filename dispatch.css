@@ -38,6 +38,16 @@
 .dispatch-load-row p{margin:2px 0;color:var(--muted)}
 .dispatch-load-row strong,.dispatch-load-row p{overflow-wrap:anywhere}
 .dispatch-load-row button{margin:0}
+.dispatch-history-scroll{max-width:100%;overflow-x:auto}
+.dispatch-history-table{width:100%;min-width:435px;table-layout:fixed;border-collapse:collapse;font-size:14px;background:#0e1927}
+.dispatch-history-table :is(th,td){padding:5px 8px;text-align:left;border-bottom:1px solid #263e5b}
+.dispatch-history-table th{color:var(--muted)}
+.dispatch-history-table th:first-child{width:94px}
+.dispatch-history-table th:nth-child(2){width:76px}
+.dispatch-history-table th:nth-child(3){width:15%}
+.dispatch-history-table :is(th,td):last-child{position:sticky;right:0;width:67px;text-align:right;background:#0e1927}
+.dispatch-history-table td:not(:last-child){overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.dispatch-history-table button{min-height:36px;margin:0;padding:5px 10px}
 .dispatch-fields .dispatch-checkbox{display:flex;align-items:center;gap:8px}
 .dispatch-fields .dispatch-checkbox label{margin:0}
 .dispatch-fields .dispatch-checkbox input{order:-1;width:18px;height:18px;min-height:0;margin:0;padding:0;accent-color:var(--accent)}

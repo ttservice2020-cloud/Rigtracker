@@ -36,6 +36,7 @@ const fleetDispatchApp = (() => {
   const companyCalculatedMethods = new Set(['load_percent', 'per_mile', 'higher_of']);
   const payCurrency = new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' });
   const payRate = new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 4 });
+  const historyDate = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
   const ownerAccess = { dispatch:true, drivers:true, equipment:true, maintenance:true, paySettings:true, messages:true };
   let state;
   let edit;
@@ -210,33 +211,51 @@ const fleetDispatchApp = (() => {
     });
   }
 
-  function selectTab(tab, focus = false, showDetail = false) {
+  function editorVisible() {
+    return !byId('dispatch-panel-create').classList.contains('hidden');
+  }
+
+  function selectTab(tab, focus = false, view = 'list') {
     const available = availableTabs();
     if (!available.some(node => node.dataset.dispatchTab === tab)) tab = available[0]?.dataset.dispatchTab;
     if (!tab) return;
     selectedTab = tab;
-    if (!showDetail) {
+    const showEditor = view === 'edit' || (view === 'list' && tab === 'create');
+    if (view !== 'detail') {
       progressView?.close();
-      watchLoad(tab === 'create' && edit?.row?.status !== 'completed' ? edit?.row?.id : null);
+      watchLoad(showEditor ? edit?.row?.id : null);
     }
     for (const node of tabs) {
-      const selected = node.dataset.dispatchTab === tab;
+      const name = node.dataset.dispatchTab;
+      const selected = name === tab;
+      const panel = 'dispatch-panel-' + name;
       node.classList.toggle('hidden', !available.includes(node));
       node.setAttribute('aria-selected', String(selected));
+      node.setAttribute('aria-controls', selected && showEditor ? 'dispatch-panel-create' : panel);
       node.tabIndex = selected ? 0 : -1;
-      toggle(node.getAttribute('aria-controls'), selected && !showDetail);
+      toggle(panel, selected && view === 'list');
       if (selected && focus) node.focus();
     }
-    if (tab === 'equipment' && !showDetail) {
+    toggle('dispatch-panel-create', showEditor);
+    byId('dispatch-panel-create').setAttribute('aria-labelledby', 'dispatch-tab-' + (showEditor ? tab : 'create'));
+    if (tab === 'equipment' && view === 'list') {
       const { fleetId, drivers, access } = state;
       const editDriver = access.dispatch ? driver => companyDriverTools.openRoster(driver, fleetId, true) : null;
       void fleetEquipment.open(fleetId, drivers, editDriver, access.maintenance);
     }
     if (tab === 'activity') void driverLoadWorkflow.refreshOffice(false, true);
-    if (['activity', 'create', 'locations'].includes(tab)) {
+    if (showEditor || tab === 'activity' || tab === 'locations') {
       void readLocations(state);
       if (tab === 'locations') paintLocations();
     }
+  }
+
+  function navigateTab(tab, focus = false) {
+    if (tab === 'create' && (edit?.row || edit?.contractId)) {
+      if (!canOpenLoad()) return;
+      installEditor();
+    }
+    selectTab(tab, focus);
   }
 
   byId('dispatchTabs').addEventListener('keydown', event => {
@@ -251,9 +270,9 @@ const fleetDispatchApp = (() => {
     }[event.key];
     if (landing === undefined) return;
     event.preventDefault();
-    selectTab(available[landing].dataset.dispatchTab, true);
+    navigateTab(available[landing].dataset.dispatchTab, true);
   });
-  for (const node of tabs) node.addEventListener('click', () => selectTab(node.dataset.dispatchTab));
+  for (const node of tabs) node.addEventListener('click', () => navigateTab(node.dataset.dispatchTab));
 
   function proLabel(number) {
     const load = state?.loads.find(item => String(item.pro_number) === String(number));
@@ -271,7 +290,9 @@ const fleetDispatchApp = (() => {
 
   function displayedDriverIds(load) {
     if (load.status === 'current' && load.progress?.relay?.droppedAt) {
-      return load.progress.relay.departedAt || load.progress.yardPickedUpAt ? [load.second_driver_id].filter(Boolean) : [];
+      const driver = load.progress.relay.departedAt ? dispatchProgress.relayDriverId(load)
+        : load.progress.yardPickedUpAt ? load.second_driver_id : null;
+      return [driver].filter(Boolean);
     }
     return [load.driver_id, load.second_driver_id].filter(Boolean);
   }
@@ -283,9 +304,13 @@ const fleetDispatchApp = (() => {
   }
 
   function relayDriverChoices(load) {
-    return (state?.drivers || []).filter(driver => driver.id !== load.driver_id &&
-      (driver.link_active !== false || driver.id === load.second_driver_id))
-      .map(driver => ({ id: driver.id, name: driver.name + (driver.link_active === false ? ' (unlinked)' : '') }));
+    const dropDriver = load.progress?.relay?.dropDriverId;
+    const scheduled = dispatchProgress.relayDriverId(load);
+    return (state?.drivers || []).filter(driver =>
+      (driver.id !== load.driver_id || driver.id === dropDriver) &&
+      (driver.link_active !== false || driver.id === scheduled))
+      .map(driver => ({ id: driver.id, name: driver.name + (driver.link_active === false ? ' (unlinked)'
+        : driver.id === load.driver_id ? ' (resume load)' : '') }));
   }
 
   function unassignedDriver(tag = 'span') {
@@ -424,7 +449,9 @@ const fleetDispatchApp = (() => {
     });
     const drafts = state.loads.filter(load => load.status === 'draft' && !load.return_of && matchesLoad(load, search));
     const contracts = state.loads.filter(load => load.status === 'contract');
-    const history = state.loads.filter(load => load.status === 'completed');
+    const completedAt = load => load.progress?.completedAt || load.updated_at;
+    const history = state.loads.filter(load => load.status === 'completed')
+      .sort((a, b) => Date.parse(completedAt(b)) - Date.parse(completedAt(a)));
 
     byId('dispatchRailStatus').textContent = state.loaded
       ? (current.length ? current.length + ' active' : 'No current loads')
@@ -463,7 +490,30 @@ const fleetDispatchApp = (() => {
     byId('dispatchContractEmpty').textContent = contracts.length || !state.loaded ? '' : 'No contract loads.';
     byId('dispatchContractList').replaceChildren(...contracts.map(load => loadRow(load, 'Use Contract', () => openLoad(load, true))));
     byId('dispatchHistoryEmpty').textContent = history.length || !state.loaded ? '' : 'No completed loads.';
-    byId('dispatchHistoryList').replaceChildren(...history.map(load => loadRow(load, 'View', () => viewLoad(load))));
+    toggle('dispatchHistoryTable', history.length > 0);
+    byId('dispatchHistoryList').replaceChildren(...history.map(load => {
+      const row = element('tr');
+      const date = element('td');
+      const instant = Date.parse(completedAt(load));
+      const time = element('time', Number.isFinite(instant) ? historyDate.format(instant) : '—');
+      if (Number.isFinite(instant)) time.dateTime = new Date(instant).toISOString();
+      date.append(time);
+      const pro = proLabel(load.pro_number);
+      const stopNames = stops => (stops || []).map(stop => stop.company).filter(Boolean).join(' / ');
+      const reportedBols = Object.values(load.progress?.stops || {}).map(stop => stop.driverReport?.bol);
+      const bols = [...new Set([load.details.bolNumber, ...reportedBols].filter(Boolean).map(String))].join(' / ');
+      const cells = [bols, stopNames(load.details.pickups), stopNames(load.details.receivers)].map(value => {
+        const cell = element('td', value || '—');
+        if (value) cell.title = value;
+        return cell;
+      });
+      const action = element('td');
+      const view = button('View', () => viewLoad(load));
+      view.setAttribute('aria-label', 'View ' + pro);
+      action.append(view);
+      row.append(date, element('td', pro), ...cells, action);
+      return row;
+    }));
   }
 
   function paintDrivers() {
@@ -523,7 +573,7 @@ const fleetDispatchApp = (() => {
       const select = byId(id);
       const value = select.value;
       const options = active.map(driver => new Option(driver.name, driver.id));
-      const existingId = edit?.row?.status === 'current' ? edit.row[field] : null;
+      const existingId = edit?.row?.[field];
       const existing = state.drivers.find(driver => driver.id === existingId && driver.link_active === false);
       if (existing) options.push(new Option(existing.name + ' (unlinked)', existing.id));
       select.replaceChildren(new Option('Select a driver', ''), ...options);
@@ -612,7 +662,7 @@ const fleetDispatchApp = (() => {
       if (max) node.maxLength = max;
       return node;
     };
-    const required = { required: true };
+    const required = { required: edit?.row?.status !== 'completed' };
     const company = input('text', 120);
     field('company', kind === 'pickup' ? 'Shipper name' : 'Receiver company name', company, { required: true, wide: true });
     field('date', kind === 'pickup' ? 'Pickup date' : 'Receiver date', input('date'), required);
@@ -644,7 +694,7 @@ const fleetDispatchApp = (() => {
       }));
       fields.append(actions);
     }
-    field('address', 'Street address', input('text', 180), { required: true, wide: true });
+    field('address', 'Street address', input('text', 180), { ...required, wide: true });
     field('city', 'City', input('text', 80), required);
     const region = input('text', 2);
     region.pattern = '[A-Za-z]{2}';
@@ -751,21 +801,19 @@ const fleetDispatchApp = (() => {
 
   function paintEditor() {
     const status = edit.row?.status;
-    const locked = status === 'completed';
-    const readOnly = !locked && edit.row && !canEditLoad(edit.row.id);
-    byId('dispatchLoadFields').disabled = locked || readOnly || edit.saving;
+    const readOnly = edit.row && !canEditLoad(edit.row.id);
+    byId('dispatchLoadFields').disabled = readOnly || edit.saving;
     paintLeaseStatus('dispatchEditorLock', readOnly ? edit.row.id : null);
     byId('dispatchFormHeading').textContent = status === 'draft' ? 'Edit draft'
-      : status === 'current' ? 'Edit load' : locked ? 'Completed load' : 'New load';
+      : status === 'completed' ? 'Edit completed load' : status === 'current' ? 'Edit load' : 'New load';
     byId('dispatchPro').textContent = edit.pro ? proLabel(edit.pro) : '—';
     byId('dispatchProStatus').textContent = edit.pro ? '' : edit.pending ? 'Assigning PRO number…'
       : edit.failed ? 'Could not assign a PRO number.' : 'A PRO number is assigned when you start entering the load.';
     toggle('dispatchProRetry', edit.failed && !edit.pending);
-    toggle('dispatchSubmit', !locked);
-    toggle('dispatchSaveDraft', !locked && status !== 'current');
-    toggle('dispatchSaveContract', !locked && status !== 'current');
+    toggle('dispatchSaveDraft', status !== 'completed' && status !== 'current');
+    toggle('dispatchSaveContract', status !== 'completed' && status !== 'current');
     toggle('dispatchComplete', status === 'current');
-    byId('dispatchSubmit').textContent = status === 'current' ? 'Save Changes' : 'Submit';
+    byId('dispatchSubmit').textContent = status === 'current' || status === 'completed' ? 'Save Changes' : 'Submit';
     for (const id of ['dispatchSubmit', 'dispatchSaveDraft', 'dispatchSaveContract', 'dispatchComplete', 'dispatchNewLoad']) {
       byId(id).disabled = edit.saving || (id !== 'dispatchNewLoad' && Boolean(readOnly));
     }
@@ -779,7 +827,7 @@ const fleetDispatchApp = (() => {
     const secondDriverMode = form.elements.secondDriverMode.value;
     const split = secondDriverMode === 'assigned';
     for (const field of stops.receiver.querySelectorAll('[data-stop-field="date"], [data-stop-field="from"]')) {
-      field.required = secondDriverMode === 'none';
+      field.required = edit.row?.status !== 'completed' && secondDriverMode === 'none';
     }
     toggle('dispatchDriver2Field', split);
     form.elements.driver2.disabled = !split;
@@ -903,13 +951,15 @@ const fleetDispatchApp = (() => {
   }
 
   function openLoad(load, fromContract = false) {
+    const tab = fromContract ? 'create' : load.status === 'completed' ? 'history' : 'current';
+    const view = fromContract ? 'list' : 'edit';
     if (load?.id === edit.row?.id && load?.updated_at === edit.row?.updated_at && !fromContract) {
-      selectTab('create', true);
+      selectTab(tab, true, view);
       return;
     }
     if (!canOpenLoad()) return;
     installEditor(load, fromContract);
-    selectTab('create', true);
+    selectTab(tab, true, view);
     if (fromContract) markEdited();
   }
 
@@ -1017,7 +1067,9 @@ const fleetDispatchApp = (() => {
   async function saveLoad(status) {
     const scope = state;
     const draft = edit;
-    if (!scope?.access.dispatch || draft.saving || draft.row?.status === 'completed') return;
+    if (!scope?.access.dispatch || draft.saving) return;
+    const wasCompleted = draft.row?.status === 'completed';
+    if (wasCompleted) status = 'completed';
     if (draft.row && !canEditLoad(draft.row.id)) return;
     if (status === 'completed' && !form.reportValidity()) return;
     if (status !== 'draft' && ['trailerDropStopId', 'trailerPickupStopId', ...relayFields]
@@ -1028,9 +1080,11 @@ const fleetDispatchApp = (() => {
       if (field && !field.reportValidity()) return;
     }
     const data = new FormData(form);
-    const details = Object.fromEntries(formDetails.map(key => [key, data.get(key)?.trim() ?? '']));
+    const details = { ...draft.row?.details, ...Object.fromEntries(formDetails.map(key => [key, data.get(key)?.trim() ?? ''])) };
     if (draft.truckFromDriver) details.truckFromDriver = 'yes';
+    else delete details.truckFromDriver;
     if (draft.trailerFromDriver) details.trailerFromDriver = 'yes';
+    else delete details.trailerFromDriver;
     if (details.fuelSurchargeOverride) details.fuelSurchargeOverride = Number(details.fuelSurchargeOverride).toFixed(4);
     for (const key of ['driver1AdditionalPay', 'driver2AdditionalPay']) {
       if (details[key]) details[key] = Number(details[key]).toFixed(2);
@@ -1118,7 +1172,8 @@ const fleetDispatchApp = (() => {
       mergeLoad(saved, true);
       const tab = status === 'contract' ? 'contract' : status === 'completed' ? 'history' : 'current';
       const message = status === 'current' ? ' saved to Current Loads.' : status === 'draft' ? ' saved as a draft.'
-        : status === 'contract' ? ' saved to Contract Loads.' : ' moved to Load History.';
+        : status === 'contract' ? ' saved to Contract Loads.'
+        : wasCompleted ? ' updated in Load History.' : ' moved to Load History.';
       showToast(proLabel(number) + message);
       installEditor();
       paintLoads();
@@ -1504,8 +1559,8 @@ const fleetDispatchApp = (() => {
   byId('dispatchComplete').addEventListener('click', () => { void saveLoad('completed'); });
   byId('dispatchNewLoad').addEventListener('click', () => {
     if (canOpenLoad()) {
-      watchLoad(null);
       installEditor();
+      selectTab('create', true);
     }
   });
   byId('dispatchReload').addEventListener('click', refresh);
@@ -1532,7 +1587,7 @@ const fleetDispatchApp = (() => {
       return;
     }
     const tab = latest.status === 'contract' ? 'contract' : latest.status === 'completed' ? 'history' : 'current';
-    selectTab(returnTab || tab, false, true);
+    selectTab(returnTab || tab, false, 'detail');
     watchLoad(latest.id);
     progressView.show(latest.id);
     void readLoadContacts(latest);
@@ -1624,7 +1679,7 @@ const fleetDispatchApp = (() => {
   }
 
   function repaintLease() {
-    if (edit && selectedTab === 'create') paintEditor();
+    if (edit && editorVisible()) paintEditor();
     progressView?.paint();
   }
 
@@ -1663,7 +1718,7 @@ const fleetDispatchApp = (() => {
       watchLoad(null);
       return;
     }
-    const id = progressView?.id() || (selectedTab === 'create' ? edit?.row?.id : null);
+    const id = progressView?.id() || (editorVisible() ? edit?.row?.id : null);
     watchLoad(id);
   }
 
@@ -1822,7 +1877,7 @@ const fleetDispatchApp = (() => {
       selectTab(destination);
       void readLocations(state);
     } else if (tab) {
-      selectTab(tab);
+      navigateTab(tab);
     }
     updateClock();
     return refresh();
