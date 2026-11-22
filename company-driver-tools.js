@@ -751,11 +751,18 @@ const companyDriverTools = (() => {
         checkbox.type = 'checkbox';
         checkbox.value = load.load_id;
         checkbox.dataset.settlementLoad = 'true';
-        choose.append(checkbox, element('span', 'Include'));
+        checkbox.disabled = Boolean(load.created_settlement);
+        choose.append(checkbox, element('span', load.created_settlement
+          ? 'Draft ' + load.created_settlement.number
+          : 'Include'));
+        if (load.created_settlement) {
+          summary.append(element('p', 'Saved in draft ' + load.created_settlement.number +
+            ' · ' + currency.format(Number(load.created_settlement.line_total || 0)), 'muted'));
+        }
         row.append(summary, choose);
         return row;
       }) : [element('p', 'No completed loads are assigned to this driver.', 'muted')]));
-      byId('companyPayrollCreateSettlement').disabled = !payrollSettlementLoads.length;
+      byId('companyPayrollCreateSettlement').disabled = !payrollSettlementLoads.some(load => !load.created_settlement);
     } catch (error) {
       if (active()) list.replaceChildren(element('p', error.message || 'Could not load completed loads.', 'muted'));
     }
