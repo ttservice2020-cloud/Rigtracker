@@ -1117,10 +1117,12 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
     <section class="panel"><h2>Driver settlements</h2><div class="field">
      <label for="companyPayrollDriver">Company Driver</label><select id="companyPayrollDriver"></select>
     </div><button class="outline" id="companyPayrollOpenDriver" type="button">Open Driver Records</button></section>
-    <section class="panel"><h2>Completed loads for settlement</h2>
-     <p class="muted">Completed loads and saved driver pay appear under the selected driver for payroll review.</p>
+    <section class="panel"><h2>Create Settlement</h2>
+     <p class="muted">Select completed loads to build a settlement preview with mileage, the driver’s profile pay scale, stop pay, and additional pay.</p>
      <div id="companyPayrollLoadSettlements" class="dispatch-load-list"><p class="muted">Select a driver to view completed loads.</p></div>
+     <button class="primary-btn" type="button" id="companyPayrollCreateSettlement" disabled>Create Settlement</button>
     </section>
+    <section class="panel hidden" id="companyPayrollSettlementPreview" aria-live="polite"></section>
     <section class="panel"><h2>Settlement reviews</h2><div id="companyPayrollQueue" class="dispatch-load-list"></div></section>
    </div>
    <div class="hidden" id="companyPayrollManage">
