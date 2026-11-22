@@ -453,7 +453,12 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
       <div class="message-notice-anchor">
        <button type="button" class="outline hidden" id="companyDispatchMessagesButton" onclick="companyMessaging.open()">Messages</button>
        <div class="company-message-notice-panel hidden" id="companyMessageNoticePanel" role="region" aria-label="New message notifications">
-        <div class="company-message-notice-header"><strong>New messages</strong><button type="button" id="companyMessageNoticeClose" aria-label="Close message notifications">×</button></div>
+        <div class="company-message-notice-header"><strong>New messages</strong><div class="message-notice-controls"><button type="button" id="companyMessageWatchEdit">Watch list</button><button type="button" id="companyMessageNoticeClose" aria-label="Close message notifications">×</button></div></div>
+        <section id="companyMessageWatchSettings" class="company-message-watch-settings hidden" aria-label="Message watch list">
+         <p>Watch conversations from or to these driver accounts. This only filters alerts.</p>
+         <div id="companyMessageWatchChoices"></div>
+         <button type="button" class="outline" id="companyMessageWatchSave">Save watch list</button>
+        </section>
         <div id="companyMessageNoticeList"></div>
        </div>
       </div>
