@@ -5,6 +5,7 @@ const fleetDispatchApp = (() => {
   const driverForm = byId('dispatchDriverForm');
   const tabs = [...byId('dispatchTabs').querySelectorAll('[role=tab]')];
   const stops = { pickup: byId('dispatchPickups'), receiver: byId('dispatchReceivers') };
+  const stopPhones = { pickup: byId('dispatchShipperPhones'), receiver: byId('dispatchReceiverPhones') };
   const formDetails = [
     'secondDriverMode', 'routeNumber', 'pickupNumber', 'commodity', 'commodityOther', 'weightLbs', 'pieces', 'equipmentType', 'equipmentTypeOther',
     'truckNumber', 'trailerNumber', 'brokerPhone', 'brokerEmail',
@@ -358,7 +359,7 @@ const fleetDispatchApp = (() => {
     group.dataset.stopId = data.stopId || crypto.randomUUID();
     const fields = element('div', '', 'dispatch-fields');
     const prefix = 'dispatch-stop-' + (++stopId) + '-';
-    const field = (key, label, input, { required = false, wide = false } = {}) => {
+    const field = (key, label, input, { required = false, wide = false, target = fields } = {}) => {
       input.id = prefix + key;
       input.dataset.stopField = key;
       input.required = required;
@@ -369,7 +370,8 @@ const fleetDispatchApp = (() => {
       const wrapper = element('div', '', 'field' + (wide ? ' dispatch-wide' : '') +
         (input.type === 'checkbox' ? ' dispatch-checkbox' : ''));
       wrapper.append(caption, input);
-      fields.append(wrapper);
+      target.append(wrapper);
+      return wrapper;
     };
     const input = (type = 'text', max) => {
       const node = element('input');
@@ -403,7 +405,7 @@ const fleetDispatchApp = (() => {
     zip.inputMode = 'numeric';
     zip.pattern = '[0-9]{5}(-[0-9]{4})?';
     field('zip', 'ZIP', zip, required);
-    field('phone', 'Contact number (optional)', input('tel', 40));
+    const phone = field('phone', '', input('tel', 40), { target: stopPhones[kind] });
     field('email', 'Contact email (optional)', input('email', 254));
     const notes = element('textarea');
     notes.maxLength = 1200;
@@ -414,6 +416,7 @@ const fleetDispatchApp = (() => {
     field('driver2', 'Include for Driver 2', input('checkbox'));
     const remove = button('Remove stop', () => {
       group.remove();
+      phone.remove();
       numberStops(kind);
       markEdited();
     });
@@ -427,14 +430,18 @@ const fleetDispatchApp = (() => {
     [...stops[kind].children].forEach((group, index, groups) => {
       const title = kind === 'pickup' ? 'Pickup ' + (index + 1) + ' / Shipper ' : 'Receiver ';
       group.querySelector('legend').textContent = title + (index + 1);
+      const contact = kind === 'pickup' ? 'Shipper' : 'Receiver';
+      const phoneLabel = stopPhones[kind].children[index].querySelector('label');
+      phoneLabel.textContent = contact + (groups.length > 1 ? ' ' + (index + 1) : '') + ' phone number (optional)';
       const recorded = edit?.row?.progress?.stops?.[group.dataset.stopId];
       group.querySelector('.dispatch-remove').classList.toggle('hidden', groups.length === 1 || Boolean(recorded));
     });
   }
 
   function getStops(kind) {
-    return [...stops[kind].children].map(group => ({
+    return [...stops[kind].children].map((group, index) => ({
       stopId: group.dataset.stopId,
+      phone: stopPhones[kind].children[index].querySelector('input').value.trim(),
       ...Object.fromEntries([...group.querySelectorAll('[data-stop-field]')].map(input => {
         const key = input.dataset.stopField;
         let value = input.type === 'checkbox' ? input.checked : input.value.trim();
@@ -517,6 +524,7 @@ const fleetDispatchApp = (() => {
       : assignment?.details?.secondDriverMode === 'unknown' ? 'unknown' : 'none';
     for (const [kind, source] of [['pickup', data.pickups], ['receiver', data.receivers]]) {
       stops[kind].replaceChildren();
+      stopPhones[kind].replaceChildren();
       (source?.length ? source : [{}]).forEach((stop, index) => addStop(kind, {
         ...stop, stopId: !fromContract && row ? stop.stopId || kind + '-' + index : null
       }));
@@ -1294,7 +1302,8 @@ const fleetDispatchApp = (() => {
     byId('dispatchDriverSearch').value = '';
     byId('dispatchDriverFilter').value = '';
     for (const id of ['dispatchRailList', 'dispatchCurrentList', 'dispatchDraftList', 'dispatchContractList',
-      'dispatchHistoryList', 'dispatchDriversList', 'dispatchPickups', 'dispatchReceivers']) byId(id).replaceChildren();
+      'dispatchHistoryList', 'dispatchDriversList', 'dispatchPickups', 'dispatchReceivers',
+      'dispatchShipperPhones', 'dispatchReceiverPhones']) byId(id).replaceChildren();
     toggle('dispatchReadError', false);
   }
 

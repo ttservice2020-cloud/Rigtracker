@@ -722,6 +722,8 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
           <details class="panel" id="dispatchFreightDetails">
            <summary>Freight Details</summary>
            <div class="dispatch-fields">
+            <div id="dispatchShipperPhones"></div>
+            <div id="dispatchReceiverPhones"></div>
             <div class="field"><label for="dispatchTruckNumber">Truck number</label><input id="dispatchTruckNumber" name="truckNumber" maxlength="40"></div>
             <div class="field"><label for="dispatchTrailerNumber">Trailer number</label><input id="dispatchTrailerNumber" name="trailerNumber" maxlength="40"></div>
             <div class="field"><label for="dispatchBrokerPhone">Broker contact number</label><input id="dispatchBrokerPhone" name="brokerPhone" type="tel" maxlength="40"></div>
@@ -1369,9 +1371,9 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 </dialog>
 <div id="modal"><div class="modal-card"><h2 id="modalTitle"></h2><div id="modalBody"></div><button class="primary-btn" onclick="closeModal()">Close</button></div></div>
 
-<script src="./dispatch-progress.js?v=driver-workflow-1"></script>
+<script src="./dispatch-progress.js?v=freight-details-1"></script>
 <script src="./dispatch-rate-confirmation.js?v=1"></script>
-<script src="./dispatch.js?v=rate-confirmation-pay-1"></script>
+<script src="./dispatch.js?v=freight-stop-phones-1"></script>
 <script src="./linked-profiles.js?v=short-profile-id-1"></script>
 <script src="./company-driver-tools.js?v=dispatch-pay-settings-1"></script>
 <script src="./company-messages.js?v=short-profile-id-1"></script>

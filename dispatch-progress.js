@@ -241,7 +241,6 @@ const dispatchProgress = (() => {
       const details = load.details || {};
       toggle('dispatchDetailFreightPopup', current);
       const commodity = details.commodity === 'Other' ? details.commodityOther : details.commodity;
-      const equipment = details.equipmentType === 'Other' ? details.equipmentTypeOther : details.equipmentType;
       const contacts = items => (items || []).map((stop, index) => [stop.company || 'Stop ' + (index + 1), stop.phone, stop.email].filter(Boolean).join(' · ')).filter(Boolean).join(' / ');
       const money = value => value !== '' && value !== null && value !== undefined && Number.isFinite(Number(value))
         ? new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' }).format(Number(value)) : '';
