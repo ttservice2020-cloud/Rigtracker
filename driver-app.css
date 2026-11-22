@@ -4,6 +4,14 @@
 .driver-install-dialog p{margin:12px 0 18px;line-height:1.5}
 .driver-install-dialog form{margin:0}
 .driver-page-actions{display:flex;flex-wrap:wrap;gap:8px}
+.driver-load-tabs{display:flex;gap:8px;margin-top:12px}
+.driver-load-tabs button{flex:1;min-width:0;min-height:44px}
+.driver-load-tabs button[aria-selected="true"]{background:#182f4f;border-color:#81c4ff;color:#fff}
+.driver-load-tabs button:focus-visible{outline:2px solid #81c4ff;outline-offset:2px}
+.driver-load-contacts{display:grid;gap:4px;margin:8px 0;font-size:14px}
+.driver-load-contacts>div{display:flex;flex-wrap:wrap;gap:4px 8px}
+.driver-load-contacts dt{color:#aecbe9}
+.driver-load-contacts dd{margin:0}
 #companyDriverTeamLinks{margin-bottom:12px}
 .company-driver-profile-link{text-align:left;font-weight:700}
 .company-safety-row{align-items:start}

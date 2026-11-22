@@ -20,6 +20,7 @@ const driverLoadWorkflow = (() => {
   };
   let driverData = empty();
   let selected = null;
+  let detailTab = 'progress';
   let driverRead = null;
   let officeRead = null;
   let driverSnapshot = '';
@@ -133,12 +134,13 @@ const driverLoadWorkflow = (() => {
     return value.length === 4 ? value.slice(0, 2) + ':' + value.slice(2) : value;
   }
 
-  function offerStops(load, kind) {
+  function offerStops(load, kind, includeReports = false) {
     const stops = load.stops.filter(stop => stop.kind === kind);
     const card = offerCard(kind === 'pickup' ? 'Pickup' : 'Delivery',
       stops.length + (stops.length === 1 ? ' stop' : ' stops'));
     const list = node('ol', '', 'load-offer-stops');
-    for (const { info } of stops) {
+    for (const stop of stops) {
+      const { info } = stop;
       const row = node('li');
       row.append(node('strong', info.company || 'Stop location'));
       const locality = [[info.city, info.state].filter(Boolean).join(', '), info.zip].filter(Boolean).join(' ');
@@ -150,7 +152,10 @@ const driverLoadWorkflow = (() => {
       const schedule = node('div', '', 'load-offer-appointment');
       schedule.append(node('span', 'Appointment'), node('strong', appointment || 'To be scheduled'));
       row.append(schedule);
+      const contacts = offerFields([['Phone', info.phone], ['Email', info.email]], 'driver-load-contacts');
+      if (contacts.childElementCount) row.append(contacts);
       if (info.notes) row.append(node('p', info.notes, 'load-offer-notes'));
+      if (includeReports) row.append(...stopReport(stop));
       list.append(row);
     }
     if (stops.length) card.append(list);
@@ -161,10 +166,16 @@ const driverLoadWorkflow = (() => {
   function offerFreight(freight) {
     const card = offerCard('Shipment Details');
     const fields = offerFields([
+      ['Route number', freight.route], ['Pickup number', freight.pickupNumber],
+      ['Broker load number', freight.brokerLoadNumber], ['Broker', freight.brokerName],
+      ['Broker phone', freight.brokerPhone], ['Broker email', freight.brokerEmail],
       ['Commodity', freight.commodity], ['Equipment', freight.equipment],
       ['Weight', offerNumber(freight.weight, quantity, ' lb')], ['Pieces', offerNumber(freight.pieces, quantity)],
-      ['Route', freight.route], ['Loaded miles', offerNumber(freight.miles, quantity, ' mi')],
-      ['Pickup number', freight.pickupNumber], ['Trailer drop', freight.trailerDrop], ['Trailer pickup', freight.trailerPickup]
+      ['Truck number', freight.truckNumber], ['Trailer number', freight.trailerNumber],
+      ['Loaded miles', offerNumber(freight.miles, quantity, ' mi')],
+      ['Empty miles', offerNumber(freight.emptyMiles, quantity, ' mi')],
+      ['Trailer drop', freight.trailerDrop], ['Trailer pickup', freight.trailerPickup],
+      ['Your stop pay', offerNumber(freight.stopPay, currency)]
     ], 'load-offer-freight');
     if (fields.childElementCount) card.append(fields);
     else card.append(node('p', 'No shipment details entered.', 'load-offer-empty'));
@@ -178,10 +189,6 @@ const driverLoadWorkflow = (() => {
     const amount = value => offerNumber(value, currency);
     const displayRate = value => offerNumber(value, rate, ' / mi');
     const rows = pay.method === 'split' ? [
-      ['Gross load pay', amount(pay.gross)],
-      ['Fuel surcharge rate', pay.fuelRateCents == null ? '' : displayRate(Number(pay.fuelRateCents) / 100)],
-      ['Route loaded miles', offerNumber(pay.loadedMiles, quantity, ' mi')],
-      ['Fuel surcharge', amount(pay.fuelSurcharge)], ['Gross after fuel', amount(pay.splitBase)],
       ['Your split', offerNumber(pay.splitPercent, quantity, '%')]
     ] : pay.method === 'per_mile' ? [
       ['Your rate', displayRate(pay.mileRate)], ['Your loaded miles', offerNumber(pay.miles, quantity, ' mi')]
@@ -264,6 +271,7 @@ const driverLoadWorkflow = (() => {
       const route = [place(load.stops[0]?.info), place(load.stops.at(-1)?.info)].filter(Boolean);
       if (route.length) summary.append(node('p', [...new Set(route)].join(' → ')));
       row.append(summary, button(isOffer(load) ? 'Review offer' : 'Open load', () => {
+        if (selected !== load.id) detailTab = 'progress';
         selected = load.id;
         paintDetails();
         byId('driverWorkflowDetail').scrollIntoView?.({ block: 'start' });
@@ -310,15 +318,27 @@ const driverLoadWorkflow = (() => {
         const departed = clock(stop.progress.completedAt, stop.info.zone);
         row.append(node('p', departed ? 'Arrived ' + time + ' · Departed ' + departed : 'Arrived ' + time, 'muted'));
       }
-      const report = stop.progress?.driverReport;
-      const freight = [report?.trailer && 'Trailer ' + report.trailer, report?.commodity,
-        report?.weight && 'Weight ' + report.weight, report?.pieces && report.pieces + ' pieces',
-        report?.bol && 'BOL ' + report.bol].filter(Boolean);
-      if (freight.length) row.append(node('p', freight.join(' · '), 'muted'));
-      if (report?.document) row.append(button(stop.kind === 'pickup' ? 'View BOL' : 'View delivery paperwork', () => openDocument(report.document)));
+      row.append(...stopReport(stop));
       list.append(row);
     }
     return list;
+  }
+
+  function stopReport(stop) {
+    const report = stop.progress?.driverReport;
+    if (!report) return [];
+    const details = [report.trailer && 'Trailer ' + report.trailer, report.commodity,
+      report.weight && 'Weight ' + report.weight, report.pieces && report.pieces + ' pieces',
+      report.bol && 'BOL ' + report.bol,
+      report.droppedTrailer && 'Dropped trailer ' + report.droppedTrailer,
+      report.pickedTrailer && 'Picked up trailer ' + report.pickedTrailer +
+        (report.loadedState ? ' (' + report.loadedState + ')' : '')].filter(Boolean);
+    const rows = [];
+    if (details.length) rows.push(node('p', details.join(' · '), 'muted'));
+    if (Number(report.lumperFee) > 0) rows.push(node('p', 'Lumper fee paid: ' + offerNumber(report.lumperFee, currency), 'muted'));
+    if (report.document) rows.push(button(stop.kind === 'pickup' ? 'View BOL' : 'View delivery paperwork',
+      () => openDocument(report.document)));
+    return rows;
   }
 
   function stopForm(load, stop) {
@@ -423,6 +443,43 @@ const driverLoadWorkflow = (() => {
     return form;
   }
 
+  function paintProgress(load, panel) {
+    panel.append(showAllStops(load));
+    if (load.decision !== 'accepted' || load.review === 'denied') return;
+    if (load.yard_handoff?.picked_up_at) {
+      const { trailer, yard, picked_up_at, first_driver } = load.yard_handoff;
+      panel.append(node('p', (first_driver ? 'Trailer handed off' : 'Yard pickup') + ' · ' + trailer + ' · ' + yard + ' · ' + clock(picked_up_at), 'muted'));
+    }
+    const handedOff = load.yard_handoff?.first_driver && load.yard_handoff?.picked_up_at;
+    if (!handedOff && (load.status === 'current' || load.review === 'pending')) {
+      const stop = load.stops.find(row => !row.progress?.completedAt);
+      if (stop && !stop.progress?.arrivalAt) panel.append(button('Arrive at ' + (stop.kind === 'pickup' ? 'Pickup' : 'Delivery'),
+        control => mutate(control, 'driver', 'arrive', load.id, { stop: stop.key }, 'Arrival recorded.'), 'primary-btn'));
+      else if (stop) panel.append(stopForm(load, stop));
+    }
+    if (!load.return_of && ['current','completed'].includes(load.status)) panel.append(returnForm(load));
+  }
+
+  function paintLoadInfo(load, panel) {
+    const freight = load.freight || {};
+    const cards = node('div', '', 'load-offer-grid');
+    cards.append(offerFreight(freight), offerStops(load, 'pickup', true), offerStops(load, 'delivery', true));
+    const relay = offerFields([
+      ['Relay location', freight.relayLocation], ['Relay date', freight.relayDate],
+      ['Driver 1 drop time', offerTime(freight.relayDrop)], ['Driver 2 pickup time', offerTime(freight.relayPickup)],
+      ['Driver 1 loaded miles', offerNumber(freight.firstLegMiles, quantity, ' mi')],
+      ['Driver 1 empty miles', offerNumber(freight.firstLegEmptyMiles, quantity, ' mi')],
+      ['Yard handoff', load.yard_handoff?.yard], ['Yard trailer', load.yard_handoff?.trailer]
+    ], 'load-offer-freight');
+    if (relay.childElementCount) {
+      const card = offerCard('Relay & Yard');
+      card.append(relay);
+      cards.append(card);
+    }
+    if (load.pay) cards.append(offerPay(load.pay));
+    panel.replaceChildren(cards);
+  }
+
   function paintDetails() {
     const panel = byId('driverWorkflowDetail');
     const load = driverData.loads.find(row => row.id === selected);
@@ -439,20 +496,46 @@ const driverLoadWorkflow = (() => {
       paintOffer(load, panel);
       return;
     }
-    panel.append(node('h3', 'Load Progress'), showAllStops(load));
-    if (load.decision !== 'accepted' || load.review === 'denied') return;
-    if (load.yard_handoff?.picked_up_at) {
-      const { trailer, yard, picked_up_at, first_driver } = load.yard_handoff;
-      panel.append(node('p', (first_driver ? 'Trailer handed off' : 'Yard pickup') + ' · ' + trailer + ' · ' + yard + ' · ' + clock(picked_up_at), 'muted'));
+
+    const tabs = node('div', '', 'driver-load-tabs');
+    tabs.setAttribute('role', 'tablist');
+    tabs.setAttribute('aria-label', 'Load details');
+    const views = [
+      ['progress', 'Load Progress', paintProgress], ['info', 'Load Info', paintLoadInfo]
+    ].map(([key, label, paint]) => {
+      const view = node('div');
+      view.id = 'driver-load-view-' + key;
+      view.setAttribute('role', 'tabpanel');
+      view.tabIndex = 0;
+      const control = button(label, () => activate(key));
+      control.id = 'driver-load-tab-' + key;
+      control.setAttribute('role', 'tab');
+      control.setAttribute('aria-controls', view.id);
+      view.setAttribute('aria-labelledby', control.id);
+      tabs.append(control);
+      paint(load, view);
+      return { key, view, control };
+    });
+    function activate(key) {
+      detailTab = key;
+      for (const entry of views) {
+        const active = entry.key === key;
+        entry.control.setAttribute('aria-selected', String(active));
+        entry.control.tabIndex = active ? 0 : -1;
+        entry.view.hidden = !active;
+      }
     }
-    const handedOff = load.yard_handoff?.first_driver && load.yard_handoff?.picked_up_at;
-    if (!handedOff && (load.status === 'current' || load.review === 'pending')) {
-      const stop = load.stops.find(row => !row.progress?.completedAt);
-      if (stop && !stop.progress?.arrivalAt) panel.append(button('Arrive at ' + (stop.kind === 'pickup' ? 'Pickup' : 'Delivery'),
-        control => mutate(control, 'driver', 'arrive', load.id, { stop: stop.key }, 'Arrival recorded.'), 'primary-btn'));
-      else if (stop) panel.append(stopForm(load, stop));
-    }
-    if (!load.return_of && ['current','completed'].includes(load.status)) panel.append(returnForm(load));
+    tabs.addEventListener('keydown', event => {
+      const index = views.findIndex(entry => entry.control === event.target);
+      if (index < 0 || !['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+      event.preventDefault();
+      const next = event.key === 'Home' ? views[0] : event.key === 'End' ? views.at(-1)
+        : views[(index + (event.key === 'ArrowRight' ? 1 : -1) + views.length) % views.length];
+      activate(next.key);
+      next.control.focus();
+    });
+    activate(detailTab);
+    panel.append(tabs, ...views.map(entry => entry.view));
   }
 
   function companyLoadUpdate(user, data, visible) {
@@ -506,9 +589,14 @@ const driverLoadWorkflow = (() => {
         const current = data.loads.find(load => load.id === selected);
         if (!current && unread.length) {
           selected = unread[0].id;
+          detailTab = 'progress';
           paintDetails();
-        } else if (redraw || (isOffer(previous) && JSON.stringify(previous) !== JSON.stringify(current))) {
+        } else if (redraw || (!current && previous) ||
+          (isOffer(previous) && JSON.stringify(previous) !== JSON.stringify(current))) {
           paintDetails();
+        } else if (current && JSON.stringify(previous) !== JSON.stringify(current)) {
+          const info = byId('driver-load-view-info');
+          if (info) paintLoadInfo(current, info);
         }
       }
     } catch (error) {
@@ -620,7 +708,10 @@ const driverLoadWorkflow = (() => {
   }
 
   function open() {
-    if (!byId('driverLoadsPage').classList.contains('active')) selected = null;
+    if (!byId('driverLoadsPage').classList.contains('active')) {
+      selected = null;
+      detailTab = 'progress';
+    }
     byId('driverLoadsTitle').textContent = accountTypeFor(currentUser) === 'fleet' ? 'My Loads' : 'Loads';
     showPage('driverLoadsPage');
     byId('driverWorkflowStatus').textContent = 'Loading your assignments…';
@@ -635,6 +726,7 @@ const driverLoadWorkflow = (() => {
 
   function reset() {
     driverRead = null; officeRead = null; selected = null;
+    detailTab = 'progress';
     driverSnapshot = ''; officeSnapshot = ''; driverData = empty(); seenLoadVersion = '';
     driverInitialized = false; officeInitialized = false;
     seenDriver = new Set(); seenOffice = new Set();
