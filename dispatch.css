@@ -169,3 +169,12 @@
 .company-message-notice-card small{color:var(--muted)}
 .company-message-notice-card span{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;color:#cad7e7;font-size:13px;line-height:1.35}
 @media(max-width:580px){.company-message-notice-panel{right:-3px;width:min(340px,90vw)}}
+
+.message-notice-controls{display:flex;align-items:center;gap:4px}
+.message-notice-controls button{min-height:34px;padding:5px 8px;border:1px solid #38506c;border-radius:7px;background:#152338;color:var(--white);font-size:12px}
+.company-message-watch-settings{padding:8px;margin-bottom:8px;background:#0c1522;border:1px solid #314761;border-radius:8px}
+.company-message-watch-settings p{margin:0 0 8px;color:var(--muted);font-size:12px}
+.company-message-watch-settings #companyMessageWatchChoices{display:grid;gap:5px;max-height:170px;overflow:auto;margin-bottom:8px}
+.company-message-watch-choice{display:flex;align-items:center;gap:8px;padding:4px 2px;color:var(--white);font-size:13px}
+.company-message-watch-choice input{width:16px;height:16px;margin:0;accent-color:#358ce0}
+.company-message-watch-settings>button{min-height:34px;padding:5px 9px;font-size:12px}
