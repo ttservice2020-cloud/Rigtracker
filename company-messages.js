@@ -13,6 +13,8 @@ const companyMessaging = (() => {
   let listRequest;
   let threadRequest;
   let noticeIds = new Set();
+  let noticeTimer;
+  let notifiedThread;
   let initialized = false;
   let draftId;
   let draftBody;
@@ -111,25 +113,33 @@ const companyMessaging = (() => {
       const control = byId(id);
       if (control) control.textContent = unread.length ? 'Messages (' + unread.length + ')' : 'Messages';
     }
-    const panel = byId('companyMessageNoticePanel');
-    const list = byId('companyMessageNoticeList');
-    if (!panel || !list) return;
-    list.replaceChildren(...(unread.length ? unread.map(thread => {
-      const card = element('button', '', 'company-message-notice-card');
-      card.type = 'button';
-      card.dataset.kind = thread.kind || 'dispatch';
-      card.append(element('strong', thread.contact || 'Driver'),
-        element('small', channels[thread.kind] || 'Message'));
-      if (thread.last_message?.body) card.append(element('span', thread.last_message.body));
-      card.addEventListener('click', async () => {
-        panel.classList.add('hidden');
-        await open();
-        const current = data?.threads.find(item => item.id === thread.id);
-        if (current) await openThread(current);
-      });
-      return card;
-    }) : [element('p', 'No unread messages.', 'muted')]));
-    if (fresh.length) panel.classList.remove('hidden');
+    const dispatch = byId('companyDispatchMessagesButton');
+    if (!dispatch.closest('.page.active') || dispatch.classList.contains('hidden')) {
+      dismissNotice();
+      return;
+    }
+    if (fresh.length) announceThread(fresh[0]);
+  }
+
+  function dismissNotice() {
+    clearTimeout(noticeTimer);
+    notifiedThread = null;
+    const notice = byId('companyMessageNotice');
+    if (document.activeElement === notice) byId('companyDispatchMessagesButton').focus();
+    notice.classList.add('hidden');
+    notice.textContent = '';
+    byId('companyMessageAnnouncement').textContent = '';
+  }
+
+  function announceThread(thread) {
+    clearTimeout(noticeTimer);
+    notifiedThread = thread.id;
+    const name = thread.contact || 'Driver';
+    const notice = byId('companyMessageNotice');
+    notice.textContent = name;
+    notice.classList.remove('hidden');
+    byId('companyMessageAnnouncement').textContent = 'New message from ' + name;
+    noticeTimer = setTimeout(dismissNotice, 2000);
   }
 
   function paintChannelChoices() {
@@ -209,6 +219,7 @@ const companyMessaging = (() => {
     const fleet = data.staff_fleet;
     const drivers = contacts?.drivers || [];
     const recipient = byId('companyMessageRecipient');
+    byId('companyMessageWatchSettings').classList.toggle('hidden', !fleet);
     const canChooseFleet = accountTypeFor(currentUser) === 'mechanic';
     byId('companyMessageStartPanel').classList.toggle('hidden', Boolean(crew()) || !data.linked_fleets.length);
     byId('companyMessageRecipientLabel').textContent = fleet ? 'Driver' : canChooseFleet ? 'Fleet' : 'Linked fleet';
@@ -396,17 +407,26 @@ const companyMessaging = (() => {
     } finally { control.disabled = false; }
   }
 
-  byId('companyMessageWatchEdit')?.addEventListener('click', () => {
-    paintWatchChoices();
-    byId('companyMessageWatchSettings').classList.toggle('hidden');
+  byId('companyMessageNotice').addEventListener('click', async () => {
+    const threadId = notifiedThread;
+    dismissNotice();
+    if (!threadId) return;
+    const user = currentUser;
+    await open();
+    if (user !== currentUser || !byId('companyMessagesPage').classList.contains('active')) return;
+    const current = data?.threads.find(thread => thread.id === threadId);
+    if (current) await openThread(current);
   });
-  byId('companyMessageWatchSave')?.addEventListener('click', () => {
+  byId('companyMessageWatchSettings').addEventListener('toggle', event => {
+    if (event.currentTarget.open) paintWatchChoices();
+  });
+  byId('companyMessageWatchForm').addEventListener('submit', event => {
+    event.preventDefault();
     const selected = [...byId('companyMessageWatchChoices').querySelectorAll('input:checked')].map(input => input.value);
     try { localStorage.setItem('rigtracker-message-watch:' + (currentUser?.id || ''), JSON.stringify(selected)); } catch {}
-    byId('companyMessageWatchSettings').classList.add('hidden');
+    byId('companyMessageWatchSettings').open = false;
     showBadges();
   });
-  byId('companyMessageNoticeClose')?.addEventListener('click', () => byId('companyMessageNoticePanel').classList.add('hidden'));
   byId('companyMessageRecipient').addEventListener('change',paintChannelChoices);
   byId('companyMessageDriverPicker').addEventListener('change',selectDriver);
   byId('companyMessageCrewFleet').addEventListener('change', event => {
@@ -500,6 +520,7 @@ const companyMessaging = (() => {
   });
 
   function reset() {
+    dismissNotice();
     data = null; contacts = null; selected = null; returnPage = null; listRequest = null; threadRequest = null;
     noticeIds = new Set(); initialized = false; historySignature = ''; draftBody = null; draftId = null;
     mechanicFleet = null; teamRequest = null;
@@ -512,6 +533,8 @@ const companyMessaging = (() => {
     byId('companyMessageThreads').replaceChildren();
     byId('companyMessageHistory').replaceChildren();
     byId('companyMessageThread').classList.add('hidden');
+    byId('companyMessageWatchSettings').open = false;
+    byId('companyMessageWatchSettings').classList.add('hidden');
     for (const id of badges) byId(id).textContent = 'Messages';
     if (byId('mechanicMessagesButton')) byId('mechanicMessagesButton').textContent = 'Messages';
   }

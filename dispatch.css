@@ -185,29 +185,19 @@
 }
 
 .fleet-page-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px;position:relative;z-index:20}
-.message-notice-anchor{position:relative}
-.company-message-notice-panel{position:absolute;top:calc(100% + 10px);right:0;width:min(360px,90vw);max-height:min(65vh,480px);overflow:auto;padding:12px;background:#101a28;border:1px solid #38506c;border-radius:12px;box-shadow:0 12px 34px #0009;z-index:50}
-.company-message-notice-header{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:8px}
-.company-message-notice-header button{min-width:34px;min-height:34px;border:0;border-radius:8px;background:transparent;color:var(--white);font-size:24px}
-#companyMessageNoticeList{display:grid;gap:8px}
-.company-message-notice-card{display:grid;gap:3px;width:100%;padding:9px 11px;text-align:left;color:var(--white);background:#0d1724;border:2px solid #3b526d;border-left-width:5px;border-radius:9px;overflow:hidden}
-.company-message-notice-card[data-kind="maintenance"]{border-color:#ef525d}
-.company-message-notice-card[data-kind="dispatch"]{border-color:#29b66c}
-.company-message-notice-card[data-kind="safety"]{border-color:#e7bd3b}
-.company-message-notice-card[data-kind="private"]{border-color:#7294ed}
-.company-message-notice-card strong{font-size:14px}
-.company-message-notice-card small{color:var(--muted)}
-.company-message-notice-card span{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;color:#cad7e7;font-size:13px;line-height:1.35}
-@media(max-width:580px){.company-message-notice-panel{right:-3px;width:min(340px,90vw)}}
+.message-notice-anchor{display:flex;align-items:center;gap:8px}
+.company-message-notice{min-width:0;max-width:min(11rem,35vw);height:28px;min-height:0;padding:2px 8px;
+ border:1px solid #426991;border-radius:8px;background:#132640;color:#d3eaff;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.company-message-announcement{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 
-.message-notice-controls{display:flex;align-items:center;gap:4px}
-.message-notice-controls button{min-height:34px;padding:5px 8px;border:1px solid #38506c;border-radius:7px;background:#152338;color:var(--white);font-size:12px}
 .company-message-watch-settings{padding:8px;margin-bottom:8px;background:#0c1522;border:1px solid #314761;border-radius:8px}
+.company-message-watch-settings summary{cursor:pointer;font-weight:700}
+.company-message-watch-settings form{margin-top:8px}
 .company-message-watch-settings p{margin:0 0 8px;color:var(--muted);font-size:12px}
 .company-message-watch-settings #companyMessageWatchChoices{display:grid;gap:5px;max-height:170px;overflow:auto;margin-bottom:8px}
 .company-message-watch-choice{display:flex;align-items:center;gap:8px;padding:4px 2px;color:var(--white);font-size:13px}
 .company-message-watch-choice input{width:16px;height:16px;margin:0;accent-color:#358ce0}
-.company-message-watch-settings>button{min-height:34px;padding:5px 9px;font-size:12px}
+.company-message-watch-settings form button{min-height:34px;padding:5px 9px;font-size:12px}
 
 .company-pay-load-row{grid-template-columns:minmax(0,1fr) auto;align-items:center}
 .settlement-load-include{display:flex;align-items:center;gap:6px;white-space:nowrap;color:#b8c9dd;font-size:13px}

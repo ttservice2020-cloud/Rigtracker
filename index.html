@@ -255,7 +255,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 .driver-load-stops li[aria-current="step"]{border-color:#4c8dff;background:#13294a}
 #companySignupFields{border:0;padding:0;margin:0;min-inline-size:0}
 </style>
-<link rel="stylesheet" href="./dispatch.css?v=load-header-1">
+<link rel="stylesheet" href="./dispatch.css?v=message-notice-1">
 <link rel="stylesheet" href="./driver-app.css?v=return-cargo-1">
 <link rel="stylesheet" href="./office-tools.css?v=1">
 </head>
@@ -451,16 +451,9 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
      </div>
      <div class="fleet-page-actions">
       <div class="message-notice-anchor">
+       <button type="button" class="company-message-notice hidden" id="companyMessageNotice"></button>
        <button type="button" class="outline hidden" id="companyDispatchMessagesButton" onclick="companyMessaging.open()">Messages</button>
-       <div class="company-message-notice-panel hidden" id="companyMessageNoticePanel" role="region" aria-label="New message notifications">
-        <div class="company-message-notice-header"><strong>New messages</strong><div class="message-notice-controls"><button type="button" id="companyMessageWatchEdit">Watch list</button><button type="button" id="companyMessageNoticeClose" aria-label="Close message notifications">×</button></div></div>
-        <section id="companyMessageWatchSettings" class="company-message-watch-settings hidden" aria-label="Message watch list">
-         <p>Watch conversations from or to these driver accounts. This only filters alerts.</p>
-         <div id="companyMessageWatchChoices"></div>
-         <button type="button" class="outline" id="companyMessageWatchSave">Save watch list</button>
-        </section>
-        <div id="companyMessageNoticeList"></div>
-       </div>
+       <span id="companyMessageAnnouncement" class="company-message-announcement" role="status"></span>
       </div>
       <div class="tag hidden" id="fleetIdBadge"></div>
      </div>
@@ -1227,6 +1220,14 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
     </div>
    </div>
    <p class="muted" role="status" id="companyMessagesStatus"></p>
+   <details id="companyMessageWatchSettings" class="company-message-watch-settings hidden">
+    <summary>Watch list</summary>
+    <form id="companyMessageWatchForm">
+     <p>Choose which drivers appear in Dispatch message alerts.</p>
+     <div id="companyMessageWatchChoices"></div>
+     <button type="submit" class="outline">Save watch list</button>
+    </form>
+   </details>
    <div class="driver-page-actions hidden" id="companyDriverTeamLinks" aria-label="Fleet messaging lines" role="group">
     <button class="outline" type="button" onclick="companyMessaging.openTeam('dispatch')">Dispatch</button>
     <button class="outline" type="button" onclick="companyMessaging.openTeam('maintenance')">Maintenance</button>
@@ -1420,7 +1421,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 <script src="./dispatch.js?v=load-header-1"></script>
 <script src="./linked-profiles.js?v=short-profile-id-1"></script>
 <script src="./company-driver-tools.js?v=paperwork-1"></script>
-<script src="./company-messages.js?v=load-header-1"></script>
+<script src="./company-messages.js?v=message-notice-1"></script>
 <script src="./driver-paperwork.js?v=1"></script>
 <script src="./driver-workflow.js?v=return-cargo-1"></script>
 <script src="./fleet-admin-driver.js?v=1"></script>
