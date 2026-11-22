@@ -8,8 +8,8 @@ const fleetDispatchApp = (() => {
   const formDetails = [
     'secondDriverMode', 'routeNumber', 'pickupNumber', 'commodity', 'commodityOther', 'weightLbs', 'pieces', 'equipmentType', 'equipmentTypeOther',
     'trailerDrop', 'trailerDropNotes', 'trailerPickup', 'trailerPickupNotes',
-    'payGross', 'driver1AdditionalPay', 'driver2AdditionalPay', 'loadedMiles', 'relayLocation', 'relayDate', 'relayDrop',
-    'relayPickup', 'firstLegMiles', 'driver1Pay', 'driver2Pay', 'emptyMiles', 'emptyRate', 'stopPay'
+    'brokerName', 'brokerLoadNumber', 'payGross', 'driver1AdditionalPay', 'driver2AdditionalPay', 'loadedMiles', 'relayLocation', 'relayDate', 'relayDrop',
+    'relayPickup', 'firstLegMiles', 'driver1Pay', 'driver2Pay', 'emptyMiles', 'firstLegEmptyMiles', 'emptyRate', 'fuelSurchargeOverride', 'stopPay'
   ].filter(key => form.elements.namedItem(key));
   const conditionalFreightFields = [
     ['commodity', 'commodityOther', 'dispatchCommodityOtherField'],
@@ -25,8 +25,8 @@ const fleetDispatchApp = (() => {
   ];
   const loadTable = 'fleet_dispatch_loads';
   const driverTable = 'fleet_dispatch_drivers';
-  const fuelTable = 'fleet_dispatch_fuel_rates';
-  const payLabels = { hourly: 'Hourly', split: 'Split Load', per_mile: 'Flat Rate per Mile' };
+  const payLabels = { hourly: 'Hourly', split: 'Split Load', per_mile: 'Per mile', load_percent: 'Load %', higher_of: 'Whichever is higher' };
+  const companyCalculatedMethods = new Set(['load_percent', 'per_mile', 'higher_of']);
   const payCurrency = new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' });
   const payRate = new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 4 });
   const ownerAccess = { dispatch:true, drivers:true, paySettings:true, messages:true };
@@ -36,6 +36,8 @@ const fleetDispatchApp = (() => {
   let selectedTab = 'current';
   let progressView;
   const progressEnabled = typeof dispatchProgress !== 'undefined' && Boolean(byId('dispatchLoadDetail'));
+  const ratePhoto = byId('dispatchRatePhoto');
+  const ratePhotoStatus = byId('dispatchRatePhotoStatus');
   const militaryTime = value => progressEnabled ? dispatchProgress.time(value) : value;
   const militaryPattern = '(?:[01][0-9]|2[0-3]):?[0-5][0-9]';
 
@@ -167,6 +169,8 @@ const fleetDispatchApp = (() => {
   }
 
   function paintLoads() {
+    const open = getLoad(progressView?.id());
+    toggle('dispatchDetailRateConfirmation', Boolean(open?.details.rateConfirmation?.path));
     const search = byId('dispatchLoadSearch').value.trim().toLowerCase();
     const current = state.loads.filter(load => load.status === 'current');
     const matching = current.filter(load => matchesLoad(load, search));
@@ -449,7 +453,10 @@ const fleetDispatchApp = (() => {
   }
 
   function paintAssignment() {
-    toggle('dispatchDriver2Field', form.elements.secondDriverMode.value === 'assigned');
+    const split = form.elements.secondDriverMode.value === 'assigned';
+    toggle('dispatchDriver2Field', split);
+    toggle('dispatchFirstEmptyLegField', split);
+    form.elements.firstLegEmptyMiles.disabled = !split;
     for (const [selection, description, field] of conditionalFreightFields) {
       const control = form.elements[selection];
       const visible = control.type === 'checkbox' ? control.checked : control.value === 'Other';
@@ -482,6 +489,7 @@ const fleetDispatchApp = (() => {
     };
     form.reset();
     for (const key of formDetails) {
+      if (fromContract && ['brokerLoadNumber', 'fuelSurchargeOverride', 'firstLegEmptyMiles'].includes(key)) continue;
       const field = form.elements[key];
       if (field.type === 'checkbox') field.checked = data[key] === field.value;
       else if (typeof data[key] === 'string') field.value = data[key];
@@ -503,6 +511,10 @@ const fleetDispatchApp = (() => {
       if (edit.contractId) form.elements.routeNumber.value = getRouteNumber(getLoad(edit.contractId)) || '';
     }
     if (fromContract && form.elements.pickupNumber) form.elements.pickupNumber.value = '';
+    toggle('dispatchLegacyEmptyRate', Boolean(data.emptyRate));
+    const attachment = edit.row?.details.rateConfirmation;
+    ratePhotoStatus.textContent = attachment ? 'Saved photo · ' + attachment.name : '';
+    toggle('dispatchEditorRateConfirmation', Boolean(attachment?.path));
     for (const details of form.querySelectorAll('details')) {
       details.open = details.id !== 'dispatchFreightDetails' &&
         Boolean(row && [...details.querySelectorAll('input')].some(input => input.value));
@@ -561,17 +573,84 @@ const fleetDispatchApp = (() => {
     if (!edit.failed) void reservePro();
   }
 
+  ratePhoto.addEventListener('change', async () => {
+    const scope = state;
+    const draft = edit;
+    const file = ratePhoto.files[0];
+    if (!scope?.access.dispatch || !draft || draft.saving || !file) return;
+    let attachment;
+    try {
+      attachment = dispatchRateConfirmation.photo(file);
+    } catch (error) {
+      ratePhoto.value = '';
+      draft.ratePhoto = null;
+      ratePhotoStatus.textContent = error.message;
+      return;
+    }
+    draft.ratePhoto = attachment;
+    markEdited();
+    ratePhotoStatus.textContent = 'Reading photo… You can keep entering load details.';
+    const active = () => state === scope && edit === draft && draft.ratePhoto === attachment && !draft.saving;
+    try {
+      const data = await dispatchRateConfirmation.scan(attachment);
+      if (!active()) return;
+      let filled = 0;
+      const apply = (field, value) => {
+        if (!field || field.value || !value) return;
+        field.value = field.maxLength > 0 ? value.slice(0, field.maxLength) : value;
+        if (field.value && field.validity.valid) filled += 1;
+        else field.value = '';
+      };
+      for (const [key, value] of Object.entries(data.fields)) apply(form.elements.namedItem(key), value);
+      for (const kind of ['pickup', 'receiver']) {
+        for (const [key, value] of Object.entries(data[kind])) {
+          apply(stops[kind].firstElementChild?.querySelector('[data-stop-field="' + key + '"]'), value);
+        }
+      }
+      paintAssignment();
+      paintDriverPay();
+      ratePhotoStatus.textContent = filled ? 'Review the filled fields and add any missing details. The original photo saves with the load.'
+        : 'No empty fields could be filled. You can enter the details and save the original photo.';
+    } catch {
+      if (active()) ratePhotoStatus.textContent = 'Could not read this photo. You can enter the details and save the original photo.';
+    }
+  });
+
+  async function viewRateConfirmation(attachment) {
+    if (!state?.access.dispatch || !attachment?.path) return;
+    const tab = window.open('about:blank', '_blank');
+    if (!tab) { showToast('Allow a new tab to open the rate confirmation.'); return; }
+    tab.opener = null;
+    try {
+      const { data, error } = await state.client.storage.from(dispatchRateConfirmation.bucket).createSignedUrl(attachment.path, 120);
+      if (error || !data?.signedUrl) throw error || new Error();
+      tab.location.replace(data.signedUrl);
+    } catch {
+      tab.close();
+      showToast('Could not open the rate confirmation photo.');
+    }
+  }
+
+  byId('dispatchEditorRateConfirmation').addEventListener('click', () => {
+    void viewRateConfirmation(edit?.row?.details.rateConfirmation);
+  });
+  byId('dispatchDetailRateConfirmation').addEventListener('click', () => {
+    void viewRateConfirmation(getLoad(progressView?.id())?.details.rateConfirmation);
+  });
+
   async function saveLoad(status) {
     const scope = state;
     const draft = edit;
     if (!scope?.access.dispatch || draft.saving || draft.row?.status === 'completed') return;
     if (status === 'completed' && !form.reportValidity()) return;
-    for (const name of ['weightLbs', 'pieces', 'driver1AdditionalPay', 'driver2AdditionalPay']) {
+    for (const name of ['payGross', 'weightLbs', 'pieces', 'driver1AdditionalPay', 'driver2AdditionalPay',
+      'emptyMiles', 'firstLegEmptyMiles', 'fuelSurchargeOverride']) {
       const field = form.elements.namedItem(name);
       if (field && !field.reportValidity()) return;
     }
     const data = new FormData(form);
     const details = Object.fromEntries(formDetails.map(key => [key, data.get(key)?.trim() ?? '']));
+    if (details.fuelSurchargeOverride) details.fuelSurchargeOverride = Number(details.fuelSurchargeOverride).toFixed(4);
     for (const key of ['driver1AdditionalPay', 'driver2AdditionalPay']) {
       if (details[key]) details[key] = Number(details[key]).toFixed(2);
     }
@@ -595,12 +674,32 @@ const fleetDispatchApp = (() => {
       showToast('Driver 1 leg miles cannot exceed route loaded miles.');
       return;
     }
+    if (details.emptyMiles !== '' && Number(details.firstLegEmptyMiles) > Number(details.emptyMiles)) {
+      showToast('Driver 1 empty miles cannot exceed the total empty miles.');
+      return;
+    }
 
     draft.saving = true;
     paintEditor();
     try {
       const number = await reservePro();
       if (!number || state !== scope || edit !== draft) return;
+      if (draft.row?.details.rateConfirmation) details.rateConfirmation = draft.row.details.rateConfirmation;
+      if (draft.ratePhoto) {
+        const photo = draft.ratePhoto;
+        const path = photo.path ??= scope.fleetId + '/' + draft.id + '/' + crypto.randomUUID() + '.' + photo.extension;
+        if (!photo.uploaded) {
+          const { error } = await scope.client.storage.from(dispatchRateConfirmation.bucket)
+            .upload(path, photo.file, { contentType: photo.contentType });
+          if (state !== scope || edit !== draft) return;
+          if (error && (error.statusCode !== '409' || error.error !== 'Duplicate')) {
+            showToast('Could not upload the rate confirmation photo. Try saving again.');
+            return;
+          }
+          photo.uploaded = true;
+        }
+        details.rateConfirmation = { path, name: photo.file.name.slice(0, 255) };
+      }
       if (status === 'contract') {
         details.routeNumber ||= 'R-' + number;
         details.pickupNumber = '';
@@ -700,8 +799,13 @@ const fleetDispatchApp = (() => {
   function payInputs() {
     return {
       pickups: [{ date: stops.pickup.querySelector('[data-stop-field=date]')?.value ?? '' }],
-      ...Object.fromEntries(['loadedMiles', 'firstLegMiles', 'payGross', 'driver1Pay', 'driver2Pay']
-        .map(key => [key, form.elements.namedItem(key)?.value ?? '']))
+      ...Object.fromEntries(['loadedMiles', 'firstLegMiles', 'payGross', 'driver1Pay', 'driver2Pay',
+        'emptyMiles', 'firstLegEmptyMiles', 'fuelSurchargeOverride'].map(key => {
+        const input = form.elements.namedItem(key);
+        let value = input && !input.disabled ? input.value : '';
+        if (key === 'fuelSurchargeOverride' && value && input.validity.valid) value = Number(value).toFixed(4);
+        return [key, value];
+      }))
     };
   }
 
@@ -728,7 +832,10 @@ const fleetDispatchApp = (() => {
     const lines = [];
     if (owners.some(driver => driver.method === 'split')) {
       if (result?.weekStart) lines.push('Pickup week of ' + result.weekStart);
-      if (result?.fuelRateCents != null) lines.push('Weekly fuel surcharge rate: ' + result.fuelRateCents + '¢ per mile');
+      if (result?.fuelRateCents != null) {
+        const label = result.fuelOverride ? 'Load fuel surcharge override' : 'Weekly fuel surcharge rate';
+        lines.push(label + ': ' + result.fuelRateCents + '¢ per mile');
+      }
       if (result?.fuelSurcharge != null) lines.push('Fuel surcharge total: ' + payCurrency.format(result.fuelSurcharge));
       if (result?.splitBase != null) lines.push('Gross after fuel surcharge: ' + payCurrency.format(result.splitBase));
     }
@@ -743,18 +850,24 @@ const fleetDispatchApp = (() => {
         : payRate.format(driver.mileRate) + ' per loaded mile';
       lines.push([name, terms, calculated?.amount != null ? payCurrency.format(calculated.amount) : calculated?.pending]
         .filter(Boolean).join(' · '));
+      if (driver.emptyMileRate != null) {
+        lines.push([driver.name, payRate.format(driver.emptyMileRate) + ' per empty mile',
+          calculated?.emptyMiles == null ? '' : calculated.emptyMiles + ' empty mi',
+          calculated?.emptyPay == null ? '' : payCurrency.format(calculated.emptyPay) + ' empty-mile pay']
+          .filter(Boolean).join(' · '));
+      }
     }
     breakdown.replaceChildren(...lines.map(line => element('p', line)));
 
     const totals = byId('dispatchAdditionalPayTotals');
-    if (!totals) return;
+
     const summaries = [];
     for (const driver of assigned) {
       const extra = form.elements['driver' + driver.slot + 'AdditionalPay'];
       if (!extra.validity.valid || !(extra.valueAsNumber > 0)) continue;
       const calculated = result?.drivers.find(entry => entry.slot === driver.slot);
       const manual = form.elements['driver' + driver.slot + 'Pay'];
-      const base = driver.type === 'owner_op' ? calculated?.amount
+      const base = driver.type === 'owner_op' || companyCalculatedMethods.has(driver.method) ? calculated?.amount
         : manual.value !== '' && manual.validity.valid ? manual.valueAsNumber : null;
       const additional = Math.round(extra.valueAsNumber * 100);
       const parts = [driver.name, payCurrency.format(additional / 100) + ' additional pay'];
@@ -764,6 +877,21 @@ const fleetDispatchApp = (() => {
       summaries.push(element('p', parts.join(' · ')));
     }
     totals.replaceChildren(...summaries);
+    const companyLines = assigned.filter(driver => driver.type === 'company' && companyCalculatedMethods.has(driver.method))
+      .map(driver => {
+        const entry = result?.drivers.find(item => item.slot === driver.slot);
+        const parts = [driver.name + ' · ' + payLabels[driver.method]];
+        if (driver.splitPercent != null) {
+          parts.push(driver.splitPercent + '% of gross' + (entry?.percentAmount == null ? '' : ' = ' + payCurrency.format(entry.percentAmount)));
+        }
+        if (driver.mileRate != null) {
+          parts.push(payRate.format(driver.mileRate) + ' per loaded mile' + (entry?.mileageAmount == null ? '' : ' = ' + payCurrency.format(entry.mileageAmount)));
+        }
+        if (entry?.amount != null) parts.push('Base pay ' + payCurrency.format(entry.amount));
+        if (entry?.pending) parts.push(entry.pending);
+        return element('p', parts.join(' · '));
+      });
+    byId('dispatchCompanyPayBreakdown').replaceChildren(...companyLines);
   }
 
   function paintDriverPay({ recalculate = false } = {}) {
@@ -782,18 +910,21 @@ const fleetDispatchApp = (() => {
         slot: index + 1, name: profile.name, type: terms ? terms.type : profile.driver_type,
         method: terms ? terms.method : profile.pay_method,
         splitPercent: terms ? terms.splitPercent : profile.split_percent,
-        mileRate: terms ? terms.mileRate : profile.mile_rate
+        mileRate: terms ? terms.mileRate : profile.mile_rate,
+        emptyMileRate: terms ? terms.emptyMileRate : profile.empty_mile_rate
       }];
     });
     const owners = assigned.filter(driver => driver.type === 'owner_op');
-    const manual = assigned.filter(driver => driver.type !== 'owner_op');
+    const company = assigned.filter(driver => driver.type !== 'owner_op');
+    const manual = company.filter(driver => !companyCalculatedMethods.has(driver.method));
+    const calculated = assigned.filter(driver => companyCalculatedMethods.has(driver.method) || driver.method === 'split');
     let category = editor.payCategory;
-    if ((category === 'owner' && !owners.length) || (category === 'company' && !manual.length) || !category) {
-      category = owners.length ? 'owner' : manual.length ? 'company' : null;
+    if ((category === 'owner' && !owners.length) || (category === 'company' && !company.length) || !category) {
+      category = owners.length ? 'owner' : company.length ? 'company' : null;
     }
     for (const [kind, drivers, control, section] of [
       ['owner', owners, 'dispatchOwnerPayTab', 'dispatchOwnerPayPanel'],
-      ['company', manual, 'dispatchCompanyPayTab', 'dispatchCompanyPayPanel']
+      ['company', company, 'dispatchCompanyPayTab', 'dispatchCompanyPayPanel']
     ]) {
       byId(control).disabled = !drivers.length;
       byId(control).setAttribute('aria-pressed', String(category === kind));
@@ -812,22 +943,19 @@ const fleetDispatchApp = (() => {
         form.elements['driver' + slot + 'AdditionalPay'].disabled = !visible;
       }
     }
-    const split = owners.some(driver => driver.method === 'split');
-    toggle('dispatchPayGrossField', split);
-    form.elements.payGross.disabled = !split;
     const unconfigured = manual.some(driver => !driver.type);
     const legacy = editor.row?.status === 'completed' && !editor.row.details.driverPay;
     const status = byId('dispatchPayStatus');
     status.textContent = !assigned.length ? 'Select a driver to see their pay setup.'
       : legacy ? 'This load was completed before pay profiles were added.'
       : unconfigured ? 'Set the driver type in Drivers to use a pay profile.' : '';
-    if (saved || legacy || !owners.some(driver => driver.method !== 'hourly') || !panel.open) {
+    if (saved || legacy || !calculated.length || !panel.open) {
       editor.payPreview = null;
       paintPayBreakdown(saved, owners, assigned);
       return;
     }
 
-    const key = JSON.stringify([ids, inputs, owners]);
+    const key = JSON.stringify([ids, inputs, calculated]);
     if (!recalculate && editor.payPreview?.key === key) {
       if (!status.textContent) status.textContent = editor.payPreview.message || '';
       paintPayBreakdown(editor.payPreview.result, owners, assigned);
@@ -864,16 +992,19 @@ const fleetDispatchApp = (() => {
       toggle('dispatchProfileCompanyMethodField', company);
       companyMethod.disabled = !company;
     }
-    const method = form.elements.payMethod.value;
+    const method = company ? companyMethod.value : form.elements.payMethod.value;
     for (const [field, input, visible] of [
       ['dispatchProfileMethodField', form.elements.payMethod, owner],
-      ['dispatchProfileSplitField', form.elements.splitPercent, owner && method === 'split'],
-      ['dispatchProfileMileField', form.elements.mileRate, owner && method === 'per_mile']
+      ['dispatchProfileSplitField', form.elements.splitPercent, (owner && method === 'split') || (company && ['load_percent', 'higher_of'].includes(method))],
+      ['dispatchProfileMileField', form.elements.mileRate, (owner || company) && ['per_mile', 'higher_of'].includes(method)]
     ]) {
       toggle(field, visible);
       input.disabled = !visible;
       input.required = visible;
     }
+    const emptyMile = owner && ['split', 'per_mile'].includes(method);
+    toggle('dispatchProfileEmptyMileField', emptyMile);
+    form.elements.emptyMileRate.disabled = !emptyMile;
   }
 
   function editPayProfile(driver) {
@@ -881,16 +1012,18 @@ const fleetDispatchApp = (() => {
     const form = byId('dispatchPayProfileForm');
     if (form.querySelector('button[type=submit]').disabled) return;
     state.payProfileId = driver.id;
-    const { driverType, payMethod, companyPayMethod, splitPercent, mileRate } = form.elements;
+    const { driverType, payMethod, companyPayMethod, splitPercent, mileRate, emptyMileRate } = form.elements;
     driverType.value = driver.driver_type ?? '';
     payMethod.value = driver.driver_type === 'owner_op' ? driver.pay_method ?? '' : '';
     if (companyPayMethod) companyPayMethod.value = driver.driver_type === 'company' ? driver.pay_method ?? '' : '';
     splitPercent.value = driver.split_percent ?? '';
     mileRate.value = driver.mile_rate ?? '';
+    emptyMileRate.value = driver.empty_mile_rate ?? '';
     byId('dispatchPayProfileHeading').textContent = driver.name + ' pay profile';
     toggle('dispatchPayProfile', true);
     paintPayProfileFields();
     driverType.focus();
+    form.scrollIntoView({ block: 'nearest' });
   }
 
   async function savePayProfile(event) {
@@ -903,7 +1036,8 @@ const fleetDispatchApp = (() => {
     const driverType = data.get('driverType');
     const profile = {
       driver_type: driverType, pay_method: (driverType === 'company' ? data.get('companyPayMethod') : data.get('payMethod')) || null,
-      split_percent: data.get('splitPercent'), mile_rate: data.get('mileRate')
+      split_percent: data.get('splitPercent') || null, mile_rate: data.get('mileRate') || null,
+      empty_mile_rate: data.get('emptyMileRate') || null
     };
     control.disabled = true;
     try {
@@ -925,68 +1059,6 @@ const fleetDispatchApp = (() => {
     }
   }
 
-  function thisMonday() {
-    const now = new Date();
-    const day = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
-    day.setUTCDate(day.getUTCDate() - (day.getUTCDay() + 6) % 7);
-    return day.toISOString().slice(0, 10);
-  }
-
-  async function readFuelRate() {
-    const scope = state;
-    const week = byId('dispatchFuelWeek');
-    const rate = byId('dispatchFuelRate');
-    const status = byId('dispatchFuelStatus');
-    if (!scope) return;
-    const request = {};
-    scope.fuelRequest = request;
-    if (!week.value) week.value = thisMonday();
-    rate.value = '';
-    if (!week.validity.valid) {
-      status.textContent = 'Choose a Monday to set the rate for that week.';
-      return;
-    }
-    status.textContent = 'Loading weekly rate…';
-    rate.disabled = true;
-    try {
-      const { data, error } = await scope.client.from(fuelTable).select('cents_per_mile')
-        .eq('fleet_id', scope.fleetId).eq('week_start', week.value).maybeSingle();
-      if (error) throw error;
-      if (state !== scope || scope.fuelRequest !== request) return;
-      rate.value = data?.cents_per_mile ?? '';
-      status.textContent = data ? 'This week’s rate is saved.' : 'No rate set for this week.';
-    } catch {
-      if (state === scope && scope.fuelRequest === request) status.textContent = 'Could not load this week’s rate.';
-    } finally {
-      if (state === scope && scope.fuelRequest === request) rate.disabled = false;
-    }
-  }
-
-  async function saveFuelRate(event) {
-    event.preventDefault();
-    const scope = state;
-    const form = event.currentTarget;
-    const control = form.querySelector('button[type=submit]');
-    if (!scope?.access.paySettings || control.disabled || form.elements.rate.disabled) return;
-    const data = new FormData(form);
-    control.disabled = true;
-    try {
-      const { error } = await scope.client.from(fuelTable).upsert({
-        fleet_id: scope.fleetId, week_start: data.get('week'), cents_per_mile: data.get('rate')
-      }, { onConflict: 'fleet_id,week_start' });
-      if (error) throw error;
-      if (state === scope) {
-        paintDriverPay({ recalculate: true });
-        showToast('Weekly fuel surcharge saved.');
-        void readFuelRate();
-      }
-    } catch {
-      if (state === scope) showToast('Could not save the weekly fuel surcharge.');
-    } finally {
-      control.disabled = false;
-    }
-  }
-
   if (byId('dispatchDriverPay')) {
     byId('dispatchDriverPay').addEventListener('toggle', () => paintDriverPay({ recalculate: true }));
     byId('dispatchOwnerPayTab').addEventListener('click', () => {
@@ -1002,11 +1074,7 @@ const fleetDispatchApp = (() => {
     byId('dispatchPayProfileCancel').addEventListener('click', () => {
       toggle('dispatchPayProfile', false);
     });
-    byId('dispatchFuelSettings').addEventListener('toggle', event => {
-      if (event.target.open) void readFuelRate();
-    });
-    byId('dispatchFuelWeek').addEventListener('change', readFuelRate);
-    byId('dispatchFuelForm').addEventListener('submit', saveFuelRate);
+
   }
 
   form.addEventListener('input', event => {
@@ -1205,12 +1273,7 @@ const fleetDispatchApp = (() => {
     selectedTab = 'current';
     form.reset();
     driverForm.reset();
-    if (byId('dispatchFuelForm')) {
-      byId('dispatchFuelForm').reset();
-      byId('dispatchFuelRate').disabled = false;
-      byId('dispatchFuelSettings').open = false;
-      toggle('dispatchPayProfile', false);
-    }
+    toggle('dispatchPayProfile', false);
     byId('dispatchLoadSearch').value = '';
     byId('dispatchDriverSearch').value = '';
     byId('dispatchDriverFilter').value = '';
@@ -1235,7 +1298,6 @@ const fleetDispatchApp = (() => {
     }
     byId('dispatchWorkspace').classList.toggle('office-drivers-only',!access.dispatch);
     toggle('companyDispatchMessagesButton',access.messages);
-    toggle('dispatchFuelSettings',access.paySettings);
     if (state?.fleetId !== fleetId || state.client !== client || JSON.stringify(state.access) !== JSON.stringify(access)) {
       const destination = tab || selectedTab;
       reset();
@@ -1258,5 +1320,11 @@ const fleetDispatchApp = (() => {
     if (load) viewLoad(load);
   }
 
-  return { open, reset, reload: refresh, openRecord };
+  function openPayProfile(id) {
+    const driver = state?.drivers.find(entry => entry.id === id);
+    if (driver) editPayProfile(driver);
+    return Boolean(driver);
+  }
+
+  return { open, reset, reload: refresh, openRecord, openPayProfile, refreshPayPreview: () => paintDriverPay({ recalculate: true }) };
 })();

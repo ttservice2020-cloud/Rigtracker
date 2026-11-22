@@ -84,7 +84,7 @@ const companyMessaging = (() => {
     byId('companyMessageDriverCard').classList.toggle('hidden', !driver);
     if (!driver) return;
     byId('companyMessageDriverName').textContent = driver.name;
-    byId('companyMessageDriverProfile').textContent = 'RigTracker ID ' + driver.profile_id + ' · ' + member.id;
+    byId('companyMessageDriverProfile').textContent = 'Fleet ' + member.id;
     const allowed = teamChannels.filter(channel => member.scope.includes(channel));
     if (driver.private_enabled) allowed.push('private');
     byId('companyMessageDriverLines').replaceChildren(...allowed.map(kind => {

@@ -4,7 +4,7 @@ let ownProfileRead=null;
 let linkPreview=null;
 let ownLinkKey=null;
 let ownKeyRequest=null;
-const linkKeyFormat=/^[A-F0-9]{20}$/;
+const linkKeyFormat=/^(?:[A-Z0-9]{6}|[A-F0-9]{20})$/;
 const cleanLinkKey=value=>value.replace(/[\s-]/g,'').toUpperCase();
 const linkExpiryFormat=new Intl.DateTimeFormat(undefined,{dateStyle:'medium',timeStyle:'short'});
 
@@ -136,6 +136,7 @@ async function saveRigTrackerLink(event){
     action:redeem?'redeem':'preview',link_key:key,employee_number:redeem&&employeeNumber?employeeNumber:null
    });
    if(error)throw error;
+   if(data?.link_key_error)throw new Error(data.link_key_error);
    if(!current())return;
    if(redeem){
     resetFleetLinkForm();
@@ -257,7 +258,7 @@ async function openOwnRigTrackerProfile({openLoads=false}={}){
  status.textContent='Loading your profile…';
  showPage('rigTrackerProfilePage');
  const {data:profile,error}=await supabaseClient.from('rigtracker_profiles')
-  .select('profile_id,first_name,last_name,phone,license_number,password_required').eq('user_id',user.id).maybeSingle();
+  .select('display_profile_id,first_name,last_name,phone,license_number,password_required').eq('user_id',user.id).maybeSingle();
  if(!current())return;
  if(error||!profile){
   status.textContent='Could not load your profile. Try signing in again.';
@@ -274,7 +275,7 @@ async function openOwnRigTrackerProfile({openLoads=false}={}){
  if((driver||role==='mechanic')&&typeof companyMessaging!=='undefined')void companyMessaging.refresh();
  const hasDriverWorkflow=(driver||role==='driver')&&typeof driverLoadWorkflow!=='undefined';
  if(hasDriverWorkflow&&!openLoads)void driverLoadWorkflow.refresh(true);
- document.getElementById('ownRigTrackerId').value=profile.profile_id;
+ paintOwnProfileId(profile.display_profile_id);
  const linkAccess={
   company:'Linked fleets can assign loads and share team messages and settlements with you.',
   driver:'Linked fleets can assign loads to you.',
@@ -311,6 +312,11 @@ async function openOwnRigTrackerProfile({openLoads=false}={}){
  }
 }
 
+function paintOwnProfileId(profileId){
+ document.getElementById('ownRigTrackerId').value=profileId||'';
+ document.getElementById('ownProfileIdHelp').classList.toggle('hidden',Boolean(profileId));
+}
+
 async function saveOwnRigTrackerProfile(event){
  event.preventDefault();
  const user=currentUser;
@@ -324,9 +330,12 @@ async function saveOwnRigTrackerProfile(event){
  }
  button.disabled=true;
  try{
-  const {error}=await supabaseClient.from('rigtracker_profiles').update(fields)
-   .eq('user_id',user.id).select('profile_id').single();
-  if(currentUser===user)showToast(error?'Could not save your profile. Try again.':'Profile saved.');
+  const {data,error}=await supabaseClient.from('rigtracker_profiles').update(fields)
+   .eq('user_id',user.id).select('display_profile_id').single();
+  if(currentUser===user){
+   if(!error)paintOwnProfileId(data.display_profile_id);
+   showToast(error?'Could not save your profile. Try again.':'Profile saved.');
+  }
  }finally{button.disabled=false}
 }
 

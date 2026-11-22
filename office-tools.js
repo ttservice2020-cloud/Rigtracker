@@ -19,6 +19,7 @@ const officeTools = (() => {
 
   const has = permission => Boolean(employee && (employee.office_is_official || employee.office_permissions.includes(permission)));
   const canLinkProfiles = () => Boolean(employee?.office_is_official && employee.office_can_link_profiles && !employee.password_required);
+  const fuelSettingsFleet = () => employee?.office_can_manage_fuel_settings && !employee.password_required ? employee.fleet_id : null;
   const messagesAllowed = () => ['messages','dispatch','assets','policies'].some(has) || hasPrivateThreads;
   const visible = (id, allowed) => byId(id).classList.toggle('hidden', !allowed);
   const displayName = row => [row.first_name,row.last_name].filter(Boolean).join(' ') || 'Office employee';
@@ -28,7 +29,8 @@ const officeTools = (() => {
       const key = tab.dataset.officeTool;
       const available = key === 'profiles' ? employee?.office_can_manage_profiles
         : key === 'link-profiles' ? canLinkProfiles()
-        : key === 'safety' ? employee?.office_is_official : key === 'messages' ? messagesAllowed() : has(key);
+        : key === 'safety' ? employee?.office_is_official : key === 'messages' ? messagesAllowed()
+        : key === 'settlements' ? has(key) || Boolean(fuelSettingsFleet()) : has(key);
       tab.classList.toggle('hidden', !available);
     }
     for (const group of document.querySelectorAll('[data-office-group]')) {
@@ -47,7 +49,7 @@ const officeTools = (() => {
 
   function readEmployee(user) {
     return supabaseClient.from('fleet_employees')
-      .select('fleet_id,employee_id,office_role,office_is_official,office_can_manage_profiles,office_can_link_profiles,office_permissions,password_required')
+      .select('fleet_id,employee_id,office_role,office_is_official,office_can_manage_profiles,office_can_link_profiles,office_can_manage_fuel_settings,office_permissions,password_required')
       .eq('user_id',user.id).maybeSingle();
   }
 
@@ -140,6 +142,7 @@ const officeTools = (() => {
     const official = byId('officeProfileDesignation').value === 'official';
     visible('officeProfileOfficialAccess',official);
     visible('officeProfileLinkAccess',Boolean(editing?.admin) && official);
+    visible('officeProfileFuelAccess',Boolean(editing?.admin));
     visible('officeProfilePermissionFields',!official);
   }
   byId('officeProfileDesignation').addEventListener('change',updateEditAccess);
@@ -152,6 +155,7 @@ const officeTools = (() => {
     byId('officeProfileDesignation').value = row.office_is_official ? 'official' : 'unofficial';
     byId('officeProfileManage').checked = row.office_can_manage_profiles;
     byId('officeProfileLink').checked = Boolean(row.office_can_link_profiles);
+    byId('officeProfileFuelSettings').checked = Boolean(row.office_can_manage_fuel_settings);
     visible('officeProfileDesignationFields',admin);
     const assigned = row.office_permissions || [];
     byId('officeProfilePermissionOptions').replaceChildren(...permissionLabels.map(([key,label])=>{
@@ -197,6 +201,7 @@ const officeTools = (() => {
       settings.is_official = byId('officeProfileDesignation').value === 'official';
       settings.can_manage_profiles = byId('officeProfileManage').checked;
       settings.can_link_profiles = settings.is_official && byId('officeProfileLink').checked;
+      settings.can_manage_fuel_settings = byId('officeProfileFuelSettings').checked;
     }
     void saveChange(selection=>rpc('edit',selection.fleet,selection.row,settings),()=> 'Access updated.');
   });
@@ -310,5 +315,5 @@ const officeTools = (() => {
     renderTools();
   }
 
-  return { has,canLinkProfiles,readEmployee,setEmployee,refreshEmployee,setPrivateThreads,openDashboard,dispatchFleet,dispatchAccess,loadRoster,updateCreateAccess,reset };
+  return { has,canLinkProfiles,fuelSettingsFleet,readEmployee,setEmployee,refreshEmployee,setPrivateThreads,openDashboard,dispatchFleet,dispatchAccess,loadRoster,updateCreateAccess,reset };
 })();

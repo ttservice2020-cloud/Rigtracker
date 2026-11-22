@@ -45,7 +45,7 @@ begin
     raise exception 'Fleet Admin access is required to view this driver profile.' using errcode = '42501';
   end if;
 
-  select p.user_id, p.profile_id, p.first_name, p.last_name, p.phone, p.license_number,
+  select p.user_id, p.profile_id, p.display_profile_id, p.first_name, p.last_name, p.phone, p.license_number,
     l.employee_number, l.dispatch_driver_id, l.unlinked_at, d.equipment, d.availability
   into driver
   from public.rigtracker_fleet_links l
@@ -65,9 +65,9 @@ begin
     into recent_activity from fleet_internal.company_driver_presence p
     where p.user_id = driver.user_id and driver.unlinked_at is null;
     if action = 'presence' then return coalesce(recent_activity, '{}'::jsonb); end if;
-    return jsonb_build_object('profile_id', driver.profile_id, 'first_name', driver.first_name,
+    return jsonb_build_object('profile_id', driver.profile_id, 'display_profile_id', driver.display_profile_id, 'first_name', driver.first_name,
       'last_name', driver.last_name, 'employee_number', driver.employee_number,
-      'linked', driver.unlinked_at is null, 'equipment', driver.equipment,
+      'linked', driver.unlinked_at is null, 'dispatch_driver_id', driver.dispatch_driver_id, 'equipment', driver.equipment,
       'availability', case
         when driver.unlinked_at is not null then null
         when exists(select 1 from public.fleet_dispatch_loads l
