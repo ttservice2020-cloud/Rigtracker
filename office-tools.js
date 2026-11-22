@@ -16,6 +16,8 @@ const officeTools = (() => {
   let pending = false;
   let hasPrivateThreads = false;
   let employeeRequest;
+  let clockRequest;
+  let officeShift;
 
   const has = permission => Boolean(employee && (employee.office_is_official || employee.office_permissions.includes(permission)));
   const canLinkProfiles = () => Boolean(employee?.office_is_official && employee.office_can_link_profiles && !employee.password_required);
@@ -39,12 +41,73 @@ const officeTools = (() => {
     visible('officeNoTools', Boolean(employee) && tabs.every(tab => tab.classList.contains('hidden')));
   }
 
+  function paintClock() {
+    const widget = byId('officeClockWidget');
+    const control = byId('officeClockToggle');
+    const enabled = Boolean(employee && has('hourly'));
+    widget.classList.toggle('hidden', !enabled);
+    if (!enabled) return;
+    const active = Boolean(officeShift?.clocked_in);
+    byId('officeClockStatus').textContent = active
+      ? 'Started ' + clock.format(new Date(officeShift.started_at))
+      : 'Not clocked in';
+    control.textContent = active ? 'Stop' : 'Start';
+    control.setAttribute('aria-label', active ? 'Stop work time clock' : 'Start work time clock');
+  }
+
+  async function refreshClock() {
+    const user = currentUser;
+    if (!user || !employee || !has('hourly')) { paintClock(); return; }
+    const request = {};
+    clockRequest = request;
+    try {
+      const { data, error } = await supabaseClient.rpc('fleet_employee_time_clock', {
+        action: 'clock_status', target_fleet: employee.fleet_id
+      });
+      if (error) throw error;
+      if (currentUser !== user || clockRequest !== request) return;
+      officeShift = data;
+      paintClock();
+    } catch {
+      if (currentUser === user && clockRequest === request) {
+        officeShift = null;
+        byId('officeClockStatus').textContent = 'Clock unavailable';
+        paintClock();
+      }
+    }
+  }
+
+  async function toggleClock() {
+    if (!employee || !has('hourly')) return;
+    const user = currentUser;
+    const action = officeShift?.clocked_in ? 'clock_out' : 'clock_in';
+    const control = byId('officeClockToggle');
+    control.disabled = true;
+    try {
+      const { data, error } = await supabaseClient.rpc('fleet_employee_time_clock', {
+        action, target_fleet: employee.fleet_id
+      });
+      if (error) throw error;
+      if (currentUser !== user) return;
+      officeShift = data;
+      paintClock();
+    } catch (error) {
+      if (currentUser === user) showToast(error.message || 'Could not update the work time clock.');
+    } finally {
+      control.disabled = false;
+    }
+  }
+
+  byId('officeClockToggle').addEventListener('click', () => void toggleClock());
+
   function setEmployee(profile) {
     employee = { ...profile, office_permissions: profile.office_permissions || [] };
     byId('employeeAccountSummary').textContent = profile.fleet_id + '-' + profile.employee_id
       + (profile.office_role ? ' · ' + profile.office_role : '');
     visible('officeDashboardTools', true);
     renderTools();
+    paintClock();
+    void refreshClock();
   }
 
   function readEmployee(user) {
@@ -257,28 +320,33 @@ const officeTools = (() => {
     showPage('officeHourlyPage');
     const status = byId('officeHourlyStatus');
     const list = byId('officeHourlyRows');
-    status.textContent = 'Loading recent shifts…';
+    status.textContent = 'Loading office employee shifts…';
     list.replaceChildren();
     try {
-      const {data,error} = await supabaseClient.rpc('company_driver_resources',{action:'hourly_roster',fleet});
+      const {data,error} = await supabaseClient.rpc('fleet_employee_time_clock',{
+        action:'hourly_roster', target_fleet:fleet,
+        params:{from:byId('officePayrollFrom').value,to:byId('officePayrollTo').value}
+      });
       if (error) throw error;
       if (user !== currentUser || fleet !== employee?.fleet_id) return;
-      status.textContent = data.length ? '' : 'No Company Driver shifts recorded.';
-      list.replaceChildren(...data.map(shift=>{
+      const people = data?.employees || [];
+      const rows = people.flatMap(person => (person.shifts || []).map(shift => {
         const row = document.createElement('article');
         row.className = 'dispatch-load-row';
         const name = document.createElement('strong');
-        name.textContent = shift.name;
+        name.textContent = person.name + ' · ' + data.fleet_id + '-' + person.employee_id;
         const times = document.createElement('span');
-        times.textContent = clock.format(new Date(shift.started_at)) + ' → ' + (shift.ended_at ? clock.format(new Date(shift.ended_at)) : 'Clocked in');
+        times.textContent = clock.format(new Date(shift.started_at)) + ' → ' +
+          (shift.ended_at ? clock.format(new Date(shift.ended_at)) : 'Clocked in');
         row.append(name,times);
         return row;
       }));
+      status.textContent = rows.length ? '' : 'No office employee shifts recorded in this period.';
+      list.replaceChildren(...rows);
     } catch (error) {
-      if (user === currentUser) status.textContent = error.message || 'Could not load recent shifts.';
+      if (user === currentUser) status.textContent = error.message || 'Could not load hourly office shifts.';
     }
   }
-
   function openProfileLink() {
     if (!canLinkProfiles()) return;
     fleetSection = 'links';
@@ -291,8 +359,8 @@ const officeTools = (() => {
     'link-profiles':openProfileLink,
     bol_payments:()=>fleetBolPayments.open(employee.fleet_id),
     dispatch:()=>showOfficeDispatch('current'),drivers:()=>showOfficeDispatch('drivers'),
-    messages:()=>companyMessaging.open(),payroll:()=>companyDriverTools.openPayroll(),
-    settlements:()=>companyDriverTools.openPayroll('Pay Settlements'),safety:()=>companySafety.open(),
+    messages:()=>companyMessaging.open(),payroll:()=>officePayroll.open(),
+    settlements:()=>companyDriverTools.openPayroll('Load Settlements'),safety:()=>companySafety.open(),
     hourly:openHourly,profiles:()=>{ showPage('officeProfilesPage'); return loadRoster('officeProfiles',employee.fleet_id); }
   };
   for (const tab of tabs) tab.addEventListener('click',()=>{
@@ -308,6 +376,9 @@ const officeTools = (() => {
     requests.clear();
     hasPrivateThreads = false;
     employeeRequest = null;
+    clockRequest = null;
+    officeShift = null;
+    byId('officeClockWidget').classList.add('hidden');
     if (dialog.open) dialog.close();
     passwordForm.reset();
     for (const id of ['officeProfilesRows','officeHourlyRows','officeProfilePermissionOptions']) byId(id).replaceChildren();
