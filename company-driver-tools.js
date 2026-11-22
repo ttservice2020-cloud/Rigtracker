@@ -14,6 +14,7 @@ const companyDriverTools = (() => {
   let replacementKey;
   let payroll;
   let payrollRequest;
+  let payrollLoadRequest;
   let payrollOrigin;
   let payrollSection;
   let fuelRequest;
@@ -607,11 +608,57 @@ const companyDriverTools = (() => {
     } finally { if (payrollRequest === request) payrollRequest = null; }
   }
 
+  async function loadSettlementLoads(fleet, profileId) {
+    const list = byId('companyPayrollLoadSettlements');
+    const request = {};
+    payrollLoadRequest = request;
+    const active = () => payrollLoadRequest === request && currentUser && byId('companyPayrollPage').classList.contains('active');
+    if (!profileId) {
+      list.replaceChildren(element('p', 'Select a driver to view completed loads.', 'muted'));
+      return;
+    }
+    list.replaceChildren(element('p', 'Loading completed loads…', 'muted'));
+    try {
+      const { data, error } = await supabaseClient.rpc('company_driver_load_settlements', {
+        target_fleet: fleet, target_profile: profileId
+      });
+      if (error) throw error;
+      if (!active()) return;
+      const rows = Array.isArray(data) ? data : [];
+      const currency = new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' });
+      list.replaceChildren(...(rows.length ? rows.map(load => {
+        const row = element('article', '', 'dispatch-load-row');
+        const summary = element('div');
+        const label = (load.is_return ? 'B-' : 'A-') + load.pro_number;
+        const place = stop => [stop?.city, stop?.state].filter(Boolean).join(', ') || stop?.company || '';
+        const route = [place(load.pickup), place(load.receiver)].filter(Boolean).join(' → ');
+        summary.append(element('strong', label + (load.route_number ? ' · Route ' + load.route_number : '')));
+        if (route) summary.append(element('p', route));
+        if (load.updated_at) summary.append(element('p', 'Completed ' + clockFormat.format(new Date(load.updated_at)), 'muted'));
+        const amount = Number(load.pay_entry?.amount ?? load.manual_pay);
+        const emptyPay = Number(load.pay_entry?.emptyPay ?? 0);
+        const additional = Number(load.additional_pay ?? 0);
+        if (Number.isFinite(amount)) {
+          summary.append(element('p', 'Saved driver pay: ' + currency.format(amount + emptyPay + additional)));
+        } else if (additional > 0) {
+          summary.append(element('p', 'Additional pay: ' + currency.format(additional) + ' · Base pay needs review.', 'muted'));
+        } else {
+          summary.append(element('p', 'Pay details need review before settlement.', 'muted'));
+        }
+        row.append(summary);
+        return row;
+      }) : [element('p', 'No completed loads are assigned to this driver.', 'muted')]));
+    } catch (error) {
+      if (active()) list.replaceChildren(element('p', error.message || 'Could not load completed loads.', 'muted'));
+    }
+  }
+
   function paintPayroll(queue) {
     const picker = byId('companyPayrollDriver');
     const selected = picker.value;
     picker.replaceChildren(new Option('Select a Company Driver', ''), ...queue.drivers.map(driver => new Option(name(driver), driver.profile_id)));
     if (queue.drivers.some(driver => driver.profile_id === selected)) picker.value = selected;
+    picker.onchange = () => void loadSettlementLoads(payroll?.fleet_id, picker.value);
     byId('companyPayrollOpenDriver').onclick = () => {
       const driver = queue.drivers.find(driver => driver.profile_id === picker.value);
       if (driver) openAdmin(driver, 'payroll');
@@ -625,6 +672,7 @@ const companyDriverTools = (() => {
       row.append(summary, button('Open Review', () => openAdmin(record, 'payroll')));
       return row;
     }) : [element('p', 'No settlements are awaiting review or submission.', 'muted')]));
+    void loadSettlementLoads(payroll?.fleet_id, picker.value);
   }
 
   function fuelSettingsFleet() {
