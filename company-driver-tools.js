@@ -633,13 +633,13 @@ const companyDriverTools = (() => {
     let calculatedBase = null;
     const scale = load.pay_scale || {};
     const loadedMiles = Number(load.loaded_miles);
-    const emptyMiles = Number(load.empty_miles || 0);
+    const emptyMiles = money(load.empty_miles) ? Number(load.empty_miles) : 0;
     const gross = Number(load.gross);
     const rate = Number(scale.mile_rate);
     const percentage = Number(scale.split_percent);
-    const perMile = Number.isFinite(loadedMiles) && Number.isFinite(rate)
+    const perMile = money(load.loaded_miles) && money(scale.mile_rate)
       ? loadedMiles * rate + emptyMiles * (Number(scale.empty_mile_rate) || 0) : null;
-    const percent = Number.isFinite(gross) && Number.isFinite(percentage) ? gross * percentage / 100 : null;
+    const percent = money(load.gross) && money(scale.split_percent) ? gross * percentage / 100 : null;
     if (scale.method === 'per_mile') calculatedBase = perMile;
     else if (scale.method === 'load_percent') calculatedBase = percent;
     else if (scale.method === 'higher_of' && perMile !== null && percent !== null) calculatedBase = Math.max(perMile, percent);
