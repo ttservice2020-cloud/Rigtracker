@@ -5,11 +5,11 @@ const rigTrackerApp = (() => {
   const tabs = new Map([...nav.querySelectorAll('[data-driver-tab]')].map(control => [control.dataset.driverTab, control]));
   const sections = {
     company: {
-      driverLoadsPage: 'loads', companyMessagesPage: 'messages', driverDocumentsPage: 'settlements',
+      driverLoadsPage: 'loads', driverLoadDetailPage: 'loads', companyMessagesPage: 'messages', driverDocumentsPage: 'settlements',
       rigTrackerProfilePage: 'profile', companyDriverClockPage: 'profile', companySafetyPage: 'safety'
     },
     driver: {
-      driverLoadsPage: 'loads', spreadsheetPage: 'settlements', settlementPage: 'settlements',
+      driverLoadsPage: 'loads', driverLoadDetailPage: 'loads', spreadsheetPage: 'settlements', settlementPage: 'settlements',
       dashboardPage: 'dashboard', rigTrackerProfilePage: 'dashboard', taxPage: 'dashboard', perDiemPage: 'dashboard'
     }
   };

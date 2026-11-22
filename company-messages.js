@@ -4,6 +4,8 @@ const companyMessaging = (() => {
   const channels = { dispatch: 'Dispatch', maintenance: 'Maintenance', safety: 'Safety', private: 'Private' };
   const badges = ['companyDriverMessagesButton','companyFleetMessagesButton','companyDispatchMessagesButton','companyOfficeMessagesButton'];
   const when = new Intl.DateTimeFormat(undefined, { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit', hourCycle:'h23' });
+  const imageBucket = 'company-message-images';
+  const imageExtensions = { 'image/jpeg':'jpg', 'image/png':'png', 'image/webp':'webp', 'image/gif':'gif', 'image/heic':'heic', 'image/heif':'heif' };
   let data;
   let contacts;
   let returnPage;
@@ -14,6 +16,7 @@ const companyMessaging = (() => {
   let initialized = false;
   let draftId;
   let draftBody;
+  let draftPhoto;
   let historySignature = '';
   let mechanicFleet;
   let teamRequest;
@@ -23,6 +26,34 @@ const companyMessaging = (() => {
     if (text) node.textContent = text;
     if (className) node.className = className;
     return node;
+  }
+
+  function clearPhoto() {
+    if (draftPhoto) URL.revokeObjectURL(draftPhoto.preview);
+    draftPhoto = null;
+    byId('companyMessagePhoto').value = '';
+    byId('companyMessagePhotoPreview').removeAttribute('src');
+    byId('companyMessagePhotoDraft').classList.add('hidden');
+  }
+
+  function messagePhoto(url) {
+    if (!url) return element('p', 'Photo unavailable.', 'muted');
+    const button = element('button', '', 'company-message-image');
+    button.type = 'button';
+    button.setAttribute('aria-label', 'Enlarge photo');
+    button.setAttribute('aria-expanded', 'false');
+    const image = element('img');
+    image.loading = 'lazy';
+    image.alt = 'Message attachment';
+    image.addEventListener('error', () => button.replaceWith(element('p', 'Photo unavailable.', 'muted')), { once: true });
+    image.src = url;
+    button.append(image);
+    button.addEventListener('click', () => {
+      const expanded = button.getAttribute('aria-expanded') !== 'true';
+      button.setAttribute('aria-expanded', String(expanded));
+      button.setAttribute('aria-label', expanded ? 'Shrink photo' : 'Enlarge photo');
+    });
+    return button;
   }
 
   function setOptions(id, choices, placeholder) {
@@ -211,14 +242,20 @@ const companyMessaging = (() => {
       byId('companyMessageReply').classList.toggle('hidden', !result.can_send);
       const signature = JSON.stringify(result.messages.map(message => message.id));
       if (signature !== historySignature) {
+        const paths = result.messages.map(message => message.image_path).filter(Boolean);
+        const images = paths.length ? await supabaseClient.storage.from(imageBucket).createSignedUrls(paths, 600) : { data: [] };
+        if (user !== currentUser || selected !== target || request !== threadRequest) return;
+        const previews = new Map((images.data || []).map(image => [image.path, image.signedUrl]));
         byId('companyMessageHistory').replaceChildren(...result.messages.map(message => {
           const row = element('li');
           row.dataset.own = String(message.sender_id === user.id);
           row.append(element('strong',message.sender_name),
-            element('span',' · '+when.format(new Date(message.created_at)),'muted'),element('p',message.body));
+            element('span',' · '+when.format(new Date(message.created_at)),'muted'));
+          if (message.body) row.append(element('p', message.body));
+          if (message.image_path) row.append(messagePhoto(previews.get(message.image_path)));
           return row;
         }));
-        historySignature = signature;
+        if (!images.error) historySignature = signature;
       }
     } catch (error) {
       if (user === currentUser && selected === target) byId('companyThreadStatus').textContent = error.message || 'Could not open this conversation.';
@@ -321,6 +358,7 @@ const companyMessaging = (() => {
   function selectDriver() {
     teamRequest = null;
     selected = null;
+    clearPhoto();
     byId('companyMessageThread').classList.add('hidden');
     paintDriverDirectory();
     paintConversationList();
@@ -333,6 +371,7 @@ const companyMessaging = (() => {
       threadRequest = null;
       historySignature = '';
       draftId = null; draftBody = null;
+      clearPhoto();
       byId('companyMessageBody').value = '';
       byId('companyMessageHistory').replaceChildren();
     }
@@ -399,6 +438,30 @@ const companyMessaging = (() => {
       }
     });
   });
+  const photoPicker = byId('companyMessagePhoto');
+  byId('companyMessageAddPhoto').addEventListener('click', () => photoPicker.click());
+  byId('companyMessageRemovePhoto').addEventListener('click', () => {
+    clearPhoto();
+    draftId = null;
+    byId('companyMessageAddPhoto').focus();
+  });
+  photoPicker.addEventListener('change', () => {
+    const file = photoPicker.files[0];
+    if (!file) return;
+    const extension = file.name.split('.').at(-1).toLowerCase();
+    const mime = imageExtensions[file.type] ? file.type : file.type && file.type !== 'application/octet-stream'
+      ? '' : Object.keys(imageExtensions).find(type => imageExtensions[type] === (extension === 'jpeg' ? 'jpg' : extension));
+    if (!mime || !file.size || file.size > 10485760) {
+      photoPicker.value = '';
+      showToast('Choose a supported photo up to 10 MB.');
+      return;
+    }
+    clearPhoto();
+    draftId = null;
+    draftPhoto = { file, mime, preview: URL.createObjectURL(file) };
+    byId('companyMessagePhotoPreview').src = draftPhoto.preview;
+    byId('companyMessagePhotoDraft').classList.remove('hidden');
+  });
   byId('companyMessageReply').addEventListener('submit',event => {
     event.preventDefault();
     const control = event.currentTarget.querySelector('button[type="submit"]');
@@ -406,11 +469,24 @@ const companyMessaging = (() => {
       const target = selected;
       const input = byId('companyMessageBody');
       const body = input.value.trim();
-      if (!body || !target) return;
+      const photo = draftPhoto;
+      if ((!body && !photo) || !target || !user) return;
       if (draftBody !== body || !draftId) { draftBody = body; draftId = crypto.randomUUID(); }
-      await rpc('send',null,target.id,{body,message_id:draftId});
+      const id = draftId;
+      let path;
+      if (photo) {
+        path = target.id + '/' + user.id + '/' + id + '.' + imageExtensions[photo.mime];
+        if (photo.uploaded !== path) {
+          const { error } = await supabaseClient.storage.from(imageBucket).upload(path, photo.file, { contentType: photo.mime });
+          if (error && String(error.statusCode ?? error.status) !== '409' && error.error !== 'Duplicate') throw error;
+          photo.uploaded = path;
+        }
+      }
+      if (currentUser !== user || selected !== target || draftPhoto !== photo) return;
+      await rpc('send',null,target.id,{body,message_id:id,...(path ? {image_path:path} : {})});
       if (currentUser === user && selected === target) {
         if (input.value.trim()===body) input.value='';
+        if (draftPhoto === photo) clearPhoto();
         draftBody = null; draftId = null;
         await refresh(true);
       }
@@ -426,6 +502,7 @@ const companyMessaging = (() => {
     byId('companyMessageDriverCard').classList.add('hidden');
     byId('companyMessageDirectory').classList.add('hidden');
     byId('companyMessageBody').value = '';
+    clearPhoto();
     byId('companyMessageThreads').replaceChildren();
     byId('companyMessageHistory').replaceChildren();
     byId('companyMessageThread').classList.add('hidden');

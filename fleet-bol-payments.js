@@ -73,13 +73,15 @@ const fleetBolPayments = (() => {
 
     if (load.paperwork.length) {
       const paperwork = node('div', '', 'bol-paperwork');
+      if (load.paperwork.length > 1) row.append(button('Open all paperwork',
+        () => driverLoadWorkflow.openDocument(load.paperwork.map(file => file.path), pro(load) + ' paperwork')));
       load.paperwork.forEach((file, index) => {
         const entry = node('div', '');
         const label = file.kind === 'delivery' ? 'Proof of Delivery' : 'BOL';
         const context = [label, file.bol, file.company].filter(Boolean).join(' · ');
         entry.append(node('strong', context));
         const actions = node('div', '', 'dispatch-actions');
-        actions.append(button('View ' + label, () => driverLoadWorkflow.openDocument(file.path)));
+        actions.append(button('View ' + label, () => driverLoadWorkflow.openDocument(file.path, pro(load) + ' ' + label)));
         const extension = file.path.match(/\.([a-z0-9]+)$/i)?.[1] || 'pdf';
         const fileName = pro(load) + '-' + (file.kind === 'delivery' ? 'POD' : 'BOL') + '-' + (index + 1) + '.' + extension;
         actions.append(button('Download ' + label, () => void downloadPaperwork(file.path, fileName)));

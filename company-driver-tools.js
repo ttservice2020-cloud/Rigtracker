@@ -132,10 +132,10 @@ const companyDriverTools = (() => {
         await fleetDispatchApp.openRecord(load.load_id);
       }
     }));
-    for (const [index, file] of load.paperwork.entries()) {
-      const label = file.kind === 'delivery' ? 'Proof of Delivery' : 'BOL';
-      actions.append(button(load.paperwork.length > 1 ? 'View ' + label + ' ' + (index + 1) : 'View ' + label,
-        () => driverLoadWorkflow.openDocument(file.path)));
+    if (load.paperwork.length) {
+      const label = load.paperwork.length > 1 ? 'Paperwork' : load.paperwork[0].kind === 'delivery' ? 'Proof of Delivery' : 'BOL';
+      actions.append(button('View ' + label, () => driverLoadWorkflow.openDocument(load.paperwork.map(file => file.path),
+        (load.return_load ? 'B-' : 'A-') + load.pro_number + ' ' + label)));
     }
     row.append(summary, actions);
     return row;
@@ -792,16 +792,17 @@ const companyDriverTools = (() => {
         fact('Pieces', freight.pieces); fact('Equipment', freight.equipmentType === 'Other' ? freight.equipmentTypeOther : freight.equipmentType);
         fact('Trailer drop', freight.trailerDrop === 'yes' ? freight.trailerDropNotes || 'Yes' : 'No');
         fact('Broker', freight.brokerName); fact('Broker contact', [freight.brokerPhone, freight.brokerEmail].filter(Boolean).join(' · '));
-        fact('Shipper contact', [load.pickup?.company, load.pickup?.phone, load.pickup?.email].filter(Boolean).join(' · '));
-        fact('Receiver contact', [load.receiver?.company, load.receiver?.phone, load.receiver?.email].filter(Boolean).join(' · '));
+        fact('Shipper', load.pickup?.company); fact('Receiver', load.receiver?.company);
+        fact('Shipper contact', driverLoadWorkflow.stopContact(load.pickup));
+        fact('Receiver contact', driverLoadWorkflow.stopContact(load.receiver));
         fact('Route / shipping number', [freight.routeNumber, freight.brokerLoadNumber].filter(Boolean).join(' · '));
         fact('Pickup number', freight.pickupNumber); fact('Loaded miles', load.loaded_miles != null ? Number(load.loaded_miles).toLocaleString() + ' mi' : '');
         fact('Stop pay', load.stop_pay ? currency.format(Number(load.stop_pay)) : '');
         fact('Additional pay', load.additional_pay ? currency.format(Number(load.additional_pay)) : '');
         more.append(facts);
         for (const report of [...(load.pickup_reports || []), ...(load.receiver_reports || [])].filter(Boolean)) {
-          const doc = report.report?.document;
-          if (doc) more.append(button(report.kind === 'pickup' ? 'View signed pickup BOL' : 'View signed delivery BOL', () => driverLoadWorkflow.openDocument(doc)));
+          const label = report.kind === 'pickup' ? 'signed pickup BOL' : 'signed delivery BOL';
+          more.append(...driverLoadWorkflow.paperworkButtons(report.report, label, button));
           const lumper = report.report?.lumperFee;
           more.append(element('p', !report.report ? 'Lumper fee: Driver update not recorded' : lumper && Number(lumper) > 0
             ? 'Lumper fee reported: ' + currency.format(Number(lumper)) : 'Lumper fee: None reported', 'muted'));

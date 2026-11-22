@@ -5,7 +5,7 @@ const fleetDispatchApp = (() => {
   const driverForm = byId('dispatchDriverForm');
   const tabs = [...byId('dispatchTabs').querySelectorAll('[role=tab]')];
   const stops = { pickup: byId('dispatchPickups'), receiver: byId('dispatchReceivers') };
-  const stopPhones = { pickup: byId('dispatchShipperPhones'), receiver: byId('dispatchReceiverPhones') };
+  const stopContacts = { pickup: byId('dispatchShipperContacts'), receiver: byId('dispatchReceiverContacts') };
   const formDetails = [
     'secondDriverMode', 'routeNumber', 'pickupNumber', 'commodity', 'commodityOther', 'weightLbs', 'pieces', 'equipmentType', 'equipmentTypeOther',
     'truckNumber', 'trailerNumber', 'brokerPhone', 'brokerEmail',
@@ -37,6 +37,7 @@ const fleetDispatchApp = (() => {
   let stopId = 0;
   let selectedTab = 'current';
   let progressView;
+  let lease;
   const progressEnabled = typeof dispatchProgress !== 'undefined' && Boolean(byId('dispatchLoadDetail'));
   const ratePhoto = byId('dispatchRatePhoto');
   const ratePhotoStatus = byId('dispatchRatePhotoStatus');
@@ -67,7 +68,10 @@ const fleetDispatchApp = (() => {
     if (!available.some(node => node.dataset.dispatchTab === tab)) tab = available[0]?.dataset.dispatchTab;
     if (!tab) return;
     selectedTab = tab;
-    if (!showDetail) progressView?.close();
+    if (!showDetail) {
+      progressView?.close();
+      watchLoad(tab === 'create' && edit?.row?.status !== 'completed' ? edit?.row?.id : null);
+    }
     for (const node of tabs) {
       const selected = node.dataset.dispatchTab === tab;
       node.classList.toggle('hidden', !available.includes(node));
@@ -148,9 +152,13 @@ const fleetDispatchApp = (() => {
         return !load.progress?.stops?.[key]?.driverReport?.document;
       });
     row.dataset.bolMissing = String(missingSignedBol);
+    row.dataset.breakdown = String(load.progress?.breakdown?.active === true);
+    row.dataset.traffic = String(load.progress?.traffic?.active === true && !load.progress?.breakdown?.active);
     const info = element('div');
     info.append(element('strong', load.status === 'contract'
       ? 'Route ' + getRouteNumber(load) : proLabel(load.pro_number)));
+    if (load.progress?.breakdown?.active) info.append(element('p', 'Breakdown reported', 'dispatch-breakdown-label'));
+    else if (load.progress?.traffic?.active) info.append(element('p', 'Held up in traffic', 'dispatch-traffic-label'));
     const lastRun = load.status === 'contract' ? lastContractAssignment(load) : null;
     const drivers = loadDrivers(lastRun || load);
     const driverLabel = load.status === 'contract' && drivers
@@ -182,7 +190,11 @@ const fleetDispatchApp = (() => {
     toggle('dispatchDetailRateConfirmation', Boolean(open?.details.rateConfirmation?.path));
     const search = byId('dispatchLoadSearch').value.trim().toLowerCase();
     const current = state.loads.filter(load => load.status === 'current');
+    const urgency = load => load.progress?.breakdown?.active ? 2 : load.progress?.traffic?.active ? 1 : 0;
+    const compareAlerts = (a, b) => urgency(b) - urgency(a);
     const matching = current.filter(load => matchesLoad(load, search)).sort((a, b) => {
+      const alerts = compareAlerts(a, b);
+      if (alerts) return alerts;
       const aNext = dispatchProgress.summarize(a).next;
       const bNext = dispatchProgress.summarize(b).next;
       const priority = stop => !stop ? 3 : !Number.isFinite(stop.due) ? 2 : stop.due <= Date.now() ? 0 : 1;
@@ -196,6 +208,7 @@ const fleetDispatchApp = (() => {
     byId('dispatchRailStatus').textContent = state.loaded
       ? (current.length ? current.length + ' active' : 'No current loads')
       : (state.failed ? 'Loads unavailable' : 'Loading loads…');
+    current.sort(compareAlerts);
     byId('dispatchRailList').replaceChildren(...current.map(load => {
       const row = button('', () => viewLoad(load));
       row.className = '';
@@ -405,7 +418,15 @@ const fleetDispatchApp = (() => {
     zip.inputMode = 'numeric';
     zip.pattern = '[0-9]{5}(-[0-9]{4})?';
     field('zip', 'ZIP', zip, required);
-    const phone = field('phone', '', input('tel', 40), { target: stopPhones[kind] });
+    const contact = element('div');
+    const contactName = input('text', 120);
+    const phone = input('tel', 40);
+    field('contactName', '', contactName, { target: contact });
+    field('phone', '', phone, { target: contact });
+    const requireContactPhone = () => { phone.required = Boolean(contactName.value.trim()); };
+    requireContactPhone();
+    contactName.addEventListener('input', requireContactPhone);
+    stopContacts[kind].append(contact);
     field('email', 'Contact email (optional)', input('email', 254));
     const notes = element('textarea');
     notes.maxLength = 1200;
@@ -416,7 +437,7 @@ const fleetDispatchApp = (() => {
     field('driver2', 'Include for Driver 2', input('checkbox'));
     const remove = button('Remove stop', () => {
       group.remove();
-      phone.remove();
+      contact.remove();
       numberStops(kind);
       markEdited();
     });
@@ -430,9 +451,10 @@ const fleetDispatchApp = (() => {
     [...stops[kind].children].forEach((group, index, groups) => {
       const title = kind === 'pickup' ? 'Pickup ' + (index + 1) + ' / Shipper ' : 'Receiver ';
       group.querySelector('legend').textContent = title + (index + 1);
-      const contact = kind === 'pickup' ? 'Shipper' : 'Receiver';
-      const phoneLabel = stopPhones[kind].children[index].querySelector('label');
-      phoneLabel.textContent = contact + (groups.length > 1 ? ' ' + (index + 1) : '') + ' phone number (optional)';
+      const party = (kind === 'pickup' ? 'Shipper' : 'Receiver') + (groups.length > 1 ? ' ' + (index + 1) : '');
+      const [nameLabel, phoneLabel] = stopContacts[kind].children[index].querySelectorAll('label');
+      nameLabel.textContent = party + ' contact name (optional)';
+      phoneLabel.textContent = party + ' phone number (optional)';
       const recorded = edit?.row?.progress?.stops?.[group.dataset.stopId];
       group.querySelector('.dispatch-remove').classList.toggle('hidden', groups.length === 1 || Boolean(recorded));
     });
@@ -441,8 +463,8 @@ const fleetDispatchApp = (() => {
   function getStops(kind) {
     return [...stops[kind].children].map((group, index) => ({
       stopId: group.dataset.stopId,
-      phone: stopPhones[kind].children[index].querySelector('input').value.trim(),
-      ...Object.fromEntries([...group.querySelectorAll('[data-stop-field]')].map(input => {
+      ...Object.fromEntries([...group.querySelectorAll('[data-stop-field]'),
+        ...stopContacts[kind].children[index].querySelectorAll('[data-stop-field]')].map(input => {
         const key = input.dataset.stopField;
         let value = input.type === 'checkbox' ? input.checked : input.value.trim();
         if (key === 'state') value = value.toUpperCase();
@@ -455,7 +477,9 @@ const fleetDispatchApp = (() => {
   function paintEditor() {
     const status = edit.row?.status;
     const locked = status === 'completed';
-    byId('dispatchLoadFields').disabled = locked || edit.saving;
+    const readOnly = !locked && edit.row && !canEditLoad(edit.row.id);
+    byId('dispatchLoadFields').disabled = locked || readOnly || edit.saving;
+    paintLeaseStatus('dispatchEditorLock', readOnly ? edit.row.id : null);
     byId('dispatchFormHeading').textContent = status === 'draft' ? 'Edit draft'
       : status === 'current' ? 'Edit load' : locked ? 'Completed load' : 'New load';
     byId('dispatchPro').textContent = edit.pro ? proLabel(edit.pro) : '—';
@@ -468,8 +492,10 @@ const fleetDispatchApp = (() => {
     toggle('dispatchComplete', status === 'current');
     byId('dispatchSubmit').textContent = status === 'current' ? 'Save Changes' : 'Submit';
     for (const id of ['dispatchSubmit', 'dispatchSaveDraft', 'dispatchSaveContract', 'dispatchComplete', 'dispatchNewLoad']) {
-      byId(id).disabled = edit.saving;
+      byId(id).disabled = edit.saving || (id !== 'dispatchNewLoad' && Boolean(readOnly));
     }
+    const progress = getLoad(edit.row?.id)?.progress;
+    byId('dispatchComplete').disabled ||= Boolean(progress?.breakdown?.active || progress?.traffic?.active);
     paintAssignment();
     paintDriverPay();
   }
@@ -524,7 +550,7 @@ const fleetDispatchApp = (() => {
       : assignment?.details?.secondDriverMode === 'unknown' ? 'unknown' : 'none';
     for (const [kind, source] of [['pickup', data.pickups], ['receiver', data.receivers]]) {
       stops[kind].replaceChildren();
-      stopPhones[kind].replaceChildren();
+      stopContacts[kind].replaceChildren();
       (source?.length ? source : [{}]).forEach((stop, index) => addStop(kind, {
         ...stop, stopId: !fromContract && row ? stop.stopId || kind + '-' + index : null
       }));
@@ -665,6 +691,7 @@ const fleetDispatchApp = (() => {
     const scope = state;
     const draft = edit;
     if (!scope?.access.dispatch || draft.saving || draft.row?.status === 'completed') return;
+    if (draft.row && !canEditLoad(draft.row.id)) return;
     if (status === 'completed' && !form.reportValidity()) return;
     for (const name of ['payGross', 'weightLbs', 'pieces', 'driver1AdditionalPay', 'driver2AdditionalPay',
       'emptyMiles', 'firstLegEmptyMiles', 'fuelSurchargeOverride']) {
@@ -764,7 +791,10 @@ const fleetDispatchApp = (() => {
       selectTab(tab, true);
       void refresh();
     } catch (error) {
-      if (state === scope && edit === draft) showToast(error.code === '22023' ? error.message : 'Could not save the load. Try again.');
+      if (state === scope && edit === draft) {
+        showToast(['22023', '55P03'].includes(error.code) ? error.message : 'Could not save the load. Try again.');
+        if (error.code === '55P03') void renewLease();
+      }
     } finally {
       draft.saving = false;
       if (state === scope && edit === draft) paintEditor();
@@ -1130,7 +1160,10 @@ const fleetDispatchApp = (() => {
   byId('dispatchProRetry').addEventListener('click', () => { void reservePro(); });
   byId('dispatchComplete').addEventListener('click', () => { void saveLoad('completed'); });
   byId('dispatchNewLoad').addEventListener('click', () => {
-    if (canOpenLoad()) installEditor();
+    if (canOpenLoad()) {
+      watchLoad(null);
+      installEditor();
+    }
   });
   byId('dispatchReload').addEventListener('click', refresh);
   byId('dispatchLoadSearch').addEventListener('input', paintLoads);
@@ -1157,6 +1190,7 @@ const fleetDispatchApp = (() => {
     }
     const tab = latest.status === 'contract' ? 'contract' : latest.status === 'completed' ? 'history' : 'current';
     selectTab(tab, false, true);
+    watchLoad(latest.id);
     progressView.show(latest.id);
     paintLoads();
   }
@@ -1193,7 +1227,7 @@ const fleetDispatchApp = (() => {
 
   async function recordProgress(load, action, key, instant) {
     const scope = state;
-    if (!scope) return false;
+    if (!scope || !canEditLoad(load.id)) return false;
     try {
       const { data, error } = await scope.client.rpc('record_dispatch_progress', {
         requested_load_id: load.id, expected_updated_at: load.updated_at, requested_action: action,
@@ -1212,8 +1246,9 @@ const fleetDispatchApp = (() => {
       return true;
     } catch (error) {
       if (state === scope) {
-        showToast(error.code === '22023' || error.code === '40001' ? error.message : 'Could not record load progress.');
+        showToast(['22023', '40001', '55P03'].includes(error.code) ? error.message : 'Could not record load progress.');
         if (error.code === '40001') await refresh();
+        if (error.code === '55P03') void renewLease();
       }
       return false;
     }
@@ -1221,6 +1256,92 @@ const fleetDispatchApp = (() => {
 
   function visible() {
     return !document.hidden && Boolean(byId('dispatchWorkspace').getClientRects().length);
+  }
+
+  function canEditLoad(id) {
+    return lease?.id === id && lease.writable && lease.until > Date.now();
+  }
+
+  function paintLeaseStatus(elementId, id) {
+    const control = byId(elementId);
+    const show = Boolean(id) && !canEditLoad(id);
+    control.textContent = show ? (lease?.message || 'Checking editing access…') : '';
+    control.classList.toggle('hidden', !show);
+  }
+
+  function leaseRpc(target, action, args = {}) {
+    return target.scope.client.rpc('dispatch_load_control', {
+      action, target_id: target.id, session_id: target.token, ...args
+    });
+  }
+
+  function releaseLease(target) {
+    if (target?.writable) void leaseRpc(target, 'release').catch(() => {});
+  }
+
+  function repaintLease() {
+    if (edit && selectedTab === 'create') paintEditor();
+    progressView?.paint();
+  }
+
+  function watchLoad(id) {
+    if ((lease?.id ?? null) === (id ?? null)) return;
+    const previous = lease;
+    lease = id && state ? { id, scope: state, token: crypto.randomUUID() } : null;
+    releaseLease(previous);
+    if (lease) void renewLease();
+    repaintLease();
+  }
+
+  async function renewLease() {
+    const target = lease;
+    if (!target || target.pending) return;
+    target.pending = true;
+    const started = Date.now();
+    try {
+      const { data, error } = await leaseRpc(target, 'acquire');
+      if (error) throw error;
+      target.writable = data?.writable === true;
+      target.until = started + 55_000;
+      target.message = target.writable ? '' : 'Read only. Another dispatcher has this load open.';
+      if (lease !== target) releaseLease(target);
+    } catch {
+      target.writable = false;
+      target.message = 'Could not check editing access. Retrying…';
+    } finally {
+      target.pending = false;
+      if (lease === target) repaintLease();
+    }
+  }
+
+  function pageChanged() {
+    if (!visible()) {
+      watchLoad(null);
+      return;
+    }
+    const id = progressView?.id() || (selectedTab === 'create' ? edit?.row?.id : null);
+    watchLoad(id);
+  }
+
+  async function saveLoadAction(load, action, args) {
+    const target = lease;
+    if (!canEditLoad(load.id)) return false;
+    const scope = state;
+    try {
+      const { data, error } = await leaseRpc(target, action, args);
+      if (state !== scope) return false;
+      if (error) throw error;
+      mergeLoad(data, true);
+      paintLoads();
+      return true;
+    } catch (error) {
+      if (state === scope) {
+        showToast(error.message || 'Could not save the load update.');
+        if (error.code === '40001') await refresh();
+        if (error.code === '55P03') void renewLease();
+      }
+      return false;
+    }
   }
 
   function updateClock() {
@@ -1266,6 +1387,10 @@ const fleetDispatchApp = (() => {
         .subscribe();
     }
     scope.poll = setInterval(() => { if (visible()) void refresh(); }, 30_000);
+    scope.leasePoll = setInterval(() => {
+      if (!visible()) watchLoad(null);
+      else if (lease) void renewLease();
+    }, 8_000);
     scope.clock = setInterval(updateClock, 1_000);
   }
 
@@ -1274,9 +1399,11 @@ const fleetDispatchApp = (() => {
       byId, toggle, element, button, getLoad, getLoads: () => state?.loads || [], getRouteNumber,
       loadDrivers, proLabel, describeRoute: route, editLoad: load => openLoad(load), back: () => selectTab(selectedTab, true),
       setProgress: recordProgress, hasUpdate: id => Boolean(state?.updates.has(id)),
+      canEdit: canEditLoad, paintLeaseStatus, saveLoadAction,
       openRateConfirmation: attachment => viewRateConfirmation(attachment)
     });
     document.addEventListener('visibilitychange', () => {
+      pageChanged();
       if (state && visible()) {
         updateClock();
         void refresh();
@@ -1285,10 +1412,12 @@ const fleetDispatchApp = (() => {
   }
 
   function reset() {
+    watchLoad(null);
     if (state) {
       if (state.channel) void state.client.removeChannel(state.channel);
       clearInterval(state.poll);
       clearInterval(state.clock);
+      clearInterval(state.leasePoll);
       for (const timer of state.updates.values()) clearTimeout(timer);
     }
     progressView?.reset();
@@ -1303,7 +1432,7 @@ const fleetDispatchApp = (() => {
     byId('dispatchDriverFilter').value = '';
     for (const id of ['dispatchRailList', 'dispatchCurrentList', 'dispatchDraftList', 'dispatchContractList',
       'dispatchHistoryList', 'dispatchDriversList', 'dispatchPickups', 'dispatchReceivers',
-      'dispatchShipperPhones', 'dispatchReceiverPhones']) byId(id).replaceChildren();
+      'dispatchShipperContacts', 'dispatchReceiverContacts']) byId(id).replaceChildren();
     toggle('dispatchReadError', false);
   }
 
@@ -1351,5 +1480,6 @@ const fleetDispatchApp = (() => {
     return Boolean(driver);
   }
 
-  return { open, reset, reload: refresh, openRecord, openPayProfile, refreshPayPreview: () => paintDriverPay({ recalculate: true }) };
+  return { open, reset, reload: refresh, openRecord, openPayProfile, pageChanged,
+    refreshPayPreview: () => paintDriverPay({ recalculate: true }) };
 })();

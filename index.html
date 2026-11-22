@@ -255,8 +255,8 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 .driver-load-stops li[aria-current="step"]{border-color:#4c8dff;background:#13294a}
 #companySignupFields{border:0;padding:0;margin:0;min-inline-size:0}
 </style>
-<link rel="stylesheet" href="./dispatch.css?v=load-offers-1">
-<link rel="stylesheet" href="./driver-app.css?v=load-info-1">
+<link rel="stylesheet" href="./dispatch.css?v=load-operations-1">
+<link rel="stylesheet" href="./driver-app.css?v=load-screen-1">
 <link rel="stylesheet" href="./office-tools.css?v=1">
 </head>
 <body>
@@ -548,6 +548,16 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
           <button class="outline" id="dispatchDetailComplete" type="button">Mark Completed</button>
          </div>
         </header>
+        <p class="dispatch-load-lock hidden" id="dispatchDetailLock" role="status"></p>
+        <section class="dispatch-breakdown hidden" id="dispatchBreakdown" aria-labelledby="dispatchBreakdownTitle">
+         <h3 id="dispatchBreakdownTitle"></h3>
+         <p id="dispatchBreakdownDescription"></p>
+         <div class="dispatch-actions" id="dispatchBreakdownActions">
+          <button class="outline" type="button" id="dispatchBreakdownResume">Mark Back on Road</button>
+          <button class="outline" type="button" id="dispatchBreakdownRecover">Mark Recovered</button>
+         </div>
+        </section>
+        <p class="dispatch-traffic hidden" id="dispatchTrafficAlert" role="status"></p>
         <p role="status" id="dispatchLiveUpdate" class="dispatch-live-update hidden">Load updated</p>
         <dl class="panel dispatch-detail-facts" id="dispatchDetailAssignment"></dl>
         <section class="panel" id="dispatchDetailProgress">
@@ -582,12 +592,12 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
           <h3>Stops</h3>
           <ol id="dispatchDetailStops" class="dispatch-detail-stops"></ol>
          </section>
-         <details class="panel dispatch-freight-popup hidden" id="dispatchDetailFreightPopup">
-          <summary>Freight Details &amp; Documents</summary>
+         <section class="panel dispatch-freight-details" id="dispatchDetailFreightPanel">
+          <h3>Freight Details</h3>
           <dl id="dispatchDetailFreight" class="dispatch-detail-facts"></dl>
           <h4>Documents &amp; driver charges</h4>
           <div id="dispatchDetailDocuments" class="dispatch-detail-documents"></div>
-         </details>
+         </section>
         </div>
         <section class="panel hidden" id="dispatchDetailHistory">
          <h3>Route History</h3>
@@ -595,6 +605,18 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
          <div class="field dispatch-history-filter"><label for="dispatchHistoryDate">Run date</label><select id="dispatchHistoryDate"></select></div>
          <ol class="dispatch-contract-runs" id="dispatchContractRuns"></ol>
          <p class="muted hidden" id="dispatchContractRunsEmpty">No completed runs for this contract yet.</p>
+        </section>
+        <section class="panel" id="dispatchLoadNotes" aria-labelledby="dispatchLoadNotesTitle">
+         <h3 id="dispatchLoadNotesTitle">Load Notes</h3>
+         <div id="dispatchLoadNoteList"></div>
+         <form id="dispatchLoadNoteForm">
+          <div class="field"><label for="dispatchLoadNoteText">Note</label><textarea id="dispatchLoadNoteText" rows="3" maxlength="1000"></textarea></div>
+          <div class="dispatch-actions">
+           <button class="primary-btn" type="submit" id="dispatchAddLoadNote">Add Note</button>
+           <button class="outline" type="button" id="dispatchReportTraffic">Report Traffic Delay</button>
+           <button class="outline" type="button" id="dispatchClearTraffic">Mark Traffic Cleared</button>
+          </div>
+         </form>
         </section>
        </section>
        <section id="dispatch-panel-activity" class="dispatch-panel hidden" role="tabpanel" aria-labelledby="dispatch-tab-activity" tabindex="0">
@@ -642,6 +664,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
          </div>
          <p class="muted" id="dispatchProStatus" role="status"></p>
          <button class="outline hidden" id="dispatchProRetry" type="button">Retry PRO number</button>
+         <p class="dispatch-load-lock hidden" id="dispatchEditorLock" role="status"></p>
          <fieldset id="dispatchLoadFields" class="dispatch-stop">
           <legend>Load assignment</legend>
           <section class="panel">
@@ -722,8 +745,8 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
           <details class="panel" id="dispatchFreightDetails">
            <summary>Freight Details</summary>
            <div class="dispatch-fields">
-            <div id="dispatchShipperPhones"></div>
-            <div id="dispatchReceiverPhones"></div>
+            <div id="dispatchShipperContacts"></div>
+            <div id="dispatchReceiverContacts"></div>
             <div class="field"><label for="dispatchTruckNumber">Truck number</label><input id="dispatchTruckNumber" name="truckNumber" maxlength="40"></div>
             <div class="field"><label for="dispatchTrailerNumber">Trailer number</label><input id="dispatchTrailerNumber" name="trailerNumber" maxlength="40"></div>
             <div class="field"><label for="dispatchBrokerPhone">Broker contact number</label><input id="dispatchBrokerPhone" name="brokerPhone" type="tel" maxlength="40"></div>
@@ -1016,7 +1039,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
   </section>
   <section id="driverLoadsPage" class="page fleet-account-page">
    <div class="page-head">
-    <div><button class="back" type="button" onclick="driverLoadWorkflow.back()">← Back to Dashboard</button><h1 id="driverLoadsTitle">Loads</h1></div>
+    <div><button class="back" type="button" onclick="driverLoadWorkflow.back()">← Back to Dashboard</button><h1 id="driverLoadsTitle" tabindex="-1">Loads</h1></div>
     <div class="driver-page-actions">
      <button class="outline hidden" type="button" data-company-team-link onclick="companyMessaging.openTeam('maintenance')">Contact Maintenance</button>
      <button class="outline" type="button" onclick="driverLoadWorkflow.refresh()">Refresh</button>
@@ -1027,7 +1050,6 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
     <h2>Assignments</h2>
     <div id="driverWorkflowLoads" class="dispatch-load-list"></div>
    </section>
-   <section class="panel hidden" id="driverWorkflowDetail" aria-label="Driver load details"></section>
    <section class="panel" id="driverWorkflowYard">
     <h2>Yard trailers</h2>
     <p class="muted" id="driverYardStatus"></p>
@@ -1040,6 +1062,17 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
      <button class="primary-btn" type="submit">In Transit</button>
     </form>
    </section>
+  </section>
+  <section id="driverLoadDetailPage" class="page fleet-account-page" aria-labelledby="driverLoadHeading">
+   <div class="driver-load-navigation">
+    <button class="back" type="button" id="driverLoadBack">← Back to Loads</button>
+    <div class="driver-page-actions">
+     <button class="outline hidden" type="button" data-company-team-link onclick="companyMessaging.openTeam('maintenance')">Contact Maintenance</button>
+     <button class="outline" type="button" id="driverLoadRefresh">Refresh</button>
+    </div>
+   </div>
+   <p id="driverLoadDetailStatus" class="muted" role="status"></p>
+   <section class="panel hidden" id="driverWorkflowDetail" aria-labelledby="driverLoadHeading"></section>
   </section>
   <section id="rigTrackerPasswordPage" class="page fleet-account-page">
    <div class="page-head"><h1>Set Your Password</h1></div>
@@ -1237,8 +1270,16 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
     <p class="muted" role="status" id="companyThreadStatus"></p>
     <ol id="companyMessageHistory" class="company-message-history"></ol>
     <form id="companyMessageReply" class="hidden">
-     <div class="field"><label for="companyMessageBody">Message</label><textarea id="companyMessageBody" maxlength="4000" rows="3" required></textarea></div>
-     <button class="primary-btn" type="submit">Send</button>
+     <div class="field"><label for="companyMessageBody">Message</label><textarea id="companyMessageBody" maxlength="4000" rows="3"></textarea></div>
+     <div class="company-message-photo-draft hidden" id="companyMessagePhotoDraft">
+      <img id="companyMessagePhotoPreview" alt="Attached photo preview">
+      <button class="outline" type="button" id="companyMessageRemovePhoto">Remove photo</button>
+     </div>
+     <div class="dispatch-actions">
+      <input id="companyMessagePhoto" type="file" accept="image/jpeg,image/png,image/webp,image/gif,image/heic,image/heif,.heic,.heif" hidden>
+      <button class="outline" type="button" id="companyMessageAddPhoto">Attach photo</button>
+      <button class="primary-btn" type="submit">Send</button>
+     </div>
     </form>
    </section>
   </section>
@@ -1357,6 +1398,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
  <p class="muted" id="officeProfileStatus" role="status"></p>
 </dialog>
 <div id="toast" class="hidden" role="status"></div>
+<dialog id="driverPaperworkDialog" class="driver-paperwork-dialog" aria-labelledby="driverPaperworkTitle"></dialog>
 <dialog class="office-profile-dialog" id="fleetBolPaymentDialog" aria-labelledby="fleetBolPaymentTitle">
  <h2 id="fleetBolPaymentTitle">Mark Paid</h2>
  <p id="fleetBolPaymentLoad"></p>
@@ -1371,17 +1413,18 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 </dialog>
 <div id="modal"><div class="modal-card"><h2 id="modalTitle"></h2><div id="modalBody"></div><button class="primary-btn" onclick="closeModal()">Close</button></div></div>
 
-<script src="./dispatch-progress.js?v=freight-details-1"></script>
+<script src="./dispatch-progress.js?v=paperwork-1"></script>
 <script src="./dispatch-rate-confirmation.js?v=1"></script>
-<script src="./dispatch.js?v=freight-stop-phones-1"></script>
+<script src="./dispatch.js?v=load-operations-1"></script>
 <script src="./linked-profiles.js?v=short-profile-id-1"></script>
-<script src="./company-driver-tools.js?v=dispatch-pay-settings-1"></script>
-<script src="./company-messages.js?v=short-profile-id-1"></script>
-<script src="./driver-workflow.js?v=load-info-1"></script>
+<script src="./company-driver-tools.js?v=paperwork-1"></script>
+<script src="./company-messages.js?v=photo-attachments-1"></script>
+<script src="./driver-paperwork.js?v=1"></script>
+<script src="./driver-workflow.js?v=load-screen-1"></script>
 <script src="./fleet-admin-driver.js?v=1"></script>
 <script src="./company-safety.js?v=1"></script>
-<script src="./driver-app.js?v=1"></script>
-<script src="./fleet-bol-payments.js?v=1"></script>
+<script src="./driver-app.js?v=load-screen-1"></script>
+<script src="./fleet-bol-payments.js?v=paperwork-1"></script>
 <script src="./office-tools.js?v=office-time-clock-1"></script>
 <script src="./office-payroll.js?v=office-hourly-payroll-1"></script>
 <script>
@@ -1418,6 +1461,7 @@ function showPage(id){
  if(id!=='settlementPage' && editingSettlement)resetSettlementForm();
  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
  const page=document.getElementById(id);if(page)page.classList.add('active');
+ fleetDispatchApp.pageChanged();
  rigTrackerApp.pageChanged(id,currentUser ? accountTypeFor(currentUser) : null);
  window.scrollTo({top:0,behavior:'smooth'});
  if(id==='spreadsheetPage')renderSpreadsheet();

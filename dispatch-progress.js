@@ -80,11 +80,13 @@ const dispatchProgress = (() => {
       : [next.kind === 'pickup' ? 'At Pickup' : 'At Receiver', 'progress'];
     else if (next.due <= now) status = ['Late', 'late'];
     else if (next.due - now <= 30 * minute) status = ['Warning', 'warning'];
+    if (load.progress?.breakdown?.active) status = ['Breakdown reported', 'breakdown'];
+    else if (load.progress?.traffic?.active) status = ['Held up in traffic', 'traffic'];
     return { stops, next, stage, status };
   }
 
   function bind({ byId, toggle, element, button, getLoad, getLoads, getRouteNumber, loadDrivers, proLabel, describeRoute, editLoad,
-    back, setProgress, hasUpdate, openRateConfirmation }) {
+    back, setProgress, hasUpdate, openRateConfirmation, canEdit, paintLeaseStatus, saveLoadAction }) {
     const view = byId('dispatchLoadDetail');
     const manual = byId('dispatchArrivalForm');
     const milestones = ['Assigned', 'En Route to Pickup', 'At Pickup', 'In Transit', 'At Receiver', 'Complete'];
@@ -159,20 +161,44 @@ const dispatchProgress = (() => {
       const { stops, next, stage, status } = summary;
       const current = load.status === 'current';
       const contract = load.status === 'contract';
+      const readOnly = !canEdit(load.id);
+      const breakdown = load.progress?.breakdown;
+      const traffic = load.progress?.traffic;
       set('dispatchDetailPro', contract ? 'Contract Route ' + getRouteNumber(load) : proLabel(load.pro_number));
       const routeNumber = getRouteNumber(load);
       set('dispatchDetailRoute', [routeNumber && !contract && 'Route ' + routeNumber, describeRoute(load)]
         .filter(Boolean).join(' · '));
       set('dispatchDetailStatus', contract ? 'Contract Load' : status[0]);
       byId('dispatchDetailStatus').dataset.tone = contract ? 'assigned' : status[1];
+      paintLeaseStatus('dispatchDetailLock', load.id);
+      toggle('dispatchBreakdown', Boolean(breakdown));
+      byId('dispatchBreakdown').dataset.breakdown = String(breakdown?.active === true);
+      if (breakdown) {
+        set('dispatchBreakdownTitle', breakdown.active ? 'Breakdown reported' :
+          breakdown.resolution === 'recovered' ? 'Load recovered' : 'Back on the road');
+        set('dispatchBreakdownDescription', [recordedTime(breakdown.active ? breakdown.reportedAt : breakdown.resolvedAt),
+          breakdown.location, breakdown.notes].filter(value => value && value !== '—').join(' · '));
+      }
+      toggle('dispatchTrafficAlert', Boolean(traffic?.active));
+      byId('dispatchTrafficAlert').dataset.traffic = String(traffic?.active === true && !breakdown?.active);
+      if (traffic?.active) set('dispatchTrafficAlert', ['Held up in traffic', traffic.location, traffic.notes].filter(Boolean).join(' · '));
+      toggle('dispatchBreakdownActions', current && Boolean(breakdown?.active));
+      byId('dispatchBreakdownResume').disabled = byId('dispatchBreakdownRecover').disabled = readOnly || Boolean(request);
       view.dataset.updated = String(hasUpdate(load.id));
       toggle('dispatchLiveUpdate', hasUpdate(load.id));
       toggle('dispatchDetailEdit', current);
       toggle('dispatchDetailComplete', current);
-      byId('dispatchDetailComplete').disabled = Boolean(request);
+      byId('dispatchDetailEdit').disabled = readOnly || Boolean(request);
+      byId('dispatchDetailComplete').disabled = readOnly || Boolean(request) || Boolean(breakdown?.active || traffic?.active);
+      byId('dispatchLoadNoteList').replaceChildren(driverLoadWorkflow.loadNotes(load.progress?.loadNotes));
+      for (const id of ['dispatchLoadNoteText', 'dispatchAddLoadNote', 'dispatchReportTraffic', 'dispatchClearTraffic']) {
+        byId(id).disabled = readOnly || Boolean(request);
+      }
+      toggle('dispatchReportTraffic', current && !traffic?.active);
+      toggle('dispatchClearTraffic', current && Boolean(traffic?.active));
       toggle('dispatchDetailProgress', !contract);
       toggle('dispatchDetailStart', current && stage === 0);
-      byId('dispatchDetailStart').disabled = Boolean(request);
+      byId('dispatchDetailStart').disabled = readOnly || Boolean(request);
       byId('dispatchMilestones').replaceChildren(...milestones.map((label, index) => {
         const step = element('li');
         step.dataset.phase = index < stage ? 'done' : index === stage ? 'current' : 'next';
@@ -196,12 +222,12 @@ const dispatchProgress = (() => {
         toggle('dispatchArrivedNow', !next.progress.arrivalAt);
         toggle('dispatchFinishStop', Boolean(next.progress.arrivalAt));
         set('dispatchManualArrival', next.progress.arrivalAt ? 'Correct Arrival' : 'Enter Time Manually');
-        for (const id of ['dispatchArrivedNow', 'dispatchManualArrival', 'dispatchFinishStop']) byId(id).disabled = Boolean(request);
+        for (const id of ['dispatchArrivedNow', 'dispatchManualArrival', 'dispatchFinishStop']) byId(id).disabled = readOnly || Boolean(request);
         byId('dispatchManualArrival').disabled ||= !next.zone;
       }
       if (selectedStop && selectedStop.loadId !== load.id) selectedStop = null;
       toggle('dispatchArrivalForm', Boolean(selectedStop) && current);
-      manual.querySelector('[type=submit]').disabled = Boolean(request);
+      manual.querySelector('[type=submit]').disabled = readOnly || Boolean(request);
       byId('dispatchDetailStops').replaceChildren(...stops.map(stop => {
         const entry = element('li', '', 'dispatch-detail-stop');
         entry.dataset.stopState = stop.progress.completedAt ? 'complete' : stop === next ? 'next' : 'scheduled';
@@ -216,7 +242,7 @@ const dispatchProgress = (() => {
           if (stop.progress.previousArrivalAt) entry.append(element('small', 'Previous arrival ' + recordedTime(stop.progress.previousArrivalAt, stop.zone), 'muted'));
           if (current && stop !== next && stop.zone) {
             const correction = button('Correct Arrival', () => openManual(stop));
-            correction.disabled = Boolean(request);
+            correction.disabled = readOnly || Boolean(request);
             entry.append(correction);
           }
         }
@@ -233,15 +259,15 @@ const dispatchProgress = (() => {
             report.pickedTrailer && 'Picked up ' + report.pickedTrailer + ' (' + report.loadedState + ')'
           ].filter(Boolean);
           if (reported.length) entry.append(element('p', reported.join(' · '), 'muted'));
-          if (report.document) entry.append(button(stop.kind === 'pickup' ? 'View BOL' : 'View delivery paperwork',
-            () => driverLoadWorkflow.openDocument(report.document)));
+          const label = stop.kind === 'pickup' ? 'BOL' : 'delivery paperwork';
+          entry.append(...driverLoadWorkflow.paperworkButtons(report, label, button));
         }
         return entry;
       }));
       const details = load.details || {};
-      toggle('dispatchDetailFreightPopup', current);
       const commodity = details.commodity === 'Other' ? details.commodityOther : details.commodity;
-      const contacts = items => (items || []).map((stop, index) => [stop.company || 'Stop ' + (index + 1), stop.phone, stop.email].filter(Boolean).join(' · ')).filter(Boolean).join(' / ');
+      const names = items => (items || []).map(stop => stop.company).filter(Boolean).join(' / ');
+      const contacts = items => (items || []).map(driverLoadWorkflow.stopContact).filter(Boolean).join(' / ');
       const money = value => value !== '' && value !== null && value !== undefined && Number.isFinite(Number(value))
         ? new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' }).format(Number(value)) : '';
       byId('dispatchDetailFreight').replaceChildren(
@@ -251,7 +277,8 @@ const dispatchProgress = (() => {
         fact('Trailer drop', details.trailerDrop === 'yes' ? details.trailerDropNotes || 'Yes' : 'No'),
         fact('Trailer pickup', details.trailerPickup === 'yes' ? details.trailerPickupNotes || 'Yes' : 'No'),
         fact('Broker', details.brokerName), fact('Broker contact', [details.brokerPhone, details.brokerEmail].filter(Boolean).join(' · ')),
-        fact('Shipper contacts', contacts(details.pickups)), fact('Receiver contacts', contacts(details.receivers)),
+        fact('Shipper', names(details.pickups)), fact('Receiver', names(details.receivers)),
+        fact('Shipper contact', contacts(details.pickups)), fact('Receiver contact', contacts(details.receivers)),
         fact('Loaded miles', details.loadedMiles ? Number(details.loadedMiles).toLocaleString() + ' mi' : ''),
         fact('Route / shipping number', [details.routeNumber, details.brokerLoadNumber].filter(Boolean).join(' · ')),
         fact('Pickup number', details.pickupNumber), fact('Stop pay', money(details.stopPay)),
@@ -263,10 +290,11 @@ const dispatchProgress = (() => {
       else docs.append(element('p', 'Rate confirmation: Not uploaded', 'muted'));
       for (const stop of stops) {
         const report = stop.progress?.driverReport;
-        if (stop.kind === 'pickup') {
-          if (report?.document) docs.append(button('View signed pickup BOL · ' + (stop.company || 'Pickup ' + (stop.index + 1)), () => driverLoadWorkflow.openDocument(report.document)));
-          else docs.append(element('p', 'Pickup BOL: Not uploaded · ' + (stop.company || 'Pickup ' + (stop.index + 1)), 'dispatch-document-missing'));
-        } else if (report?.document) docs.append(button('View signed delivery BOL · ' + (stop.company || 'Delivery ' + (stop.index + 1)), () => driverLoadWorkflow.openDocument(report.document)));
+        const pickup = stop.kind === 'pickup';
+        const context = stop.company || (pickup ? 'Pickup ' : 'Delivery ') + (stop.index + 1);
+        const documents = driverLoadWorkflow.paperworkButtons(report, pickup ? 'signed pickup BOL' : 'signed delivery BOL', button, context);
+        docs.append(...documents);
+        if (pickup && !documents.length) docs.append(element('p', 'Pickup BOL: Not uploaded · ' + context, 'dispatch-document-missing'));
         const lumper = report?.lumperFee;
         docs.append(element('p', !report ? 'Lumper fee: Driver update pending · ' + (stop.company || 'Stop')
           : lumper !== undefined && lumper !== '' && Number(lumper) > 0
@@ -278,7 +306,7 @@ const dispatchProgress = (() => {
 
     async function record(action, key = null, instant = null) {
       const load = active();
-      if (!load || request) return;
+      if (!load || request || !canEdit(load.id)) return;
       const pending = {};
       request = pending;
       paint();
@@ -294,7 +322,27 @@ const dispatchProgress = (() => {
       }
     }
 
+    async function updateLoad(action, args, clearNote = false) {
+      const load = active();
+      if (!load || request || !canEdit(load.id)) return;
+      const pending = {};
+      request = pending;
+      paint();
+      try {
+        if (await saveLoadAction(load, action, args) && clearNote && activeId === load.id) {
+          byId('dispatchLoadNoteText').value = '';
+        }
+      }
+      finally {
+        if (request === pending) {
+          request = null;
+          paint();
+        }
+      }
+    }
+
     function show(id) {
+      if (activeId !== id) byId('dispatchLoadNoteText').value = '';
       if (!getLoad(id)) return;
       if (activeId !== id) historyDate = '';
       activeId = id;
@@ -315,6 +363,20 @@ const dispatchProgress = (() => {
       if (active()) history(active());
     });
     byId('dispatchDetailBack').addEventListener('click', back);
+    byId('dispatchBreakdownResume').addEventListener('click', () => void updateLoad('resolve_breakdown',
+      { report_id: active()?.progress?.breakdown?.id, resolution: 'back_on_road' }));
+    byId('dispatchBreakdownRecover').addEventListener('click', () => void updateLoad('resolve_breakdown',
+      { report_id: active()?.progress?.breakdown?.id, resolution: 'recovered' }));
+    byId('dispatchLoadNoteForm').addEventListener('submit', event => {
+      event.preventDefault();
+      const note = byId('dispatchLoadNoteText').value.trim();
+      if (note) void updateLoad('add_note', { note }, true);
+      else byId('dispatchLoadNoteText').focus();
+    });
+    byId('dispatchReportTraffic').addEventListener('click', () => void updateLoad('report_traffic',
+      { note: byId('dispatchLoadNoteText').value.trim() }, true));
+    byId('dispatchClearTraffic').addEventListener('click', () => void updateLoad('clear_traffic',
+      { report_id: active()?.progress?.traffic?.id }));
     byId('dispatchDetailEdit').addEventListener('click', () => { if (active()) editLoad(active()); });
     byId('dispatchDetailStart').addEventListener('click', () => { void record('en_route'); });
     byId('dispatchDetailComplete').addEventListener('click', () => {
