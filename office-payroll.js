@@ -2,6 +2,8 @@ const officePayroll = (() => {
   const byId = id => document.getElementById(id);
   const dateFormat = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
   const timeFormat = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' });
+  const payrollDateFormat = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeZone: 'UTC' });
+  const pendingDates = new Set();
   let request;
   let data;
   let origin;
@@ -43,6 +45,7 @@ const officePayroll = (() => {
     request = token;
     const status = byId('officePayrollStatus');
     const host = byId('officePayrollRows');
+    data = null;
     status.textContent = 'Loading hourly employee records…';
     host.replaceChildren();
     byId('officePayrollTotal').textContent = '';
@@ -62,10 +65,69 @@ const officePayroll = (() => {
         new Option(person.name + ' · ' + result.fleet_id + '-' + person.employee_id, person.user_id)));
       if (people.some(person => person.user_id === selected)) picker.value = selected;
       paint();
-      status.textContent = people.length ? '' : 'No office employee profiles have Hourly Time enabled.';
+      status.textContent = people.length ? '' : 'No hourly employees or shifts for this period.';
     } catch (error) {
       if (user === currentUser && request === token) status.textContent = error.message || 'Could not load office payroll hours.';
     }
+  }
+
+  function editPayrollDate(shift) {
+    const originalDate = shift.payroll_date;
+    const form = document.createElement('form');
+    form.className = 'office-payroll-date-editor';
+    const label = document.createElement('label');
+    label.className = 'field';
+    label.textContent = 'Payroll date';
+    const date = document.createElement('input');
+    date.type = 'date';
+    date.value = originalDate;
+    date.required = true;
+    label.append(date);
+    const save = document.createElement('button');
+    save.type = 'submit';
+    save.className = 'outline';
+    save.textContent = 'Save date';
+    const feedback = document.createElement('span');
+    feedback.setAttribute('role', 'alert');
+    const updateControls = () => {
+      date.disabled = pendingDates.has(shift.id);
+      save.disabled = date.disabled || !date.value || date.value === originalDate;
+    };
+    updateControls();
+    date.addEventListener('input', () => {
+      feedback.textContent = '';
+      updateControls();
+    });
+    form.append(label, save, feedback);
+    form.addEventListener('submit', async event => {
+      event.preventDefault();
+      if (save.disabled || !currentUser || !fleet) return;
+      const user = currentUser;
+      const targetFleet = fleet;
+      const selectedDate = date.value;
+      const current = () => currentUser === user && fleet === targetFleet && byId('officePayrollPage').classList.contains('active');
+      pendingDates.add(shift.id);
+      updateControls();
+      feedback.textContent = '';
+      try {
+        const { error } = await supabaseClient.rpc('fleet_employee_time_clock', {
+          action: 'set_payroll_date', target_fleet: targetFleet,
+          params: { shift_id: shift.id, payroll_date: selectedDate, expected_payroll_date: originalDate }
+        });
+        if (error) throw error;
+        if (!current()) return;
+        pendingDates.delete(shift.id);
+        const formatted = payrollDateFormat.format(new Date(selectedDate + 'T00:00:00Z'));
+        showToast('Shift assigned to ' + formatted + '.');
+        await refresh();
+      } catch (error) {
+        if (current()) feedback.textContent = error.message || 'Could not save the payroll date.';
+      } finally {
+        pendingDates.delete(shift.id);
+        updateControls();
+      }
+    });
+    return form;
   }
 
   function paint() {
@@ -107,10 +169,12 @@ const officePayroll = (() => {
           const date = document.createElement('strong');
           date.textContent = dateFormat.format(start);
           const range = document.createElement('span');
-          range.textContent = timeFormat.format(start) + ' – ' + (end ? timeFormat.format(end) : 'Clocked in');
+          const endDate = end && localDate(end) !== localDate(start) ? dateFormat.format(end) + ' ' : '';
+          range.textContent = timeFormat.format(start) + ' – ' + (end ? endDate + timeFormat.format(end) : 'Clocked in');
           const elapsed = document.createElement('span');
           elapsed.textContent = hours(shift.seconds);
           line.append(date, range, elapsed);
+          if (shift.payroll_date) line.append(editPayrollDate(shift));
           list.append(line);
         }
         card.append(list);

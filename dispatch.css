@@ -228,7 +228,13 @@
 .office-payroll-employee-heading strong{font-size:20px;color:#9dceff;font-variant-numeric:tabular-nums}
 .office-payroll-shifts{display:grid;gap:6px;margin-top:10px}
 .office-payroll-shift{display:grid;grid-template-columns:minmax(100px,1fr) minmax(180px,2fr) auto;gap:10px;padding:8px;border-top:1px solid #2b4059;color:#c1d1e2}
-.office-payroll-shift span:last-child{font-variant-numeric:tabular-nums}
+.office-payroll-shift>span:last-of-type{font-variant-numeric:tabular-nums}
+.office-payroll-date-editor{grid-column:1/-1;display:flex;align-items:center;flex-wrap:wrap;gap:8px 12px}
+.office-payroll-date-editor .field{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin:0}
+.office-payroll-date-editor input{width:auto;min-width:0}
+#officePayrollPage .office-payroll-date-editor button{margin:0}
+.office-payroll-date-editor [role=alert]{color:#ffc3c3}
+.office-payroll-date-editor [role=alert]:empty{display:none}
 #officePayrollTotal{margin:12px 0 0;font-size:20px}
 @media(max-width:580px){
  .office-clock-widget{gap:6px;padding:5px}
