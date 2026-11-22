@@ -2005,7 +2005,16 @@ function showFleetSection(section,dispatchTab='current'){
  showPage('fleetWorkspace');
  return loadFleetSectionData(dispatchTab);
 }
-function showOfficeDispatch(tab){
+async function showOfficeDispatch(tab){
+ const user=currentUser;
+ if(!user||!supabaseClient)return;
+ const {data,error}=await supabaseClient.auth.getSession();
+ if(error||!data.session||data.session.user.id!==user.id){
+  stopFleetPresenceTimer();
+  sessionStorage.setItem('rigtracker_auth_notice','Your sign-in expired. Sign in again to continue.');
+  window.location.reload();
+  return;
+ }
  const fleet=officeTools.dispatchFleet();
  if(!fleet)return;
  fleetSection='dispatch';
@@ -2266,7 +2275,13 @@ async function startApp(){
  renderDeductionInputs();
  if(!supabaseClient){showToast('Sign-in is unavailable because the connection did not load.');return}
  supabaseClient.auth.onAuthStateChange(event=>{
-  if(event==='SIGNED_OUT')stopFleetPresenceTimer();
+  if(event==='SIGNED_OUT'){
+   stopFleetPresenceTimer();
+   if(!signingOut){
+    sessionStorage.setItem('rigtracker_auth_notice','Your sign-in expired. Sign in again to continue.');
+    window.location.reload();
+   }
+  }
   if(event==='PASSWORD_RECOVERY')passwordRecoveryRequested=true;
  });
  const result=await supabaseClient.auth.getSession();
@@ -2274,6 +2289,9 @@ async function startApp(){
   const user=result.data.session.user;
   chooseRole(accountTypeFor(user));
   await openSignedInApp(user);
+ }else{
+  const notice=sessionStorage.getItem('rigtracker_auth_notice');
+  if(notice){sessionStorage.removeItem('rigtracker_auth_notice');showToast(notice);}
  }
 }
 startApp();
