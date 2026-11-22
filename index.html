@@ -495,7 +495,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
        <div class="fleet-tools-grid">
         <button class="card fleet-tool" type="button" onclick="showFleetSection('hr')">HR <span aria-hidden="true">›</span></button>
         <button class="card fleet-tool" type="button" id="companyFleetPayrollButton" onclick="showFleetSection('payroll')"><span class="payroll-label">Payroll</span> <span aria-hidden="true">›</span></button>
-        <button class="card fleet-tool" type="button" onclick="companyDriverTools.openPayroll('Pay Settlements')">Pay Settlements <span aria-hidden="true">›</span></button>
+        <button class="card fleet-tool" type="button" onclick="companyDriverTools.openPayroll('Load Settlements')">Load Settlements <span aria-hidden="true">›</span></button>
         <button class="card fleet-tool" type="button" onclick="showFleetSection('hourly')">Hourly Time <span aria-hidden="true">›</span></button>
        </div>
       </section>
@@ -1106,18 +1106,32 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
     </section>
    </div>
   </section>
+  <section id="officePayrollPage" class="page fleet-account-page">
+   <div class="page-head"><div><button class="back" type="button" onclick="officePayroll.back()">← Back</button><h1>Office Payroll</h1></div><button class="outline" type="button" id="officePayrollRefresh">Refresh</button></div>
+   <p class="muted">Hourly office employees and their recorded work hours.</p>
+   <p id="officePayrollStatus" class="muted" role="status"></p>
+   <section class="panel">
+    <div class="dispatch-fields">
+     <div class="field"><label for="officePayrollEmployee">Company employee</label><select id="officePayrollEmployee"><option value="">All Hourly Employees</option></select></div>
+     <div class="field"><label for="officePayrollFrom">From</label><input id="officePayrollFrom" type="date"></div>
+     <div class="field"><label for="officePayrollTo">Through</label><input id="officePayrollTo" type="date"></div>
+    </div>
+    <h2 id="officePayrollTotal"></h2>
+   </section>
+   <div id="officePayrollRows" class="office-payroll-list"></div>
+  </section>
   <section id="companyPayrollPage" class="page fleet-account-page">
-   <div class="page-head"><div><button class="back" type="button" onclick="companyDriverTools.backPayroll()">← Back</button><h1 id="companyPayrollTitle">Payroll</h1></div></div>
+   <div class="page-head"><div><button class="back" type="button" onclick="companyDriverTools.backPayroll()">← Back</button><h1 id="companyPayrollTitle">Load Settlements</h1></div></div>
    <nav class="company-driver-record-nav" aria-label="Settlement sections">
     <button class="outline" id="companyPayrollListTab" type="button" aria-controls="companyPayrollRecords" aria-pressed="true">Settlements</button>
     <button class="outline hidden" id="companyPayrollManageTab" type="button" aria-controls="companyPayrollManage" aria-pressed="false">Manage</button>
    </nav>
    <div id="companyPayrollRecords">
     <p id="companyPayrollStatus" class="muted" role="status"></p>
-    <section class="panel"><h2>Driver settlements</h2><div class="field">
+    <section class="panel"><h2>Driver load settlements</h2><div class="field">
      <label for="companyPayrollDriver">Company Driver</label><select id="companyPayrollDriver"></select>
     </div><button class="outline" id="companyPayrollOpenDriver" type="button">Open Driver Records</button></section>
-    <section class="panel"><h2>Create Settlement</h2>
+    <section class="panel"><h2>Create Load Settlement</h2>
      <p class="muted">Select completed loads to build a settlement preview with mileage, the driver’s profile pay scale, stop pay, and additional pay.</p>
      <div id="companyPayrollLoadSettlements" class="dispatch-load-list"><p class="muted">Select a driver to view completed loads.</p></div>
      <button class="primary-btn" type="button" id="companyPayrollCreateSettlement" disabled>Create Settlement</button>
@@ -1249,7 +1263,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
    </section>
   </section>
   <section id="fleetEmployeePage" class="page fleet-account-page">
-  <div class="page-head"><div><h1>Office Dashboard</h1><p class="muted" id="employeeAccountSummary" role="status">Loading your profile…</p></div></div>
+  <div class="page-head"><div><h1>Office Dashboard</h1><p class="muted" id="employeeAccountSummary" role="status">Loading your profile…</p></div><div class="office-clock-widget hidden" id="officeClockWidget"><span id="officeClockStatus">Not clocked in</span><button type="button" class="outline" id="officeClockToggle">Start</button></div></div>
   <div id="officeDashboardTools" class="hidden fleet-tools">
    <section class="fleet-tools-group" data-office-group>
     <h2>Operations</h2>
@@ -1268,7 +1282,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
      <button type="button" class="card fleet-tool hidden" data-office-tool="profiles">Employee Profiles</button>
      <button type="button" class="card fleet-tool hidden" data-office-tool="hr">HR <small>Coming later</small></button>
      <button type="button" class="card fleet-tool hidden" data-office-tool="payroll" id="companyOfficePayrollButton"><span class="payroll-label">Payroll</span></button>
-     <button type="button" class="card fleet-tool hidden" data-office-tool="settlements">Pay Settlements</button>
+     <button type="button" class="card fleet-tool hidden" data-office-tool="settlements">Load Settlements</button>
      <button type="button" class="card fleet-tool hidden" data-office-tool="hourly">Hourly Time</button>
      <button type="button" class="card fleet-tool hidden" data-office-tool="bank_ledger">Bank Ledger <small>Coming later</small></button>
      <button type="button" class="card fleet-tool hidden" data-office-tool="payments">Send Payments <small>Coming later</small></button>
@@ -1360,7 +1374,8 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 <script src="./company-safety.js?v=1"></script>
 <script src="./driver-app.js?v=1"></script>
 <script src="./fleet-bol-payments.js?v=1"></script>
-<script src="./office-tools.js?v=dispatch-pay-settings-1"></script>
+<script src="./office-tools.js?v=office-time-clock-1"></script>
+<script src="./office-payroll.js?v=office-hourly-payroll-1"></script>
 <script>
 const SUPABASE_URL = 'https://pxxikzzfrcncwufpzdfp.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_7yQMjUtCtnHC6jgRF4ROLA_CmgsHaZo';
