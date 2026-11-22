@@ -2,6 +2,8 @@ const companyDriverTools = (() => {
   const byId = id => document.getElementById(id);
   const payBucket = 'company-driver-pay';
   const adminSections = [...document.querySelectorAll('[data-company-driver-section]')];
+  const equipmentEditor = byId('companyDriverEquipmentEditor');
+  const equipmentForm = byId('companyDriverEquipmentForm');
   const historyPageSize = 25;
   const clockFormat = new Intl.DateTimeFormat(undefined, {
     year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
@@ -81,6 +83,7 @@ const companyDriverTools = (() => {
     if (['history','bols'].includes(active) && !view.pages[active]) void loadHistory(view, active);
     if (fileTabs[active] && !view.files.has(active)) void loadProfileFiles(view, active);
     if (['pay_status','pay_settlements'].includes(active)) void loadProfilePay(view, active);
+    if (['mileage','concerns','pay_scale'].includes(active)) void loadDriverTracking(view, active);
   }
 
   function quickFact(label, value, href) {
@@ -94,6 +97,122 @@ const companyDriverTools = (() => {
     cell.append(element('dt', label), detail);
     return cell;
   }
+
+  async function loadDriverTracking(selection, section) {
+    const host = document.querySelector('[data-driver-tracking="' + section + '"]');
+    if (selection.pending.has(section)) return;
+    if (!selection.dispatchDriverId) {
+      host.replaceChildren(element('p', 'No records for this driver.', 'muted'));
+      return;
+    }
+    selection.pending.add(section);
+    host.textContent = 'Loading…';
+    try {
+      const response = section === 'concerns'
+        ? await supabaseClient.from('office_review_issues').select('title,description,created_at')
+          .eq('fleet_id', selection.fleet).eq('driver_id', selection.dispatchDriverId)
+          .order('created_at', { ascending: false }).limit(50)
+        : await supabaseClient.rpc('fleet_driver_tracking', {
+          target_fleet: selection.fleet, target_driver: selection.dispatchDriverId, section
+        });
+      if (response.error) throw response.error;
+      if (!sameAdmin(selection)) return;
+      const data = response.data;
+      if (section === 'pay_scale') {
+        host.replaceChildren(element('p', payScaleLabel(data)));
+      } else if (section === 'concerns') {
+        const concerns = data.map(issue => {
+          const card = element('article', '', 'dispatch-load-card');
+          card.append(element('h3', issue.title), element('p', issue.description),
+            element('p', clockFormat.format(new Date(issue.created_at)), 'muted'));
+          return card;
+        });
+        host.replaceChildren(...(concerns.length ? concerns : [element('p', 'No concerns to show.', 'muted')]));
+      } else {
+        const miles = value => value == null ? '—' : Number(value).toLocaleString() + ' mi';
+        const totals = element('dl', '', 'dispatch-detail-facts');
+        totals.append(quickFact('Loaded miles', miles(data.loaded)), quickFact('Empty miles', miles(data.empty)),
+          quickFact('Percent loaded', data.percent == null ? '—' : data.percent + '%'));
+        const history = element('div', '', 'dispatch-load-list');
+        for (const reading of data.recent) {
+          const card = element('article', '', 'dispatch-load-card');
+          const facts = element('dl', '', 'dispatch-detail-facts');
+          facts.append(quickFact('Truck', reading.truck_number), quickFact('Starting odometer', miles(reading.start_odometer)),
+            quickFact('Ending odometer', miles(reading.end_odometer)), quickFact('Loaded miles', miles(reading.loaded)),
+            quickFact('Empty before this load', miles(reading.empty)));
+          card.append(element('h3', 'PRO ' + reading.pro), facts);
+          history.append(card);
+        }
+        host.replaceChildren(totals, history);
+        if (!data.recent.length) history.append(element('p', 'No odometer readings recorded.', 'muted'));
+      }
+    } catch (error) {
+      if (sameAdmin(selection)) host.textContent = error.message || 'Could not load this section.';
+    } finally {
+      selection.pending.delete(section);
+    }
+  }
+
+  function paintQuickReference(profile) {
+    const type = { company: 'Company Driver', owner_op: 'Owner Op' }[profile.driver_type];
+    const phoneNumber = profile.phone?.replace(/[^+\d]/g, '');
+    byId('companyDriverAdminFacts').replaceChildren(
+      quickFact('Name', name(profile)), quickFact('Phone', profile.phone, phoneNumber ? 'tel:' + phoneNumber : null),
+      quickFact('Email', profile.email, profile.email ? 'mailto:' + profile.email : null),
+      quickFact('Driver type', type), quickFact('DL number', profile.license_number),
+      quickFact('Truck', profile.truck), quickFact('Trailer', profile.trailer)
+    );
+    equipmentEditor.classList.toggle('hidden', !profile.can_edit_equipment);
+  }
+
+  function showEquipmentError(message = '') {
+    const feedback = byId('companyDriverEquipmentError');
+    feedback.textContent = message;
+    feedback.classList.toggle('hidden', !message);
+  }
+
+  function fillEquipmentForm(profile) {
+    for (const [field, value] of [['truck_number', 'truck'], ['trailer_number', 'trailer']]) {
+      const input = equipmentForm.elements.namedItem(field);
+      const assignment = profile['assigned_' + field];
+      input.value = assignment || '';
+      input.placeholder = !assignment && profile[value] ? 'Current load · ' + profile[value] : '';
+    }
+  }
+
+  equipmentEditor.addEventListener('toggle', () => {
+    if (!equipmentEditor.open || !view?.profile.can_edit_equipment) return;
+    fillEquipmentForm(view.profile);
+    showEquipmentError();
+  });
+
+  equipmentForm.addEventListener('submit', async event => {
+    event.preventDefault();
+    const selection = view;
+    const control = equipmentForm.querySelector('button[type=submit]');
+    if (!selection?.profile.can_edit_equipment || !selection.dispatchDriverId || control.disabled) return;
+    const { truck_number, trailer_number } = Object.fromEntries(new FormData(equipmentForm));
+    const { assigned_truck_number, assigned_trailer_number } = selection.profile;
+    control.disabled = true;
+    showEquipmentError();
+    try {
+      const { data: profile, error } = await supabaseClient.rpc('set_dispatch_driver_equipment', {
+        target_fleet: selection.fleet, target_driver: selection.dispatchDriverId,
+        truck_number, trailer_number, expected_truck: assigned_truck_number ?? null, expected_trailer: assigned_trailer_number ?? null
+      });
+      if (error) throw error;
+      if (!sameAdmin(selection)) return;
+      selection.profile = profile;
+      paintQuickReference(profile);
+      equipmentEditor.open = false;
+      equipmentEditor.querySelector('summary').focus();
+      showToast('Truck and trailer saved.');
+    } catch (error) {
+      if (sameAdmin(selection)) showEquipmentError(error.message || 'Could not save the truck and trailer.');
+    } finally {
+      if (sameAdmin(selection)) control.disabled = false;
+    }
+  });
 
   function paintPresence(presence) {
     const lastSeen = presence.last_seen_at && clockFormat.format(new Date(presence.last_seen_at));
@@ -116,14 +235,7 @@ const companyDriverTools = (() => {
       byId('companyDriverAdminMessagingStatus').textContent = canMessage ? '' : 'Conversations are available for linked Company Driver accounts.';
       byId('companyDriverAdminPaySettings').classList.toggle('hidden', !selection.owner || !selection.dispatchDriverId);
       const availability = { assigned: 'On a load', available: 'Available', 'off-duty': 'Off duty' };
-      const type = { company: 'Company Driver', owner_op: 'Owner Op' }[profile.driver_type];
-      const phoneNumber = profile.phone?.replace(/[^+\d]/g, '');
-      byId('companyDriverAdminFacts').replaceChildren(
-        quickFact('Name', name(profile)), quickFact('Phone', profile.phone, phoneNumber ? 'tel:' + phoneNumber : null),
-        quickFact('Email', profile.email, profile.email ? 'mailto:' + profile.email : null),
-        quickFact('Driver type', type), quickFact('DL number', profile.license_number),
-        quickFact('Truck', profile.truck), quickFact('Trailer', profile.trailer)
-      );
+      paintQuickReference(profile);
       byId('companyDriverCompanyFacts').replaceChildren(
         quickFact('RigTracker ID', profile.display_profile_id), quickFact('Employee number', profile.employee_number),
         quickFact('Fleet status', profile.linked ? 'Active' : profile.profile_id ? 'Former driver' : 'Roster only'),
@@ -134,7 +246,8 @@ const companyDriverTools = (() => {
       for (const control of adminSections) control.classList.toggle('hidden', !allowed.has(sectionPermission(control.dataset.companyDriverSection)));
       byId('companyDriverAdminSummary').classList.remove('hidden');
       byId('companyDriverAdminContent').classList.remove('hidden');
-      byId('companyDriverAdminStatus').textContent = allowed.size ? '' : 'Ask your Fleet Admin for access to driver profile tabs.';
+      byId('companyDriverAdminStatus').textContent = [...allowed].some(tab => tab !== 'driver_concerns')
+        ? '' : 'Ask your Fleet Admin for access to additional driver profile tabs.';
       status.textContent = '';
       selectAdminSection(selection.source === 'payroll' ? 'pay_settlements' : 'company');
       if (profile.company_driver && profile.profile_id && (selection.owner ||
@@ -655,6 +768,11 @@ const companyDriverTools = (() => {
     const owner = accountTypeFor(user) === 'fleet';
     if (!user || !fleet || (!owner && source === 'links' && !officeTools.canLinkProfiles())) return;
     view = { user, fleet, profile, source, owner, files: new Set(), pending: new Set(), pages: {} };
+    equipmentEditor.open = false;
+    equipmentEditor.classList.add('hidden');
+    equipmentForm.reset();
+    equipmentForm.querySelector('button[type=submit]').disabled = false;
+    showEquipmentError();
     byId('companyDriverAdminTitle').textContent = source === 'payroll' ? name(profile) : 'Driver Profile';
     byId('companyDriverAdminStatus').textContent = 'Loading driver profile…';
     for (const id of ['companyDriverAdminContent','companyDriverAdminSummary','companyDriverAdminMessage',
@@ -664,6 +782,7 @@ const companyDriverTools = (() => {
       'companyDriverHistoryStatus','companyDriverBolsStatus','companyDriverAdminPresence','companyDriverAdminPayList',
       'companyDriverDraftSettlements','companyDriverPayStatusRows']) byId(id).replaceChildren();
     for (const container of document.querySelectorAll('[data-driver-profile-files]')) container.replaceChildren();
+    for (const container of document.querySelectorAll('[data-driver-tracking]')) container.replaceChildren();
     byId('companyPayDraft').replaceChildren(new Option('Generate a new settlement number', ''));
     clearPayForm();
     showPage('companyDriverAdminPage');

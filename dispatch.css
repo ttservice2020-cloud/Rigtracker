@@ -172,6 +172,9 @@
 .load-offer-stops li+li{padding-top:9px;border-top:1px solid #355475}
 .load-offer-stops p,.load-offer-empty{margin:3px 0 0;color:#ccdef3;font-size:14px;line-height:1.4}
 .load-offer-empty{padding:12px;margin:0}
+.load-mileage-content{padding:12px}
+.load-mileage-content>p:first-child{margin-top:0}
+.load-mileage-content .load-offer-freight{padding:0 0 12px}
 .load-offer-appointment{display:grid;gap:2px;padding-top:8px;margin-top:8px;border-top:1px solid #355475;font-size:14px}
 .load-offer-appointment span,.load-offer-freight dt,.load-offer-pay dt{color:#aecbe9;font-size:13px}
 .load-offer-notes{white-space:pre-wrap}

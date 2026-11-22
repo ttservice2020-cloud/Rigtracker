@@ -791,13 +791,30 @@ const fleetDispatchApp = (() => {
     for (const [key, name] of Object.entries(relayAddressFields)) form.elements[name].value = location[key];
   });
 
+  function fillDriverEquipment(refreshTrailer = false) {
+    const driver = state.drivers.find(row => row.id === form.elements.driver1.value && row.link_active !== false);
+    const truck = form.elements.truckNumber;
+    const trailer = form.elements.trailerNumber;
+    if (!truck.value || truck.value === edit.autoTruck) {
+      edit.autoTruck = truck.value = driver?.assigned_truck_number || '';
+    }
+    if (!trailer.value || refreshTrailer || trailer.value === edit.autoTrailer) {
+      const current = driver?.assigned_trailer_number || '';
+      const bobtail = current.toLowerCase() === 'bobtail';
+      edit.autoTrailer = trailer.value = bobtail ? '' : current;
+      edit.trailerFromDriver = Boolean(driver);
+      trailer.placeholder = bobtail ? 'Bobtail' : '';
+    }
+  }
+
   function installEditor(row = null, fromContract = false) {
     const data = row?.details ?? {};
     edit = {
       row: fromContract ? null : row,
       id: fromContract ? null : row?.id,
       pro: fromContract ? null : row?.pro_number,
-      contractId: fromContract ? row.id : row?.contract_load_id
+      contractId: fromContract ? row.id : row?.contract_load_id,
+      trailerFromDriver: !fromContract && data.trailerFromDriver === 'yes'
     };
     form.reset();
     for (const key of formDetails) {
@@ -811,6 +828,8 @@ const fleetDispatchApp = (() => {
     paintDriverOptions();
     form.elements.driver1.value = assignment?.driver_id ?? '';
     form.elements.driver2.value = assignment?.second_driver_id ?? '';
+    form.elements.trailerNumber.placeholder = '';
+    if (fromContract || !row || row.status === 'draft') fillDriverEquipment(edit.trailerFromDriver);
     form.elements.secondDriverMode.value = assignment?.second_driver_id ? 'assigned'
       : assignment?.details?.secondDriverMode === 'unknown' ? 'unknown' : 'none';
     const newStopIds = new Map();
@@ -973,6 +992,7 @@ const fleetDispatchApp = (() => {
     }
     const data = new FormData(form);
     const details = Object.fromEntries(formDetails.map(key => [key, data.get(key)?.trim() ?? '']));
+    if (draft.trailerFromDriver) details.trailerFromDriver = 'yes';
     if (details.fuelSurchargeOverride) details.fuelSurchargeOverride = Number(details.fuelSurchargeOverride).toFixed(4);
     for (const key of ['driver1AdditionalPay', 'driver2AdditionalPay']) {
       if (details[key]) details[key] = Number(details[key]).toFixed(2);
@@ -1409,6 +1429,13 @@ const fleetDispatchApp = (() => {
 
   form.addEventListener('input', event => {
     const name = event.target.name;
+    if (name === 'driver1' && (!edit.row || edit.row.status === 'draft')) fillDriverEquipment();
+    if (name === 'truckNumber') delete edit.autoTruck;
+    if (name === 'trailerNumber') {
+      delete edit.autoTrailer;
+      edit.trailerFromDriver = false;
+      form.elements.trailerNumber.placeholder = '';
+    }
     const slot = name === 'driver1' ? 1
       : name === 'driver2' || (name === 'secondDriverMode' && event.target.value !== 'assigned') ? 2 : null;
     const additionalPay = slot && form.elements.namedItem('driver' + slot + 'AdditionalPay');

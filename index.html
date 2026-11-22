@@ -249,6 +249,9 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 .company-driver-summary{margin-bottom:12px}
 .company-driver-summary .dispatch-detail-facts>div{min-width:0;padding:10px;background:#0d1521;border:1px solid #2b4058;border-radius:8px}
 .company-driver-summary a{color:inherit;text-decoration:underline}
+.company-driver-summary details{margin-top:12px}
+.company-driver-summary summary{cursor:pointer;font-weight:700}
+.company-driver-equipment-form{margin-top:10px}
 .company-pay-row{flex-wrap:wrap}
 .company-pay-row form{flex-basis:100%;min-width:0}
 .company-pay-row [hidden]{display:none}
@@ -258,7 +261,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 .driver-load-stops li[aria-current="step"]{border-color:#4c8dff;background:#13294a}
 #companySignupFields{border:0;padding:0;margin:0;min-inline-size:0}
 </style>
-<link rel="stylesheet" href="./dispatch.css?v=driver-messages-1">
+<link rel="stylesheet" href="./dispatch.css?v=driver-tracking-1">
 <link rel="stylesheet" href="./driver-app.css?v=return-cargo-1">
 <link rel="stylesheet" href="./office-tools.css?v=1">
 </head>
@@ -1156,6 +1159,18 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
     <section class="panel company-driver-summary hidden" id="companyDriverAdminSummary" aria-label="Driver quick reference">
      <p class="muted" id="companyDriverAdminOverviewStatus" role="status"></p>
      <dl class="dispatch-detail-facts" id="companyDriverAdminFacts"></dl>
+     <details class="hidden" id="companyDriverEquipmentEditor">
+      <summary>Edit Truck &amp; Trailer</summary>
+      <form class="company-driver-equipment-form" id="companyDriverEquipmentForm">
+       <div class="dispatch-fields">
+        <div class="field"><label for="companyDriverTruckNumber">Truck number</label><input id="companyDriverTruckNumber" name="truck_number" maxlength="40"></div>
+        <div class="field"><label for="companyDriverTrailerNumber">Trailer number</label><input id="companyDriverTrailerNumber" name="trailer_number" maxlength="40"></div>
+       </div>
+       <p class="muted">Enter Bobtail in the trailer field when the driver has no trailer.</p>
+       <p class="dispatch-form-issues hidden" id="companyDriverEquipmentError" role="alert"></p>
+       <button class="primary-btn" type="submit">Save Equipment</button>
+      </form>
+     </details>
     </section>
     <nav class="company-driver-record-nav" aria-label="Driver profile sections">
      <button class="outline" type="button" data-company-driver-section="documents" aria-controls="companyDriverAdminDocuments" aria-pressed="false">Documents</button>
@@ -1163,6 +1178,9 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
      <button class="outline" type="button" data-company-driver-section="company" aria-controls="companyDriverAdminCompany" aria-pressed="true">Company File</button>
      <button class="outline" type="button" data-company-driver-section="messages" aria-controls="companyDriverAdminMessages" aria-pressed="false">Messages</button>
      <button class="outline" type="button" data-company-driver-section="history" aria-controls="companyDriverAdminHistory" aria-pressed="false">Load History</button>
+     <button class="outline" type="button" data-company-driver-section="mileage" aria-controls="companyDriverAdminMileage" aria-pressed="false">Mileage</button>
+     <button class="outline" type="button" data-company-driver-section="concerns" aria-controls="companyDriverAdminConcerns" aria-pressed="false">Concerns</button>
+     <button class="outline" type="button" data-company-driver-section="pay_scale" aria-controls="companyDriverAdminPayScale" aria-pressed="false">Pay Scale</button>
      <button class="outline" type="button" data-company-driver-section="pay_settlements" aria-controls="companyDriverAdminSettlements" aria-pressed="false">Pay Settlements</button>
      <button class="outline" type="button" data-company-driver-section="tax" aria-controls="companyDriverAdminTax" aria-pressed="false">Tax Information</button>
      <button class="outline" type="button" data-company-driver-section="pay_status" aria-controls="companyDriverAdminPayStatus" aria-pressed="false">Pay Status</button>
@@ -1201,6 +1219,19 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
     <section class="panel hidden" id="companyDriverAdminDocuments">
      <h2>Documents</h2>
      <div data-driver-profile-files="documents"></div>
+    </section>
+    <section class="panel hidden" id="companyDriverAdminMileage">
+     <h2>Mileage</h2>
+     <p class="muted">Odometer tracking only. Empty miles are calculated between recorded loads on the same truck.</p>
+     <div data-driver-tracking="mileage"></div>
+    </section>
+    <section class="panel hidden" id="companyDriverAdminConcerns">
+     <h2>Concerns</h2>
+     <div data-driver-tracking="concerns"></div>
+    </section>
+    <section class="panel hidden" id="companyDriverAdminPayScale">
+     <h2>Pay Scale</h2>
+     <div data-driver-tracking="pay_scale"></div>
     </section>
     <section class="panel hidden" id="companyDriverAdminTax">
      <h2>Tax Information</h2>
@@ -1515,12 +1546,12 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 
 <script src="./dispatch-progress.js?v=saved-locations-1"></script>
 <script src="./dispatch-rate-confirmation.js?v=1"></script>
-<script src="./dispatch.js?v=driver-profile-1"></script>
+<script src="./dispatch.js?v=driver-tracking-1"></script>
 <script src="./linked-profiles.js?v=driver-profile-1"></script>
-<script src="./company-driver-tools.js?v=settlement-number-1"></script>
+<script src="./company-driver-tools.js?v=driver-tracking-1"></script>
 <script src="./company-messages.js?v=driver-messages-1"></script>
 <script src="./driver-paperwork.js?v=1"></script>
-<script src="./driver-workflow.js?v=saved-locations-1"></script>
+<script src="./driver-workflow.js?v=driver-tracking-1"></script>
 <script src="./fleet-admin-driver.js?v=1"></script>
 <script src="./company-safety.js?v=1"></script>
 <script src="./driver-app.js?v=load-screen-1"></script>

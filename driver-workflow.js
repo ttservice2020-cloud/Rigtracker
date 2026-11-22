@@ -701,14 +701,98 @@ const driverLoadWorkflow = (() => {
     return card;
   }
 
+  async function mileageRequest(action, loadId, readings) {
+    const { data, error } = await supabaseClient.rpc('driver_operational_mileage', {
+      action, target_load: loadId, ...(readings ? { readings } : {})
+    });
+    if (error) throw error;
+    return data;
+  }
+
+  function paintMileageCard(card, load, mileage, message = '') {
+    const reading = mileage.reading;
+    const form = node('form');
+    const fields = node('div', '', 'dispatch-fields');
+    const odometer = { type: 'text', inputMode: 'numeric', pattern: '[0-9]{1,8}', maxLength: 8 };
+    fields.append(
+      input('Truck number', 'truck_number', { required: true, maxLength: 40, value: reading?.truck_number || mileage.truck || '' }),
+      input('Starting odometer (mi)', 'start_odometer', { ...odometer, required: true, value: reading?.start_odometer ?? '' })
+    );
+    if (mileage.can_finish) fields.append(
+      input('Ending odometer (mi)', 'end_odometer', { ...odometer, required: true, value: reading?.end_odometer ?? '' })
+    );
+    const feedback = node('p', message, 'muted');
+    feedback.setAttribute('role', 'status');
+    const save = submitButton('Save Mileage');
+    form.append(fields, feedback, save);
+    const miles = value => value == null ? '—' : quantity.format(value) + ' mi';
+    const facts = reading && offerFields([
+      ['Loaded miles', miles(reading.loaded)], ['Empty miles before this load', miles(reading.empty)]
+    ], 'load-offer-freight');
+    const content = node('div', '', 'load-mileage-content');
+    content.append(node('p', 'Record your truck’s odometer at the start and finish. These miles do not affect pay.', 'muted'));
+    if (!mileage.can_finish) content.append(node('p', 'Enter the ending reading after completing your stops.', 'muted'));
+    if (facts) content.append(facts);
+    content.append(form);
+    card.lastElementChild.replaceWith(content);
+    form.addEventListener('submit', async event => {
+      event.preventDefault();
+      if (save.disabled) return;
+      save.disabled = true;
+      feedback.textContent = '';
+      const user = currentUser;
+      try {
+        const values = Object.fromEntries(new FormData(form));
+        const updated = await mileageRequest('save', load.id, { ...values, updated_at: reading?.updated_at ?? null });
+        if (card.isConnected && currentUser === user) paintMileageCard(card, load, updated, 'Mileage saved.');
+      } catch (error) {
+        if (currentUser === user) feedback.textContent = error.message || 'Could not save mileage.';
+      } finally { save.disabled = false; }
+    });
+  }
+
+  async function loadMileageCard(panel, load) {
+    const card = panel?.querySelector('[data-load-mileage]');
+    if (!card || card.dataset.requested || isQueued(load)) return;
+    const user = currentUser;
+    card.dataset.requested = 'true';
+    try {
+      const mileage = await mileageRequest('read', load.id);
+      if (card.isConnected && currentUser === user) paintMileageCard(card, load, mileage);
+    } catch (error) {
+      if (card.isConnected && currentUser === user) {
+        const content = node('div', '', 'load-mileage-content');
+        content.append(node('p', error.message || 'Could not load mileage.', 'muted'), button('Retry', () => {
+            delete card.dataset.requested;
+            void loadMileageCard(panel, load);
+          }));
+        card.lastElementChild.replaceWith(content);
+      }
+    }
+  }
+
   function paintLoadInfo(load, panel) {
-    const freight = load.freight || {};
+    const freight = {
+      ...load.freight,
+      trailerNumber: load.incomingTrailer === '' ? 'Bobtail' : load.incomingTrailer ?? load.freight?.trailerNumber
+    };
     const cards = node('div', '', 'load-offer-grid');
     cards.append(offerFreight(freight), offerStops(load, 'pickup', true), offerStops(load, 'delivery', true));
     const relay = relayCard(load, freight);
     if (relay) cards.append(relay);
     if (load.pay) cards.append(offerPay(load.pay));
+    if (load.decision === 'accepted' && ['current', 'completed'].includes(load.status)) {
+      const signature = JSON.stringify([load.id, load.status, isQueued(load), load.stops.every(stop => stop.progress?.completedAt)]);
+      let mileage = panel.querySelector('[data-load-mileage]');
+      if (mileage?.dataset.loadMileage !== signature) {
+        mileage = offerCard('Mileage Tracker');
+        mileage.dataset.loadMileage = signature;
+        mileage.append(node('p', isQueued(load) ? 'Finish your current load before logging mileage here.' : 'Loading…', 'load-offer-empty'));
+      }
+      cards.append(mileage);
+    }
     panel.replaceChildren(cards);
+    if (detailTab === 'info') void loadMileageCard(panel, load);
   }
 
   function paintLoadOverview(load, panel) {
@@ -738,7 +822,7 @@ const driverLoadWorkflow = (() => {
       ['Route number', freight.route], ['Pickup number', freight.pickupNumber],
       ['Commodity', freight.commodity], ['Equipment', freight.equipment],
       ['Weight', offerNumber(freight.weight, quantity, ' lb')],
-      ['Trailer number', freight.trailerNumber]
+      ['Trailer number', load.incomingTrailer === '' ? 'Bobtail' : load.incomingTrailer || freight.trailerNumber]
     ], 'driver-load-summary');
     if (summary.childElementCount) panel.append(summary);
     if (stops.length) {
@@ -754,6 +838,7 @@ const driverLoadWorkflow = (() => {
   function paintDetails() {
     const panel = byId('driverWorkflowDetail');
     const load = driverData.loads.find(row => row.id === selected);
+    const mileage = panel.querySelector('[data-load-mileage]');
     panel.replaceChildren();
     panel.classList.toggle('hidden', !load);
     const pendingOffer = isOffer(load);
@@ -784,6 +869,7 @@ const driverLoadWorkflow = (() => {
       control.setAttribute('aria-controls', view.id);
       view.setAttribute('aria-labelledby', control.id);
       tabs.append(control);
+      if (key === 'info' && mileage) view.append(mileage);
       paint(load, view);
       return { key, view, control };
     });
@@ -795,6 +881,7 @@ const driverLoadWorkflow = (() => {
         entry.control.tabIndex = active ? 0 : -1;
         entry.view.hidden = !active;
       }
+      if (key === 'info') void loadMileageCard(views.find(entry => entry.key === key).view, load);
     }
     tabs.addEventListener('keydown', event => {
       const index = views.findIndex(entry => entry.control === event.target);
