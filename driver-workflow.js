@@ -339,6 +339,7 @@ const driverLoadWorkflow = (() => {
       input('Weight', 'weight', { inputMode:'decimal', maxLength:20 }),
       input('Pieces', 'pieces', { inputMode:'numeric', maxLength:20 }),
       input('BOL number', 'bol', { maxLength:100 }),
+      input('Lumper fee paid ($, optional)', 'lumperFee', { inputMode:'decimal', maxLength:20 }),
       input('Trailer drop number (optional)', 'dropped_trailer', { maxLength:40 }),
       picked, field('Picked-up trailer status', state),
       field(stop.kind === 'pickup' ? 'Photo or copy of BOL' : 'Photo or copy of proof of delivery', file)
