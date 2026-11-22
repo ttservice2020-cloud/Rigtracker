@@ -309,14 +309,22 @@ const dispatchProgress = (() => {
       const commodity = details.commodity === 'Other' ? details.commodityOther : details.commodity;
       const names = items => (items || []).map(stop => stop.company).filter(Boolean).join(' / ');
       const contacts = items => (items || []).map(driverLoadWorkflow.stopContact).filter(Boolean).join(' / ');
+      const trailerStop = key => stops.find(stop => stop.key === key)?.company;
+      const bobtail = details.trailerPickup === 'yes' && details.trailerPickupMode === 'bobtail';
+      const trailerType = { fleet: 'Fleet', power_only: 'Power Only' }[details.trailerType];
       const money = value => value !== '' && value !== null && value !== undefined && Number.isFinite(Number(value))
         ? new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' }).format(Number(value)) : '';
       byId('dispatchDetailFreight').replaceChildren(
         fact('Truck number', details.truckNumber), fact('Trailer number', details.trailerNumber),
         fact('Commodity', commodity), fact('Weight', details.weightLbs ? Number(details.weightLbs).toLocaleString() + ' lb' : ''),
         fact('Pieces', details.pieces), fact('Equipment', equipment),
-        fact('Trailer drop', details.trailerDrop === 'yes' ? details.trailerDropNotes || 'Yes' : 'No'),
-        fact('Trailer pickup', details.trailerPickup === 'yes' ? details.trailerPickupNotes || 'Yes' : 'No'),
+        ...(trailerType ? [fact('Trailer type', trailerType)] : []),
+        fact('Trailer drop', details.trailerDrop === 'yes' ? [details.trailerDropNumber,
+          trailerStop(details.trailerDropStopId), details.trailerDropNotes].filter(Boolean).join(' · ') || 'Yes' : 'No'),
+        fact('Trailer pickup', details.trailerPickup === 'yes' ? [bobtail ? 'Bobtail' : details.trailerPickupNumber,
+          trailerStop(details.trailerPickupStopId), bobtail ? '' : details.trailerPickupNotes].filter(Boolean).join(' · ') || 'Yes' : 'No'),
+        ...(bobtail && details.nextTrailerLocation ? [fact('Next trailer location', details.nextTrailerLocation)] : []),
+        ...(bobtail && details.bobtailInstructions ? [fact('Bobtail instructions', details.bobtailInstructions)] : []),
         fact('Broker', details.brokerName), fact('Broker contact', [details.brokerPhone, details.brokerEmail].filter(Boolean).join(' · ')),
         fact('Shipper', names(details.pickups)), fact('Receiver', names(details.receivers)),
         fact('Shipper contact', contacts(details.pickups)), fact('Receiver contact', contacts(details.receivers)),

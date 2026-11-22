@@ -9,15 +9,15 @@ const fleetDispatchApp = (() => {
   const formDetails = [
     'secondDriverMode', 'routeNumber', 'pickupNumber', 'commodity', 'commodityOther', 'weightLbs', 'pieces', 'equipmentType', 'equipmentTypeOther',
     'truckNumber', 'trailerNumber', 'brokerPhone', 'brokerEmail',
-    'trailerDrop', 'trailerDropNotes', 'trailerPickup', 'trailerPickupNotes',
+    'trailerType', 'trailerDrop', 'trailerDropNumber', 'trailerDropStopId', 'trailerDropNotes',
+    'trailerPickup', 'trailerPickupMode', 'trailerPickupNumber', 'trailerPickupStopId', 'trailerPickupNotes',
+    'nextTrailerLocation', 'bobtailInstructions',
     'brokerName', 'brokerLoadNumber', 'payGross', 'driver1AdditionalPay', 'driver2AdditionalPay', 'loadedMiles', 'relayLocation', 'relayDate', 'relayDrop',
     'relayPickup', 'firstLegMiles', 'driver1Pay', 'driver2Pay', 'emptyMiles', 'firstLegEmptyMiles', 'emptyRate', 'fuelSurchargeOverride', 'stopPay'
   ].filter(key => form.elements.namedItem(key));
   const conditionalFreightFields = [
     ['commodity', 'commodityOther', 'dispatchCommodityOtherField'],
-    ['equipmentType', 'equipmentTypeOther', 'dispatchEquipmentTypeOtherField'],
-    ['trailerDrop', 'trailerDropNotes', 'dispatchTrailerDropNotesField'],
-    ['trailerPickup', 'trailerPickupNotes', 'dispatchTrailerPickupNotesField']
+    ['equipmentType', 'equipmentTypeOther', 'dispatchEquipmentTypeOtherField']
   ].filter(([key]) => form.elements.namedItem(key));
   const zones = [
     ['America/New_York', 'Eastern'], ['America/Chicago', 'Central'],
@@ -484,6 +484,7 @@ const fleetDispatchApp = (() => {
       group.remove();
       contact.remove();
       numberStops(kind);
+      paintTrailerStops();
       markEdited();
     });
     remove.classList.add('dispatch-remove');
@@ -517,6 +518,38 @@ const fleetDispatchApp = (() => {
         return [key, value];
       }))
     }));
+  }
+
+  function paintTrailerPlan() {
+    const fields = form.elements;
+    const drop = fields.trailerDrop.checked;
+    const pickup = fields.trailerPickup.checked;
+    const bobtail = pickup && fields.trailerPickupMode.value === 'bobtail';
+    const section = byId('dispatchBobtailPlan');
+    if (bobtail && section.classList.contains('hidden')) section.open = true;
+    toggle('dispatchTrailerDropFields', drop);
+    toggle('dispatchTrailerPickupFields', pickup);
+    toggle('dispatchTrailerPickupNumberField', !bobtail);
+    toggle('dispatchTrailerPickupNotesField', !bobtail);
+    toggle('dispatchBobtailPlan', bobtail);
+    fields.trailerDropNumber.disabled = fields.trailerDropNotes.disabled = fields.trailerDropStopId.disabled = !drop;
+    fields.trailerPickupMode.disabled = fields.trailerPickupStopId.disabled = !pickup;
+    fields.trailerPickupNumber.disabled = fields.trailerPickupNotes.disabled = !pickup || bobtail;
+    fields.nextTrailerLocation.disabled = fields.bobtailInstructions.disabled = !bobtail;
+    fields.trailerDropStopId.required = drop && Boolean(fields.trailerDropNumber.value.trim());
+    fields.trailerPickupStopId.required = pickup && (bobtail || Boolean(fields.trailerPickupNumber.value.trim()));
+  }
+
+  function paintTrailerStops(dropId = form.elements.trailerDropStopId.value, pickupId = form.elements.trailerPickupStopId.value) {
+    const choices = Object.entries(stops).flatMap(([kind, container]) => [...container.children].map((group, index) => {
+      const company = group.querySelector('[data-stop-field=company]').value.trim();
+      const label = (kind === 'pickup' ? 'Pickup ' : 'Delivery ') + (index + 1);
+      return [label + (company ? ' · ' + company : ''), group.dataset.stopId];
+    }));
+    for (const [field, id] of [[form.elements.trailerDropStopId, dropId], [form.elements.trailerPickupStopId, pickupId]]) {
+      field.replaceChildren(new Option('Choose a stop', ''), ...choices.map(([label, value]) => new Option(label, value)));
+      field.value = choices.some(([, value]) => value === id) ? id : '';
+    }
   }
 
   function paintEditor() {
@@ -556,6 +589,7 @@ const fleetDispatchApp = (() => {
       form.elements[description].disabled = !visible;
       toggle(field, visible);
     }
+    paintTrailerPlan();
     const loaded = form.elements.loadedMiles.value;
     const first = form.elements.firstLegMiles.value;
     let note = '';
@@ -585,6 +619,7 @@ const fleetDispatchApp = (() => {
       if (fromContract && ['brokerLoadNumber', 'fuelSurchargeOverride', 'firstLegEmptyMiles'].includes(key)) continue;
       const field = form.elements[key];
       if (field.type === 'checkbox') field.checked = data[key] === field.value;
+      else if (key === 'trailerPickupMode') field.value = data[key] === 'bobtail' ? 'bobtail' : 'trailer';
       else if (typeof data[key] === 'string') field.value = data[key];
     }
     const assignment = fromContract ? lastContractAssignment(row) || row : row;
@@ -593,13 +628,18 @@ const fleetDispatchApp = (() => {
     form.elements.driver2.value = assignment?.second_driver_id ?? '';
     form.elements.secondDriverMode.value = assignment?.second_driver_id ? 'assigned'
       : assignment?.details?.secondDriverMode === 'unknown' ? 'unknown' : 'none';
+    const newStopIds = new Map();
     for (const [kind, source] of [['pickup', data.pickups], ['receiver', data.receivers]]) {
       stops[kind].replaceChildren();
       stopContacts[kind].replaceChildren();
-      (source?.length ? source : [{}]).forEach((stop, index) => addStop(kind, {
-        ...stop, stopId: !fromContract && row ? stop.stopId || kind + '-' + index : null
-      }));
+      (source?.length ? source : [{}]).forEach((stop, index) => {
+        const oldId = stop.stopId || kind + '-' + index;
+        const stopId = fromContract || !row ? crypto.randomUUID() : oldId;
+        addStop(kind, { ...stop, stopId });
+        newStopIds.set(oldId, stopId);
+      });
     }
+    paintTrailerStops(newStopIds.get(data.trailerDropStopId) || '', newStopIds.get(data.trailerPickupStopId) || '');
     if (form.elements.routeNumber) {
       form.elements.routeNumber.readOnly = Boolean(edit.contractId);
       if (edit.contractId) form.elements.routeNumber.value = getRouteNumber(getLoad(edit.contractId)) || '';
@@ -613,6 +653,7 @@ const fleetDispatchApp = (() => {
       details.open = details.id !== 'dispatchFreightDetails' &&
         Boolean(row && [...details.querySelectorAll('input')].some(input => input.value));
     }
+    byId('dispatchBobtailPlan').open = form.elements.trailerPickupMode.value === 'bobtail';
     paintEditor();
   }
 
@@ -738,6 +779,7 @@ const fleetDispatchApp = (() => {
     if (!scope?.access.dispatch || draft.saving || draft.row?.status === 'completed') return;
     if (draft.row && !canEditLoad(draft.row.id)) return;
     if (status === 'completed' && !form.reportValidity()) return;
+    if (status !== 'draft' && ['trailerDropStopId', 'trailerPickupStopId'].some(name => !form.elements[name].reportValidity())) return;
     for (const name of ['payGross', 'weightLbs', 'pieces', 'driver1AdditionalPay', 'driver2AdditionalPay',
       'emptyMiles', 'firstLegEmptyMiles', 'fuelSurchargeOverride']) {
       const field = form.elements.namedItem(name);
@@ -1182,6 +1224,7 @@ const fleetDispatchApp = (() => {
       : name === 'driver2' || (name === 'secondDriverMode' && event.target.value !== 'assigned') ? 2 : null;
     const additionalPay = slot && form.elements.namedItem('driver' + slot + 'AdditionalPay');
     if (additionalPay) additionalPay.value = '';
+    if (event.target.dataset.stopField === 'company') paintTrailerStops();
     markEdited();
   });
   form.addEventListener('invalid', event => {
@@ -1198,6 +1241,7 @@ const fleetDispatchApp = (() => {
       const before = stops[kind].children.length;
       addStop(kind);
       if (stops[kind].children.length > before) {
+        paintTrailerStops();
         markEdited();
         stops[kind].lastElementChild.querySelector('input').focus();
       }

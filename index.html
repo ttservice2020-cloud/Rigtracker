@@ -744,6 +744,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
             <div id="dispatchReceiverContacts"></div>
             <div class="field"><label for="dispatchTruckNumber">Truck number</label><input id="dispatchTruckNumber" name="truckNumber" maxlength="40"></div>
             <div class="field"><label for="dispatchTrailerNumber">Trailer number</label><input id="dispatchTrailerNumber" name="trailerNumber" maxlength="40"></div>
+            <div class="field"><label for="dispatchTrailerType">Trailer type</label><select id="dispatchTrailerType" name="trailerType"><option value="">Select trailer type</option><option value="fleet">Fleet</option><option value="power_only">Power Only</option></select></div>
             <div class="field"><label for="dispatchBrokerPhone">Broker contact number</label><input id="dispatchBrokerPhone" name="brokerPhone" type="tel" maxlength="40"></div>
             <div class="field"><label for="dispatchBrokerEmail">Broker email</label><input id="dispatchBrokerEmail" name="brokerEmail" type="email" maxlength="254"></div>
             <div class="field"><label for="dispatchCommodity">Commodity</label>
@@ -766,10 +767,26 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
              </select>
             </div>
             <div class="field hidden" id="dispatchEquipmentTypeOtherField"><label for="dispatchEquipmentTypeOther">Describe the equipment</label><input id="dispatchEquipmentTypeOther" name="equipmentTypeOther" maxlength="120" disabled></div>
-            <div class="field dispatch-checkbox dispatch-wide"><label for="dispatchTrailerDrop">Trailer Drop</label><input id="dispatchTrailerDrop" name="trailerDrop" type="checkbox" value="yes" aria-controls="dispatchTrailerDropNotesField"></div>
-            <div class="field hidden dispatch-wide" id="dispatchTrailerDropNotesField"><label for="dispatchTrailerDropNotes">Drop instructions (optional)</label><textarea id="dispatchTrailerDropNotes" name="trailerDropNotes" maxlength="500" rows="2" disabled></textarea></div>
-            <div class="field dispatch-checkbox dispatch-wide"><label for="dispatchTrailerPickup">Trailer Pickup</label><input id="dispatchTrailerPickup" name="trailerPickup" type="checkbox" value="yes" aria-controls="dispatchTrailerPickupNotesField"></div>
-            <div class="field hidden dispatch-wide" id="dispatchTrailerPickupNotesField"><label for="dispatchTrailerPickupNotes">Pickup instructions (optional)</label><textarea id="dispatchTrailerPickupNotes" name="trailerPickupNotes" maxlength="500" rows="2" disabled></textarea></div>
+            <div class="field dispatch-checkbox dispatch-wide"><label for="dispatchTrailerDrop">Trailer Drop</label><input id="dispatchTrailerDrop" name="trailerDrop" type="checkbox" value="yes" aria-controls="dispatchTrailerDropFields"></div>
+            <div class="dispatch-fields dispatch-wide hidden" id="dispatchTrailerDropFields">
+             <div class="field"><label for="dispatchTrailerDropNumber">Expected drop trailer number</label><input id="dispatchTrailerDropNumber" name="trailerDropNumber" maxlength="40" disabled></div>
+             <div class="field"><label for="dispatchTrailerDropStop">Drop at stop</label><select id="dispatchTrailerDropStop" name="trailerDropStopId" disabled></select></div>
+             <div class="field dispatch-wide"><label for="dispatchTrailerDropNotes">Drop instructions (optional)</label><textarea id="dispatchTrailerDropNotes" name="trailerDropNotes" maxlength="500" rows="2" disabled></textarea></div>
+            </div>
+            <div class="field dispatch-checkbox dispatch-wide"><label for="dispatchTrailerPickup">Trailer Pickup</label><input id="dispatchTrailerPickup" name="trailerPickup" type="checkbox" value="yes" aria-controls="dispatchTrailerPickupFields"></div>
+            <div class="dispatch-fields dispatch-wide hidden" id="dispatchTrailerPickupFields">
+             <div class="field"><label for="dispatchTrailerPickupMode">Leave the stop with</label><select id="dispatchTrailerPickupMode" name="trailerPickupMode" disabled><option value="trailer">A picked-up trailer</option><option value="bobtail">Bobtail (no trailer)</option></select></div>
+             <div class="field"><label for="dispatchTrailerPickupStop">Trailer pickup or bobtail stop</label><select id="dispatchTrailerPickupStop" name="trailerPickupStopId" disabled></select></div>
+             <div class="field" id="dispatchTrailerPickupNumberField"><label for="dispatchTrailerPickupNumber">Expected pickup trailer number</label><input id="dispatchTrailerPickupNumber" name="trailerPickupNumber" maxlength="40" disabled></div>
+             <div class="field dispatch-wide" id="dispatchTrailerPickupNotesField"><label for="dispatchTrailerPickupNotes">Pickup instructions (optional)</label><textarea id="dispatchTrailerPickupNotes" name="trailerPickupNotes" maxlength="500" rows="2" disabled></textarea></div>
+             <details class="panel dispatch-wide hidden" id="dispatchBobtailPlan">
+              <summary>Next Trailer / Bobtail Instructions</summary>
+              <div class="dispatch-fields">
+               <div class="field dispatch-wide"><label for="dispatchNextTrailerLocation">Next trailer location (optional)</label><input id="dispatchNextTrailerLocation" name="nextTrailerLocation" maxlength="200" disabled></div>
+               <div class="field dispatch-wide"><label for="dispatchBobtailInstructions">Bobtail instructions (optional)</label><textarea id="dispatchBobtailInstructions" name="bobtailInstructions" maxlength="500" rows="3" disabled></textarea></div>
+              </div>
+             </details>
+            </div>
            </div>
           </details>
          </fieldset>
@@ -1416,14 +1433,14 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 </dialog>
 <div id="modal"><div class="modal-card"><h2 id="modalTitle"></h2><div id="modalBody"></div><button class="primary-btn" onclick="closeModal()">Close</button></div></div>
 
-<script src="./dispatch-progress.js?v=load-header-1"></script>
+<script src="./dispatch-progress.js?v=trailer-plan-1"></script>
 <script src="./dispatch-rate-confirmation.js?v=1"></script>
-<script src="./dispatch.js?v=load-header-1"></script>
+<script src="./dispatch.js?v=trailer-plan-1"></script>
 <script src="./linked-profiles.js?v=short-profile-id-1"></script>
 <script src="./company-driver-tools.js?v=paperwork-1"></script>
 <script src="./company-messages.js?v=message-notice-1"></script>
 <script src="./driver-paperwork.js?v=1"></script>
-<script src="./driver-workflow.js?v=return-cargo-1"></script>
+<script src="./driver-workflow.js?v=trailer-plan-1"></script>
 <script src="./fleet-admin-driver.js?v=1"></script>
 <script src="./company-safety.js?v=1"></script>
 <script src="./driver-app.js?v=load-screen-1"></script>

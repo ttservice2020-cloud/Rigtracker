@@ -165,6 +165,7 @@ const driverLoadWorkflow = (() => {
       const contacts = offerFields([['Contact', stopContact(info)], ['Email', info.email]], 'driver-load-contacts');
       if (contacts.childElementCount) row.append(contacts);
       if (info.notes) row.append(node('p', info.notes, 'load-offer-notes'));
+      row.append(...trailerPlanNotes(load, stop));
       if (includeReports) row.append(...stopReport(stop));
       list.append(row);
     }
@@ -182,14 +183,40 @@ const driverLoadWorkflow = (() => {
       ['Commodity', freight.commodity], ['Equipment', freight.equipment],
       ['Weight', offerNumber(freight.weight, quantity, ' lb')], ['Pieces', offerNumber(freight.pieces, quantity)],
       ['Truck number', freight.truckNumber], ['Trailer number', freight.trailerNumber],
+      ['Trailer type', { fleet: 'Fleet', power_only: 'Power Only' }[freight.trailerType]],
       ['Loaded miles', offerNumber(freight.miles, quantity, ' mi')],
       ['Empty miles', offerNumber(freight.emptyMiles, quantity, ' mi')],
-      ['Trailer drop', freight.trailerDrop], ['Trailer pickup', freight.trailerPickup],
+      ['Trailer drop', freight.trailerDropStopId ? '' : freight.trailerDrop],
+      ['Trailer pickup', freight.trailerPickupStopId ? '' : freight.trailerPickup],
       ['Your stop pay', offerNumber(freight.stopPay, currency)]
     ], 'load-offer-freight');
     if (fields.childElementCount) card.append(fields);
     else card.append(node('p', 'No shipment details entered.', 'load-offer-empty'));
     return card;
+  }
+
+  function trailerPlanNotes(load, stop) {
+    const freight = load.freight || load.offer?.freight || {};
+    const notes = [];
+    if (freight.trailerDropStopId === stop.key) {
+      notes.push(node('p', ['Drop trailer', freight.trailerDropNumber, freight.trailerDropNotes].filter(Boolean).join(' · ')));
+    }
+    if (freight.trailerPickupStopId === stop.key) {
+      if (freight.trailerPickupMode === 'bobtail') {
+        notes.push(node('p', 'Leave this stop bobtail'));
+        if (freight.nextTrailerLocation || freight.bobtailInstructions) {
+          const section = node('details');
+          section.open = true;
+          section.append(node('summary', 'Next Trailer / Bobtail Instructions'));
+          if (freight.nextTrailerLocation) section.append(node('p', 'Next trailer location · ' + freight.nextTrailerLocation));
+          if (freight.bobtailInstructions) section.append(node('p', freight.bobtailInstructions));
+          notes.push(section);
+        }
+      } else {
+        notes.push(node('p', ['Pick up trailer', freight.trailerPickupNumber, freight.trailerPickupNotes].filter(Boolean).join(' · ')));
+      }
+    }
+    return notes;
   }
 
   function offerPay(pay) {
@@ -345,6 +372,7 @@ const driverLoadWorkflow = (() => {
       if (contact) row.append(node('p', 'Contact · ' + contact, 'muted'));
       if (schedule) row.append(node('p', schedule, 'muted'));
       if (stop.info.notes) row.append(node('p', stop.info.notes));
+      row.append(...trailerPlanNotes(load, stop));
       if (stop.progress?.arrivalAt) {
         const time = clock(stop.progress.arrivalAt, stop.info.zone);
         const departed = clock(stop.progress.completedAt, stop.info.zone);
@@ -384,6 +412,8 @@ const driverLoadWorkflow = (() => {
 
   function stopForm(load, stop) {
     const form = node('form');
+    form.dataset.trailerDeparture = '';
+    let freight = load.freight || {};
     const title = stop.kind === 'pickup' ? 'Depart Pickup' : 'Depart Delivery';
     form.append(node('h3', title));
     const key = JSON.stringify([load.id, stop.key]);
@@ -412,23 +442,40 @@ const driverLoadWorkflow = (() => {
       const incoming = trailerNumber.dataset.incomingTrailer;
       const departure = trailerNumber.value.trim().toUpperCase();
       const picked = pickedNumber.value.trim().toUpperCase();
+      const plannedDrop = freight.trailerDropStopId === stop.key && freight.trailerDropNumber;
+      const plannedPickup = freight.trailerPickupStopId === stop.key && freight.trailerPickupNumber;
+      const plannedBobtail = freight.trailerPickupStopId === stop.key && freight.trailerPickupMode === 'bobtail';
+      const wrongDrop = plannedDrop && droppedNumber.value.trim().toUpperCase() !== plannedDrop.toUpperCase();
+      const wrongPickup = plannedPickup && !check.checked && picked !== plannedPickup.toUpperCase();
+      const missingBobtail = plannedBobtail && !check.checked;
       state.required = !check.checked && Boolean(picked);
       const hookMismatch = !check.checked && Boolean(picked) && departure !== picked;
       const mismatch = incoming != null && departure !== incoming.toUpperCase()
         && !check.checked && !droppedNumber.value.trim() && !picked;
-      alert.textContent = hookMismatch ? 'Trailer number must match the picked-up trailer.'
+      alert.textContent = wrongDrop ? 'Enter the planned drop trailer number ' + plannedDrop + '.'
+        : missingBobtail ? 'Select Bobtail to confirm you are leaving without a trailer.'
+        : wrongPickup ? 'Enter the planned pickup trailer number ' + plannedPickup + '.'
+        : hookMismatch ? 'Trailer number must match the picked-up trailer.'
         : mismatch
         ? 'Trailer mismatch. ' + (incoming ? 'Arrival trailer: ' + incoming + '. ' : 'You arrived bobtail. ') +
           'Enter the same trailer, record a trailer drop or pickup, or select Bobtail.'
         : '';
+      const invalid = wrongDrop || wrongPickup || missingBobtail || hookMismatch || mismatch;
       trailerNumber.setAttribute('aria-invalid', String(hookMismatch || mismatch));
-      submit.disabled = draft.saving || hookMismatch || mismatch;
-      return !hookMismatch && !mismatch;
+      droppedNumber.setAttribute('aria-invalid', String(Boolean(wrongDrop)));
+      pickedNumber.setAttribute('aria-invalid', String(Boolean(wrongPickup)));
+      check.setAttribute('aria-invalid', String(Boolean(missingBobtail)));
+      submit.disabled = draft.saving || Boolean(invalid);
+      return !invalid;
     }
     check.addEventListener('change', updateTrailer);
     for (const control of [trailerNumber, droppedNumber]) control.addEventListener('input', updateTrailer);
     pickedNumber.addEventListener('input', () => {
       if (pickedNumber.value.trim()) trailerNumber.value = pickedNumber.value.trim();
+      updateTrailer();
+    });
+    form.addEventListener('trailer-plan-change', event => {
+      freight = event.detail || {};
       updateTrailer();
     });
     updateTrailer();
@@ -788,6 +835,11 @@ const driverLoadWorkflow = (() => {
     }
     const info = byId('driver-load-view-info');
     if (info) paintLoadInfo(load, info);
+    const actions = byId('driverLoadProgressActions');
+    const freightChanged = JSON.stringify(previous.freight) !== JSON.stringify(load.freight);
+    if (freightChanged) {
+      actions?.querySelector('[data-trailer-departure]')?.dispatchEvent(new CustomEvent('trailer-plan-change', { detail: load.freight }));
+    }
     if (previous.incomingTrailer !== load.incomingTrailer) {
       const trailer = byId('driverLoadProgressActions')?.querySelector('input[name=trailer]');
       if (trailer) {
@@ -798,11 +850,11 @@ const driverLoadWorkflow = (() => {
         trailer.dispatchEvent(new Event('input'));
       }
     }
-    if (JSON.stringify(previous.stops) !== JSON.stringify(load.stops)) {
-      byId('driverLoadStops')?.replaceWith(showAllStops(load));
+    const stopsChanged = JSON.stringify(previous.stops) !== JSON.stringify(load.stops);
+    if (stopsChanged || freightChanged) byId('driverLoadStops')?.replaceWith(showAllStops(load));
+    if (stopsChanged) {
       const before = previous.stops.find(stop => !stop.progress?.completedAt);
       const after = load.stops.find(stop => !stop.progress?.completedAt);
-      const actions = byId('driverLoadProgressActions');
       if (actions && (before?.key !== after?.key || Boolean(before?.progress?.arrivalAt) !== Boolean(after?.progress?.arrivalAt))) {
         actions.replaceChildren();
         paintProgressActions(load, actions);
