@@ -4,7 +4,7 @@ let ownProfileRead=null;
 let linkPreview=null;
 let ownLinkKey=null;
 let ownKeyRequest=null;
-const linkKeyFormat=/^[A-F0-9]{20}$/;
+const linkKeyFormat=/^(?:[A-Z0-9]{6}|[A-F0-9]{20})$/;
 const cleanLinkKey=value=>value.replace(/[\s-]/g,'').toUpperCase();
 const linkExpiryFormat=new Intl.DateTimeFormat(undefined,{dateStyle:'medium',timeStyle:'short'});
 
@@ -34,7 +34,16 @@ async function loadFleetProfileLinks(){
   if(!current())return;
   const rows=links.filter(link=>link.rigtracker_profiles).map(({rigtracker_profiles:profile,employee_number})=>{
    const row=document.createElement('tr');
-   row.insertCell().textContent=[profile.first_name,profile.last_name].filter(Boolean).join(' ')||'—';
+   const nameCell=row.insertCell();
+   const name=[profile.first_name,profile.last_name].filter(Boolean).join(' ')||'—';
+   if(profile.profile_type==='company_driver'){
+    const open=document.createElement('button');
+    open.type='button';
+    open.className='link-btn company-driver-profile-link';
+    open.textContent=name;
+    open.addEventListener('click',()=>companyDriverTools.openAdmin(profile));
+    nameCell.append(open);
+   }else nameCell.textContent=name;
    row.insertCell().textContent=linkedProfileLabels[profile.profile_type];
    row.insertCell().textContent=employee_number||'—';
    const remove=document.createElement('button');
@@ -42,16 +51,7 @@ async function loadFleetProfileLinks(){
    remove.className='outline';
    remove.textContent='Remove link';
    remove.addEventListener('click',()=>mutateFleetProfile(remove,'unlink',{profileId:profile.profile_id}));
-   const actions=row.insertCell();
-   if(profile.profile_type==='company_driver'&&typeof companyDriverTools!=='undefined'){
-    const manage=document.createElement('button');
-    manage.type='button';
-    manage.className='outline';
-    manage.textContent='Manage Driver';
-    manage.addEventListener('click',()=>companyDriverTools.openAdmin(profile));
-    actions.append(manage);
-   }
-   actions.append(remove);
+   row.insertCell().append(remove);
    return row;
   });
   body.replaceChildren(...rows);
@@ -68,7 +68,7 @@ async function mutateFleetProfile(control,action,fields,form){
  if(!owner||!fleetId||accountTypeFor(owner)!=='fleet'||control.disabled)return;
  control.disabled=true;
  try{
-  await callFleetProfiles(action,fields);
+  const result=await callFleetProfiles(action,fields);
   if(currentUser!==owner||adminFleetId!==fleetId)return;
   form?.reset();
   if(action==='link')clearLinkPreview();
@@ -78,6 +78,10 @@ async function mutateFleetProfile(control,action,fields,form){
    create_company_driver:'Company Driver created and linked.'
   };
   showToast(messages[action]);
+  if(action==='create_company_driver'&&result.profileId&&fleetSection==='links'&&document.getElementById('fleetWorkspace').classList.contains('active')){
+   await companyDriverTools.openAdmin({profile_id:result.profileId,first_name:fields.firstName,last_name:fields.lastName});
+   return;
+  }
   await loadFleetProfileLinks();
  }catch(error){
   if(currentUser===owner&&adminFleetId===fleetId)showToast(error.message);
@@ -132,6 +136,7 @@ async function saveRigTrackerLink(event){
     action:redeem?'redeem':'preview',link_key:key,employee_number:redeem&&employeeNumber?employeeNumber:null
    });
    if(error)throw error;
+   if(data?.link_key_error)throw new Error(data.link_key_error);
    if(!current())return;
    if(redeem){
     resetFleetLinkForm();
@@ -220,6 +225,16 @@ function createCompanyDriver(event){
  return mutateFleetProfile(form.querySelector('button[type="submit"]'),'create_company_driver',fields,form);
 }
 
+async function openCompanyDriverCreate(){
+ if(accountTypeFor(currentUser)!=='fleet')return;
+ await showFleetSection('links');
+ const form=document.getElementById('companyDriverForm');
+ if(fleetSection==='links'&&!form.closest('.hidden')){
+  form.scrollIntoView({block:'start'});
+  form.elements.firstName.focus({preventScroll:true});
+ }
+}
+
 async function openOwnRigTrackerProfile({openLoads=false}={}){
  const user=currentUser;
  const role=accountTypeFor(user);
@@ -243,7 +258,7 @@ async function openOwnRigTrackerProfile({openLoads=false}={}){
  status.textContent='Loading your profile…';
  showPage('rigTrackerProfilePage');
  const {data:profile,error}=await supabaseClient.from('rigtracker_profiles')
-  .select('profile_id,first_name,last_name,phone,license_number,password_required').eq('user_id',user.id).maybeSingle();
+  .select('display_profile_id,first_name,last_name,phone,license_number,password_required').eq('user_id',user.id).maybeSingle();
  if(!current())return;
  if(error||!profile){
   status.textContent='Could not load your profile. Try signing in again.';
@@ -260,7 +275,7 @@ async function openOwnRigTrackerProfile({openLoads=false}={}){
  if((driver||role==='mechanic')&&typeof companyMessaging!=='undefined')void companyMessaging.refresh();
  const hasDriverWorkflow=(driver||role==='driver')&&typeof driverLoadWorkflow!=='undefined';
  if(hasDriverWorkflow&&!openLoads)void driverLoadWorkflow.refresh(true);
- document.getElementById('ownRigTrackerId').value=profile.profile_id;
+ paintOwnProfileId(profile.display_profile_id);
  const linkAccess={
   company:'Linked fleets can assign loads and share team messages and settlements with you.',
   driver:'Linked fleets can assign loads to you.',
@@ -297,6 +312,11 @@ async function openOwnRigTrackerProfile({openLoads=false}={}){
  }
 }
 
+function paintOwnProfileId(profileId){
+ document.getElementById('ownRigTrackerId').value=profileId||'';
+ document.getElementById('ownProfileIdHelp').classList.toggle('hidden',Boolean(profileId));
+}
+
 async function saveOwnRigTrackerProfile(event){
  event.preventDefault();
  const user=currentUser;
@@ -310,9 +330,12 @@ async function saveOwnRigTrackerProfile(event){
  }
  button.disabled=true;
  try{
-  const {error}=await supabaseClient.from('rigtracker_profiles').update(fields)
-   .eq('user_id',user.id).select('profile_id').single();
-  if(currentUser===user)showToast(error?'Could not save your profile. Try again.':'Profile saved.');
+  const {data,error}=await supabaseClient.from('rigtracker_profiles').update(fields)
+   .eq('user_id',user.id).select('display_profile_id').single();
+  if(currentUser===user){
+   if(!error)paintOwnProfileId(data.display_profile_id);
+   showToast(error?'Could not save your profile. Try again.':'Profile saved.');
+  }
  }finally{button.disabled=false}
 }
 

@@ -1,6 +1,8 @@
 const companyDriverTools = (() => {
   const byId = id => document.getElementById(id);
   const payBucket = 'company-driver-pay';
+  const adminSections = [...document.querySelectorAll('[data-company-driver-section]')];
+  const historyPageSize = 25;
   const clockFormat = new Intl.DateTimeFormat(undefined, {
     year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
   });
@@ -13,10 +15,14 @@ const companyDriverTools = (() => {
   let payroll;
   let payrollRequest;
   let payrollOrigin;
+  let payrollSection;
+  let fuelRequest;
   let paySignature;
   let viewedPayAt = 0;
   let knownNotices;
   let activeReview;
+  let rosterRequest;
+  let nextPresenceUpdate = 0;
 
   function element(tag, text, className) {
     const node = document.createElement(tag);
@@ -39,6 +45,162 @@ const companyDriverTools = (() => {
     if (error) throw error;
     return data;
   }
+
+  async function profileRequest(action, fleet, fields) {
+    const { data, error } = await supabaseClient.rpc('fleet_company_driver_profile', { action, target_fleet: fleet, ...fields });
+    if (error) throw error;
+    return data;
+  }
+
+  function sameAdmin(selection) {
+    return view === selection && currentUser === selection.user;
+  }
+
+  function selectAdminSection(section) {
+    for (const control of adminSections) {
+      const visible = !control.classList.contains('hidden') && control.dataset.companyDriverSection === section;
+      control.setAttribute('aria-pressed', String(visible));
+      byId(control.getAttribute('aria-controls')).classList.toggle('hidden', !visible);
+    }
+    if (section === 'history' && view && !view.historyLoaded) void loadHistory(view);
+  }
+
+  function paintPresence(presence) {
+    const lastSeen = presence.last_seen_at && clockFormat.format(new Date(presence.last_seen_at));
+    byId('companyDriverAdminPresence').textContent = presence.online ? 'Online now'
+      : lastSeen ? 'Offline · Last active ' + lastSeen : 'No online activity recorded.';
+  }
+
+  async function loadOverview(selection, initialProfile) {
+    if (!selection.owner) return;
+    const status = byId('companyDriverAdminOverviewStatus');
+    try {
+      const profile = initialProfile ?? await profileRequest('overview', selection.fleet, { profile_number: selection.profile.profile_id });
+      if (!sameAdmin(selection)) return;
+      selection.linked = profile.linked;
+      selection.dispatchDriverId = profile.linked ? profile.dispatch_driver_id : null;
+      byId('companyDriverAdminTitle').textContent = name(profile);
+      byId('companyDriverAdminMessage').classList.toggle('hidden', !profile.linked);
+      byId('companyDriverAdminPaySettings').classList.toggle('hidden', !selection.dispatchDriverId);
+      const availability = { assigned: 'On a load', available: 'Available', 'off-duty': 'Off duty' };
+      const facts = [
+        ['RigTracker ID', profile.display_profile_id], ['Employee number', profile.employee_number],
+        ['Fleet status', profile.linked ? 'Active' : 'Former driver'],
+        ['Email', profile.email], ['Phone', profile.phone], ['Driver’s license', profile.license_number],
+        ['Equipment', profile.equipment], ['Dispatch availability', availability[profile.availability]]
+      ];
+      byId('companyDriverAdminFacts').replaceChildren(...facts.filter(([, value]) => value)
+        .flatMap(([label, value]) => [element('dt', label), element('dd', value)]));
+      if (profile.linked) paintPresence(profile.presence);
+      status.textContent = '';
+    } catch (error) {
+      if (sameAdmin(selection)) status.textContent = error.message || 'Could not load this driver profile.';
+    }
+  }
+
+  async function openRoster(driver) {
+    const user = currentUser;
+    const fleet = adminFleetId;
+    if (!fleet || accountTypeFor(user) !== 'fleet') return;
+    const request = {};
+    rosterRequest = request;
+    const current = () => rosterRequest === request && user === currentUser && fleet === adminFleetId &&
+      byId('fleetWorkspace').classList.contains('active') && !byId('dispatch-panel-drivers').classList.contains('hidden');
+    try {
+      const profile = await profileRequest('overview', fleet, { roster_driver: driver.id });
+      if (current()) return openAdmin(profile, 'dispatch', profile);
+    } catch (error) {
+      if (current()) showToast(error.code === '22023' ? 'Link a Company Driver profile to view this driver’s records.'
+        : error.message || 'Could not open the driver profile.');
+    } finally { if (rosterRequest === request) rosterRequest = null; }
+  }
+
+  function historyRow(load) {
+    const row = element('article', '', 'dispatch-load-row');
+    const summary = element('div');
+    summary.append(element('strong', (load.return_load ? 'B-' : 'A-') + load.pro_number));
+    const route = [load.origin, load.destination].filter(Boolean).join(' → ');
+    if (route) summary.append(element('p', route));
+    const completed = Date.parse(load.completed_at);
+    if (Number.isFinite(completed)) summary.append(element('p', 'Completed ' + clockFormat.format(completed)));
+    const actions = element('div', '', 'dispatch-actions');
+    actions.append(button('Open Load', async () => {
+      await showFleetSection('dispatch', 'history');
+      if (fleetSection === 'dispatch' && byId('fleetWorkspace').classList.contains('active')) {
+        await fleetDispatchApp.openRecord(load.load_id);
+      }
+    }));
+    for (const [index, file] of load.paperwork.entries()) {
+      const label = file.kind === 'delivery' ? 'Proof of Delivery' : 'BOL';
+      actions.append(button(load.paperwork.length > 1 ? 'View ' + label + ' ' + (index + 1) : 'View ' + label,
+        () => driverLoadWorkflow.openDocument(file.path)));
+    }
+    row.append(summary, actions);
+    return row;
+  }
+
+  async function loadHistory(selection, more = false) {
+    if (!selection.owner || selection.historyPending) return;
+    const control = byId('companyDriverHistoryMore');
+    const status = byId('companyDriverHistoryStatus');
+    const cursor = more ? selection.historyCursor : null;
+    selection.historyPending = true;
+    control.disabled = true;
+    status.textContent = 'Loading completed loads…';
+    try {
+      const page = await profileRequest('history', selection.fleet, { profile_number: selection.profile.profile_id,
+        ...(cursor ? { before_time: cursor.updated_at, before_load: cursor.load_id } : {}) });
+      if (!sameAdmin(selection)) return;
+      const rows = page.slice(0, historyPageSize);
+      byId('companyDriverHistoryList').append(...rows.map(historyRow));
+      selection.historyLoaded = true;
+      selection.historyCursor = rows.at(-1);
+      control.classList.toggle('hidden', page.length <= historyPageSize);
+      status.textContent = rows.length || more ? '' : 'No completed loads for this driver.';
+    } catch (error) {
+      if (sameAdmin(selection)) status.textContent = error.message || 'Could not load history. Select Load History to retry.';
+    } finally {
+      selection.historyPending = false;
+      if (sameAdmin(selection)) control.disabled = false;
+    }
+  }
+
+  async function refreshAdminPresence() {
+    const selection = view;
+    if (!selection?.linked || selection.presencePending || !byId('companyDriverAdminPage').classList.contains('active')) return;
+    selection.presencePending = true;
+    try {
+      const presence = await profileRequest('presence', selection.fleet, { profile_number: selection.profile.profile_id });
+      if (sameAdmin(selection)) paintPresence(presence);
+    } catch {
+      if (sameAdmin(selection)) byId('companyDriverAdminPresence').textContent = 'Online status unavailable.';
+    } finally { selection.presencePending = false; }
+  }
+
+  async function recordPresence() {
+    if (document.hidden || Date.now() < nextPresenceUpdate) return;
+    nextPresenceUpdate = Date.now() + 45000;
+    try { await supabaseClient.rpc('record_company_driver_presence'); }
+    catch { /* The next refresh retries. */ }
+  }
+
+  for (const control of adminSections) {
+    control.addEventListener('click', () => selectAdminSection(control.dataset.companyDriverSection));
+  }
+  byId('companyDriverHistoryMore').addEventListener('click', () => {
+    if (view?.historyCursor) void loadHistory(view, true);
+  });
+  byId('companyDriverAdminMessage').addEventListener('click', () => {
+    if (view?.linked) void companyMessaging.openDriver({ profileId: view.profile.profile_id });
+  });
+  byId('companyDriverAdminPaySettings').addEventListener('click', async () => {
+    const selection = view;
+    if (!selection?.dispatchDriverId) return;
+    await showFleetSection('dispatch', 'drivers');
+    if (sameAdmin(selection) && !fleetDispatchApp.openPayProfile(selection.dispatchDriverId)) {
+      showToast('Could not open the driver pay settings.');
+    }
+  });
 
   function name(profile) {
     return [profile.first_name, profile.last_name].filter(Boolean).join(' ') || 'Company Driver';
@@ -295,7 +457,8 @@ const companyDriverTools = (() => {
       if (view !== selection || adminRequest !== request || currentUser !== selection.user) return;
       byId('companyDriverAdminContent').classList.remove('hidden');
       byId('companyDriverAdminStatus').textContent = '';
-      byId('companyDriverAdminClockPanel').classList.toggle('hidden', !detail.can_manage_clock);
+      adminSections.find(control => control.dataset.companyDriverSection === 'clock')
+        .classList.toggle('hidden', !detail.can_manage_clock);
       const control = byId('companyDriverClockSwitch');
       control.classList.toggle('hidden', !detail.linked);
       control.setAttribute('aria-pressed', String(detail.enabled));
@@ -309,16 +472,27 @@ const companyDriverTools = (() => {
     }
   }
 
-  function openAdmin(profile, source = 'links') {
+  function openAdmin(profile, source = 'links', initialProfile) {
     const user = currentUser;
     const fleet = source === 'payroll' ? payroll?.fleet_id : adminFleetId;
-    if (!user || !fleet || (source !== 'payroll' && accountTypeFor(user) !== 'fleet')) return;
-    view = { user, fleet, profile, source };
+    const owner = accountTypeFor(user) === 'fleet';
+    if (!user || !fleet || (source !== 'payroll' && !owner)) return;
+    view = { user, fleet, profile, source, owner };
     byId('companyDriverAdminTitle').textContent = name(profile);
     byId('companyDriverAdminStatus').textContent = 'Loading Company Driver records…';
     byId('companyDriverAdminContent').classList.add('hidden');
+    byId('companyDriverAdminMessage').classList.add('hidden');
+    byId('companyDriverAdminPaySettings').classList.add('hidden');
+    byId('companyDriverAdminFacts').replaceChildren();
+    byId('companyDriverHistoryList').replaceChildren();
+    byId('companyDriverHistoryMore').classList.add('hidden');
+    byId('companyDriverAdminPresence').textContent = '';
+    byId('companyDriverAdminOverviewStatus').textContent = 'Loading driver profile…';
+    for (const control of adminSections) control.classList.toggle('hidden', !owner && control.dataset.companyDriverSection !== 'documents');
+    selectAdminSection(source === 'payroll' ? 'documents' : 'overview');
     clearPayForm();
     showPage('companyDriverAdminPage');
+    void loadOverview(view, initialProfile);
     return loadAdmin();
   }
 
@@ -418,13 +592,13 @@ const companyDriverTools = (() => {
       payrollBadges(notices, Boolean(data));
       if (knownNotices && notices.some(notice => !knownNotices.has(notice))) showToast('A driver responded to a pay settlement.');
       knownNotices = new Set(notices);
-      if (byId('companyPayrollPage').classList.contains('active')) {
+      if (byId('companyPayrollPage').classList.contains('active') && payrollSection === 'records') {
         if (!data) {
           byId('companyPayrollStatus').textContent = 'Payroll access is required.';
           return;
         }
         const queue = await rpc('payroll_queue', data.fleet_id);
-        if (currentUser !== user || payrollRequest !== request || !byId('companyPayrollPage').classList.contains('active')) return;
+        if (currentUser !== user || payrollRequest !== request || !byId('companyPayrollPage').classList.contains('active') || payrollSection !== 'records') return;
         paintPayroll(queue);
         byId('companyPayrollStatus').textContent = '';
       }
@@ -453,14 +627,114 @@ const companyDriverTools = (() => {
     }) : [element('p', 'No settlements are awaiting review or submission.', 'muted')]));
   }
 
+  function fuelSettingsFleet() {
+    return accountTypeFor(currentUser) === 'fleet' ? adminFleetId : officeTools.fuelSettingsFleet();
+  }
+
+  function canReadSettlements() {
+    return accountTypeFor(currentUser) === 'fleet' || officeTools.has('payroll') || officeTools.has('settlements');
+  }
+
+  function thisMonday() {
+    const now = new Date();
+    const day = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+    day.setUTCDate(day.getUTCDate() - (day.getUTCDay() + 6) % 7);
+    return day.toISOString().slice(0, 10);
+  }
+
+  const fuelForm = byId('dispatchFuelForm');
+  const fuelWeek = fuelForm.elements.week;
+  const fuelRate = fuelForm.elements.rate;
+  const fuelStatus = byId('dispatchFuelStatus');
+  const fuelSave = fuelForm.querySelector('button[type=submit]');
+  const fuelTable = 'fleet_dispatch_fuel_rates';
+
+  async function readFuelRate() {
+    const fleet = fuelSettingsFleet();
+    const user = currentUser;
+    if (!fleet) return;
+    const request = {};
+    fuelRequest = request;
+    fuelWeek.value ||= thisMonday();
+    fuelRate.value = '';
+    fuelRate.disabled = true;
+    fuelSave.disabled = true;
+    if (!fuelWeek.validity.valid) {
+      fuelStatus.textContent = 'Choose a Monday to set the rate for that week.';
+      return;
+    }
+    fuelStatus.textContent = 'Loading weekly rate…';
+    const active = () => currentUser === user && fuelRequest === request && fleet === fuelSettingsFleet();
+    try {
+      const { data, error } = await supabaseClient.from(fuelTable).select('cents_per_mile')
+        .eq('fleet_id', fleet).eq('week_start', fuelWeek.value).maybeSingle();
+      if (error) throw error;
+      if (!active()) return;
+      fuelRate.value = data?.cents_per_mile ?? '';
+      fuelStatus.textContent = data ? 'This week’s rate is saved.' : 'No rate set for this week.';
+      fuelRate.disabled = false;
+      fuelSave.disabled = false;
+    } catch {
+      if (active()) fuelStatus.textContent = 'Could not load the weekly fuel surcharge. Reopen Manage to retry.';
+    }
+  }
+
+  fuelWeek.addEventListener('change', readFuelRate);
+  fuelForm.addEventListener('submit', async event => {
+    event.preventDefault();
+    const fleet = fuelSettingsFleet();
+    const user = currentUser;
+    if (!fleet || fuelSave.disabled || payrollSection !== 'manage') return;
+    const request = fuelRequest;
+    const values = { fleet_id: fleet, week_start: fuelWeek.value, cents_per_mile: fuelRate.value };
+    fuelSave.disabled = fuelWeek.disabled = fuelRate.disabled = true;
+    try {
+      const { error } = await supabaseClient.from(fuelTable).upsert(values, { onConflict: 'fleet_id,week_start' });
+      if (error) throw error;
+      if (currentUser === user && fuelRequest === request) {
+        fuelStatus.textContent = 'Weekly fuel surcharge saved.';
+        fleetDispatchApp.refreshPayPreview();
+      }
+    } catch {
+      if (currentUser === user && fuelRequest === request) fuelStatus.textContent = 'Could not save the weekly fuel surcharge.';
+    } finally {
+      if (currentUser === user && fuelRequest === request) fuelSave.disabled = fuelWeek.disabled = fuelRate.disabled = false;
+    }
+  });
+
+  function selectPayrollSection(section) {
+    const canManage = Boolean(fuelSettingsFleet());
+    const canRead = canReadSettlements();
+    const manage = canManage && (section === 'manage' || !canRead);
+    payrollSection = manage ? 'manage' : 'records';
+    const listTab = byId('companyPayrollListTab');
+    const manageTab = byId('companyPayrollManageTab');
+    listTab.classList.toggle('hidden', !canRead);
+    manageTab.classList.toggle('hidden', !canManage);
+    listTab.setAttribute('aria-pressed', String(!manage));
+    manageTab.setAttribute('aria-pressed', String(manage));
+    byId('companyPayrollRecords').classList.toggle('hidden', manage);
+    byId('companyPayrollManage').classList.toggle('hidden', !manage);
+    if (manage) {
+      fuelWeek.disabled = false;
+      return readFuelRate();
+    }
+    fuelRequest = null;
+    byId('companyPayrollStatus').textContent = 'Loading payroll…';
+    return refreshPayroll(true);
+  }
+
+  byId('companyPayrollListTab').addEventListener('click', () => selectPayrollSection('records'));
+  byId('companyPayrollManageTab').addEventListener('click', () => selectPayrollSection('manage'));
+
   function openPayroll(title = 'Payroll') {
     const page = document.querySelector('.page.active');
     if (!currentUser) return;
     if (page && !['companyPayrollPage','companyDriverAdminPage'].includes(page.id)) payrollOrigin = page.id;
     byId('companyPayrollTitle').textContent = title;
     showPage('companyPayrollPage');
-    byId('companyPayrollStatus').textContent = 'Loading payroll…';
-    return refreshPayroll(true);
+    fuelForm.reset();
+    return selectPayrollSection('records');
   }
 
   function backPayroll() {
@@ -470,21 +744,29 @@ const companyDriverTools = (() => {
   }
 
   function backAdmin() {
-    return view?.source === 'payroll' ? openPayroll(byId('companyPayrollTitle').textContent) : showFleetSection('links');
+    if (view?.source === 'payroll') return openPayroll(byId('companyPayrollTitle').textContent);
+    if (view?.source === 'dispatch') return showFleetSection('dispatch', 'drivers');
+    return showFleetSection('links');
   }
 
   function refresh() {
     if (!currentUser) return;
     if (accountTypeFor(currentUser) === 'company') {
+      void recordPresence();
       void refreshClock();
       void refreshPay();
       return;
     }
+    void refreshAdminPresence();
     void refreshPayroll();
   }
 
   function reset() {
     view = null; payroll = null; payrollOrigin = null; payrollRequest = null;
+    fuelRequest = null; payrollSection = null;
+    fuelForm.reset();
+    fuelStatus.textContent = '';
+    rosterRequest = null; nextPresenceUpdate = 0;
     knownNotices = null; paySignature = null; activeReview = null; viewedPayAt = 0;
     clearPayForm();
     payrollBadges([], false);
@@ -493,12 +775,13 @@ const companyDriverTools = (() => {
     byId('companyPayrollOpenDriver').onclick = null;
     adminRequest = null; clockRequest = null; payRequest = null;
     byId('formerCompanyDrivers').open = false;
-    for (const id of ['driverPayList','companyDriverClockList','companyDriverAdminShifts','companyDriverAdminPayList','formerCompanyDriverList']) byId(id).replaceChildren();
+    for (const id of ['driverPayList','companyDriverClockList','companyDriverAdminShifts','companyDriverAdminPayList',
+      'formerCompanyDriverList','companyDriverAdminFacts','companyDriverHistoryList','companyDriverAdminPresence']) byId(id).replaceChildren();
     byId('companyDriverClockButton').classList.add('hidden');
     byId('companyDriverPayButton').textContent = 'Pay';
     byId('companyDriverDocumentsButton').textContent = 'Documents';
   }
 
   setInterval(() => { if (!document.hidden) refresh(); },24000);
-  return { openDocuments, openClock, openAdmin, openPayroll, backPayroll, backAdmin, loadFormer, refresh, reset };
+  return { openDocuments, openClock, openAdmin, openRoster, openPayroll, backPayroll, backAdmin, loadFormer, refresh, reset };
 })();

@@ -186,6 +186,18 @@ const driverLoadWorkflow = (() => {
     ] : pay.method === 'per_mile' ? [
       ['Your rate', displayRate(pay.mileRate)], ['Your loaded miles', offerNumber(pay.miles, quantity, ' mi')]
     ] : [];
+    if (pay.method === 'load_percent' || pay.method === 'higher_of') {
+      rows.push(['Your load percentage', offerNumber(pay.splitPercent, quantity, '%')]);
+    }
+    if (pay.method === 'higher_of') {
+      rows.push(['Your rate', displayRate(pay.mileRate)], ['Your loaded miles', offerNumber(pay.miles, quantity, ' mi')],
+        ['Pay by percentage', amount(pay.percentAmount)], ['Pay by mile', amount(pay.mileageAmount)]);
+    }
+    if (pay.emptyMileRate != null) {
+      rows.push(['Loaded pay', amount(pay.linehaulPay)], ['Empty-mile rate', displayRate(pay.emptyMileRate)],
+        ['Your empty miles', offerNumber(pay.emptyMiles, quantity, ' mi')], ['Empty-mile pay', amount(pay.emptyPay)]);
+    }
+    if (pay.pending) rows.push(['Pay pending', pay.pending]);
     rows.push(['Base pay', amount(pay.amount)]);
     if (pay.additionalPay > 0) rows.push(['Additional pay', amount(pay.additionalPay)]);
     const entries = offerFields(rows, 'load-offer-pay');

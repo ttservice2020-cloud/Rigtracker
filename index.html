@@ -243,6 +243,9 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 #formerCompanyDrivers{margin-top:14px}
 #companyDriverPayForm{margin-top:18px}
 #companyDriverExtras{gap:8px}
+.company-driver-record-nav{display:flex;flex-wrap:wrap;gap:8px}
+.company-driver-record-nav button[aria-pressed="true"]{background:#173a58;border-color:#358ce0;color:#edf6ff}
+.company-driver-record-nav button{min-height:42px}
 .company-pay-row{flex-wrap:wrap}
 .company-pay-row form{flex-basis:100%;min-width:0}
 .company-pay-row [hidden]{display:none}
@@ -478,7 +481,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
        <div class="fleet-tools-grid">
         <button class="card fleet-tool" type="button" onclick="showFleetSection('hr')">HR <span aria-hidden="true">›</span></button>
         <button class="card fleet-tool" type="button" id="companyFleetPayrollButton" onclick="showFleetSection('payroll')"><span class="payroll-label">Payroll</span> <span aria-hidden="true">›</span></button>
-        <button class="card fleet-tool" type="button" onclick="showFleetSection('payroll')">Pay Settlements <span aria-hidden="true">›</span></button>
+        <button class="card fleet-tool" type="button" onclick="companyDriverTools.openPayroll('Pay Settlements')">Pay Settlements <span aria-hidden="true">›</span></button>
         <button class="card fleet-tool" type="button" onclick="showFleetSection('hourly')">Hourly Time <span aria-hidden="true">›</span></button>
        </div>
       </section>
@@ -527,6 +530,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
           <p class="muted" id="dispatchDetailRoute"></p>
          </div>
          <div class="dispatch-actions">
+          <button class="outline hidden" id="dispatchDetailRateConfirmation" type="button">View Rate Confirmation</button>
           <button class="outline" id="dispatchDetailEdit" type="button">Edit Load</button>
           <button class="outline" id="dispatchDetailComplete" type="button">Mark Completed</button>
          </div>
@@ -625,6 +629,17 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
          <button class="outline hidden" id="dispatchProRetry" type="button">Retry PRO number</button>
          <fieldset id="dispatchLoadFields" class="dispatch-stop">
           <legend>Load assignment</legend>
+          <section class="panel">
+           <h3>Rate Confirmation</h3>
+           <div class="field"><label for="dispatchRatePhoto">Rate confirmation photo</label><input id="dispatchRatePhoto" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif"></div>
+           <p class="muted" id="dispatchRatePhotoStatus" role="status"></p>
+           <button class="outline hidden" id="dispatchEditorRateConfirmation" type="button">View Saved Photo</button>
+           <div class="dispatch-fields">
+            <div class="field"><label for="dispatchBrokerName">Broker name</label><input id="dispatchBrokerName" name="brokerName" maxlength="120"></div>
+            <div class="field"><label for="dispatchBrokerLoadNumber">Broker load number</label><input id="dispatchBrokerLoadNumber" name="brokerLoadNumber" maxlength="60"></div>
+            <div class="field"><label for="dispatchPayGross">Gross broker rate ($)</label><input id="dispatchPayGross" name="payGross" type="number" min="0" step="0.01" max="999999999999.99" inputmode="decimal"></div>
+           </div>
+          </section>
           <div class="dispatch-fields">
            <div class="field"><label for="dispatchDriver1">Driver 1</label><select id="dispatchDriver1" name="driver1"><option value="">Select a driver</option></select></div>
            <div class="field"><label for="dispatchSecondDriverMode">Second driver</label><select id="dispatchSecondDriverMode" name="secondDriverMode"><option value="none">No second driver</option><option value="unknown">Assign later</option><option value="assigned">Choose Driver 2</option></select></div>
@@ -654,18 +669,19 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
           </details>
           <details class="panel" id="dispatchDriverPay">
            <summary>Driver Pay</summary>
+           <div class="field"><label for="dispatchFuelSurchargeOverride">Fuel surcharge override (¢ per loaded mile)</label><input id="dispatchFuelSurchargeOverride" name="fuelSurchargeOverride" type="number" min="0" max="9999" step="0.0001" inputmode="decimal" placeholder="Use weekly fleet rate"></div>
            <div class="dispatch-actions" role="group" aria-label="Driver pay categories">
             <button class="outline" id="dispatchOwnerPayTab" type="button" aria-controls="dispatchOwnerPayPanel" aria-pressed="false">Owner Op</button>
             <button class="outline" id="dispatchCompanyPayTab" type="button" aria-controls="dispatchCompanyPayPanel" aria-pressed="false">Company Driver</button>
            </div>
            <p id="dispatchPayStatus" class="muted" role="status">Select a driver to see their pay setup.</p>
            <section id="dispatchOwnerPayPanel" class="hidden">
-            <div class="field hidden" id="dispatchPayGrossField"><label for="dispatchPayGross">Gross load amount ($)</label><input id="dispatchPayGross" name="payGross" type="number" min="0" step="0.01" max="999999999999.99" inputmode="decimal"></div>
             <div id="dispatchOwnerPayBreakdown" aria-live="polite"></div>
            </section>
            <section id="dispatchCompanyPayPanel" class="hidden dispatch-fields">
             <div class="field" id="dispatchDriver1PayField"><label for="dispatchDriver1Pay">Driver 1 pay ($)</label><input id="dispatchDriver1Pay" name="driver1Pay" type="number" min="0" step="0.01" inputmode="decimal"></div>
             <div class="field" id="dispatchDriver2PayField"><label for="dispatchDriver2Pay">Driver 2 pay ($)</label><input id="dispatchDriver2Pay" name="driver2Pay" type="number" min="0" step="0.01" inputmode="decimal"></div>
+            <div id="dispatchCompanyPayBreakdown" aria-live="polite"></div>
            </section>
            <section id="dispatchAdditionalPay" class="panel hidden">
             <h3>Additional Pay</h3>
@@ -679,8 +695,9 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
           <details class="panel">
            <summary>Empty Miles</summary>
            <div class="dispatch-fields">
-            <div class="field"><label for="dispatchEmptyMiles">Empty miles</label><input id="dispatchEmptyMiles" name="emptyMiles" type="number" min="0" step="0.1" inputmode="decimal"></div>
-            <div class="field"><label for="dispatchEmptyRate">Rate per empty mile</label><input id="dispatchEmptyRate" name="emptyRate" type="number" min="0" step="0.01" inputmode="decimal"></div>
+            <div class="field"><label for="dispatchEmptyMiles">Empty miles</label><input id="dispatchEmptyMiles" name="emptyMiles" type="number" min="0" max="999999999" step="0.1" inputmode="decimal"></div>
+            <div class="field hidden" id="dispatchFirstEmptyLegField"><label for="dispatchFirstEmptyLeg">Driver 1 empty miles</label><input id="dispatchFirstEmptyLeg" name="firstLegEmptyMiles" type="number" min="0" max="999999999" step="0.1" inputmode="decimal"></div>
+            <div class="field hidden" id="dispatchLegacyEmptyRate"><label for="dispatchEmptyRate">Recorded empty-mile rate</label><input id="dispatchEmptyRate" name="emptyRate" type="number" readonly></div>
            </div>
           </details>
           <details class="panel">
@@ -735,6 +752,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
         <div id="dispatchHistoryList" class="dispatch-load-list"></div>
        </section>
        <section id="dispatch-panel-drivers" class="dispatch-panel hidden" role="tabpanel" aria-labelledby="dispatch-tab-drivers" tabindex="0">
+        <button class="outline hidden" type="button" id="dispatchCreateCompanyDriver" onclick="openCompanyDriverCreate()">Create Company Driver</button>
         <div class="dispatch-fields">
          <div class="field"><label for="dispatchDriverSearch">Search drivers</label><input id="dispatchDriverSearch" type="search" placeholder="Name or equipment"></div>
          <div class="field"><label for="dispatchDriverFilter">Availability</label><select id="dispatchDriverFilter"><option value="">All drivers</option><option value="available">Available</option><option value="assigned">On a load</option><option value="off-duty">Off duty</option></select></div>
@@ -749,17 +767,6 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
           <button class="primary-btn" type="submit">Add driver</button>
          </form>
         </details>
-        <details class="panel" id="dispatchFuelSettings">
-         <summary>Weekly Fuel Surcharge</summary>
-         <form id="dispatchFuelForm">
-          <div class="dispatch-fields">
-           <div class="field"><label for="dispatchFuelWeek">Week starting Monday</label><input id="dispatchFuelWeek" name="week" type="date" min="2000-01-03" step="7" required></div>
-           <div class="field"><label for="dispatchFuelRate">Fuel surcharge (¢ per mile)</label><input id="dispatchFuelRate" name="rate" type="number" min="0" max="9999" step="0.0001" inputmode="decimal" required></div>
-          </div>
-          <p id="dispatchFuelStatus" class="muted" role="status"></p>
-          <button class="primary-btn" type="submit">Save Weekly Rate</button>
-         </form>
-        </details>
         <section class="panel hidden" id="dispatchPayProfile">
          <h2 id="dispatchPayProfileHeading">Driver pay profile</h2>
          <form id="dispatchPayProfileForm">
@@ -771,10 +778,11 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
             <select id="dispatchProfilePayMethod" name="payMethod"><option value="">Select a pay method</option><option value="hourly">Hourly</option><option value="split">Split Load</option><option value="per_mile">Flat Rate per Mile</option></select>
            </div>
            <div class="field hidden" id="dispatchProfileCompanyMethodField"><label for="dispatchProfileCompanyPayMethod">Company Driver pay method</label>
-            <select id="dispatchProfileCompanyPayMethod" name="companyPayMethod"><option value="">Per load (manual)</option><option value="hourly">Hourly</option></select>
+            <select id="dispatchProfileCompanyPayMethod" name="companyPayMethod"><option value="">Per load (manual)</option><option value="hourly">Hourly</option><option value="load_percent">Load %</option><option value="per_mile">Per mile</option><option value="higher_of">Whichever is higher</option></select>
            </div>
            <div class="field hidden" id="dispatchProfileSplitField"><label for="dispatchProfileSplit">Driver split (%)</label><input id="dispatchProfileSplit" name="splitPercent" type="number" min="0" max="100" step="0.01" inputmode="decimal"></div>
            <div class="field hidden" id="dispatchProfileMileField"><label for="dispatchProfileMile">Flat rate ($ per loaded mile)</label><input id="dispatchProfileMile" name="mileRate" type="number" min="0" max="9999" step="0.0001" inputmode="decimal"></div>
+           <div class="field hidden" id="dispatchProfileEmptyMileField"><label for="dispatchProfileEmptyMile">Empty-mile rate ($ per empty mile)</label><input id="dispatchProfileEmptyMile" name="emptyMileRate" type="number" min="0" max="9999" step="0.0001" inputmode="decimal"></div>
           </div>
           <div class="dispatch-actions">
            <button class="primary-btn" type="submit">Save Pay Profile</button>
@@ -813,7 +821,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
         <h2>Link an existing profile</h2>
         <p class="muted">Ask the profile owner to generate a link key in their RigTracker Profile.</p>
         <div class="form-grid fleet-account-fields">
-         <div class="field"><label for="linkProfileKey">Link key</label><input id="linkProfileKey" name="linkKey" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="32" required></div>
+         <div class="field"><label for="linkProfileKey">Link key</label><input id="linkProfileKey" name="linkKey" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="X7K9M2" maxlength="32" required></div>
          <div class="field hidden" id="linkEmployeeNumberField"><label for="linkEmployeeNumber">Employee number (optional)</label><input id="linkEmployeeNumber" name="employeeNumber" inputmode="numeric" pattern="[0-9]{1,6}" maxlength="6" placeholder="Generated if blank" disabled></div>
         </div>
         <p id="linkProfilePreview" class="muted" role="status"></p>
@@ -934,10 +942,11 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
     <section class="panel">
      <h2>RigTracker Profile ID</h2>
      <div class="field"><input id="ownRigTrackerId" aria-label="RigTracker Profile ID" readonly></div>
+     <p class="muted hidden" id="ownProfileIdHelp">Save your first and last name to get your profile ID.</p>
     </section>
     <section class="panel">
      <h2>Link to a fleet</h2>
-     <p class="muted">Share a one-time key with a Fleet Admin. The key expires after 24 hours and lets them see your name and account type before linking.</p>
+     <p class="muted">Share the six-character key with your fleet office. It works once and expires after 24 hours.</p>
      <p class="muted" id="ownLinkAccess"></p>
      <div class="field hidden" id="ownLinkKeyField"><label for="ownLinkKey">Link key</label><input id="ownLinkKey" readonly autocomplete="off" spellcheck="false"></div>
      <p class="muted" id="ownLinkKeyStatus" role="status"></p>
@@ -1035,17 +1044,38 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
    <div id="companyDriverClockList"></div>
   </section>
   <section id="companyDriverAdminPage" class="page fleet-account-page">
-   <div class="page-head"><div><button class="back" type="button" onclick="companyDriverTools.backAdmin()">← Back</button><h1 id="companyDriverAdminTitle">Company Driver</h1></div></div>
+   <div class="page-head"><div><button class="back" type="button" onclick="companyDriverTools.backAdmin()">← Back</button><h1 id="companyDriverAdminTitle">Company Driver</h1></div>
+    <button class="outline hidden" type="button" id="companyDriverAdminMessage">Message Driver</button>
+    <button class="outline hidden" type="button" id="companyDriverAdminPaySettings">Edit Pay Settings</button>
+   </div>
    <p id="companyDriverAdminStatus" class="muted" role="status"></p>
    <div id="companyDriverAdminContent" class="hidden">
-    <section class="panel" id="companyDriverAdminClockPanel">
+    <nav class="company-driver-record-nav" aria-label="Driver profile sections">
+     <button class="outline" type="button" data-company-driver-section="overview" aria-controls="companyDriverAdminOverview" aria-pressed="true">Overview</button>
+     <button class="outline" type="button" data-company-driver-section="history" aria-controls="companyDriverAdminHistory" aria-pressed="false">Load History</button>
+     <button class="outline" type="button" data-company-driver-section="clock" aria-controls="companyDriverAdminClockPanel" aria-pressed="false">Time Clock</button>
+     <button class="outline" type="button" data-company-driver-section="documents" aria-controls="companyDriverAdminDocuments" aria-pressed="false">Documents</button>
+    </nav>
+    <section class="panel" id="companyDriverAdminOverview">
+     <h2>General Info</h2>
+     <p class="muted" id="companyDriverAdminOverviewStatus" role="status"></p>
+     <dl class="dispatch-detail-facts" id="companyDriverAdminFacts"></dl>
+     <p id="companyDriverAdminPresence"></p>
+    </section>
+    <section class="panel hidden" id="companyDriverAdminHistory">
+     <h2>Completed loads</h2>
+     <p class="muted" id="companyDriverHistoryStatus" role="status"></p>
+     <div class="dispatch-load-list" id="companyDriverHistoryList"></div>
+     <button class="outline hidden" type="button" id="companyDriverHistoryMore">Load More</button>
+    </section>
+    <section class="panel hidden" id="companyDriverAdminClockPanel">
      <h2>Time Clock</h2>
      <button class="outline" id="companyDriverClockSwitch" type="button" aria-pressed="false"></button>
      <p id="companyDriverClockArchive" class="muted hidden">Fleet link ended.</p>
      <h3>Recent shifts</h3>
      <div id="companyDriverAdminShifts"></div>
     </section>
-    <section class="panel">
+    <section class="panel hidden" id="companyDriverAdminDocuments">
      <h2>Pay Settlements</h2>
      <div id="companyDriverAdminPayList" class="dispatch-load-list"></div>
      <form id="companyDriverPayForm">
@@ -1065,11 +1095,30 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
   </section>
   <section id="companyPayrollPage" class="page fleet-account-page">
    <div class="page-head"><div><button class="back" type="button" onclick="companyDriverTools.backPayroll()">← Back</button><h1 id="companyPayrollTitle">Payroll</h1></div></div>
-   <p id="companyPayrollStatus" class="muted" role="status"></p>
-   <section class="panel"><h2>Driver settlements</h2><div class="field">
-    <label for="companyPayrollDriver">Company Driver</label><select id="companyPayrollDriver"></select>
-   </div><button class="outline" id="companyPayrollOpenDriver" type="button">Open Driver Records</button></section>
-   <section class="panel"><h2>Settlement reviews</h2><div id="companyPayrollQueue" class="dispatch-load-list"></div></section>
+   <nav class="company-driver-record-nav" aria-label="Settlement sections">
+    <button class="outline" id="companyPayrollListTab" type="button" aria-controls="companyPayrollRecords" aria-pressed="true">Settlements</button>
+    <button class="outline hidden" id="companyPayrollManageTab" type="button" aria-controls="companyPayrollManage" aria-pressed="false">Manage</button>
+   </nav>
+   <div id="companyPayrollRecords">
+    <p id="companyPayrollStatus" class="muted" role="status"></p>
+    <section class="panel"><h2>Driver settlements</h2><div class="field">
+     <label for="companyPayrollDriver">Company Driver</label><select id="companyPayrollDriver"></select>
+    </div><button class="outline" id="companyPayrollOpenDriver" type="button">Open Driver Records</button></section>
+    <section class="panel"><h2>Settlement reviews</h2><div id="companyPayrollQueue" class="dispatch-load-list"></div></section>
+   </div>
+   <div class="hidden" id="companyPayrollManage">
+    <section class="panel" id="dispatchFuelSettings">
+     <h2>Weekly Fuel Surcharge</h2>
+     <form id="dispatchFuelForm">
+      <div class="dispatch-fields">
+       <div class="field"><label for="dispatchFuelWeek">Week starting Monday</label><input id="dispatchFuelWeek" name="week" type="date" min="2000-01-03" step="7" required></div>
+       <div class="field"><label for="dispatchFuelRate">Fuel surcharge (¢ per mile)</label><input id="dispatchFuelRate" name="rate" type="number" min="0" max="9999" step="0.0001" inputmode="decimal" required></div>
+      </div>
+      <p id="dispatchFuelStatus" class="muted" role="status"></p>
+      <button class="primary-btn" type="submit">Save Weekly Rate</button>
+     </form>
+    </section>
+   </div>
   </section>
   <section id="fleetBolPaymentsPage" class="page fleet-account-page" aria-labelledby="fleetBolPaymentsHeading">
    <div class="page-head">
@@ -1255,6 +1304,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
   </div>
   <label class="office-toggle hidden" id="officeProfileLinkAccess"><input type="checkbox" id="officeProfileLink" role="switch"> Link RigTracker Profiles</label>
   <p class="muted hidden" id="officeProfileOfficialAccess">Officials have access to standard Office tools.</p>
+  <label class="office-toggle hidden" id="officeProfileFuelAccess"><input id="officeProfileFuelSettings" type="checkbox" role="switch"> Manage Weekly Fuel Surcharge</label>
   <fieldset id="officeProfilePermissionFields"><legend>Access</legend><div class="employee-access-list" id="officeProfilePermissionOptions"></div></fieldset>
   <button class="primary-btn" type="submit">Save Access</button>
  </form>
@@ -1281,16 +1331,17 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 <div id="modal"><div class="modal-card"><h2 id="modalTitle"></h2><div id="modalBody"></div><button class="primary-btn" onclick="closeModal()">Close</button></div></div>
 
 <script src="./dispatch-progress.js?v=driver-workflow-1"></script>
-<script src="./dispatch.js?v=office-access-1"></script>
-<script src="./linked-profiles.js?v=company-signup-1"></script>
-<script src="./company-driver-tools.js?v=office-access-1"></script>
-<script src="./company-messages.js?v=office-access-1"></script>
-<script src="./driver-workflow.js?v=fleet-admin-driver-1"></script>
+<script src="./dispatch-rate-confirmation.js?v=1"></script>
+<script src="./dispatch.js?v=rate-confirmation-pay-1"></script>
+<script src="./linked-profiles.js?v=short-profile-id-1"></script>
+<script src="./company-driver-tools.js?v=dispatch-pay-settings-1"></script>
+<script src="./company-messages.js?v=short-profile-id-1"></script>
+<script src="./driver-workflow.js?v=dispatch-pay-settings-1"></script>
 <script src="./fleet-admin-driver.js?v=1"></script>
 <script src="./company-safety.js?v=1"></script>
 <script src="./driver-app.js?v=1"></script>
 <script src="./fleet-bol-payments.js?v=1"></script>
-<script src="./office-tools.js?v=bol-payments-1"></script>
+<script src="./office-tools.js?v=dispatch-pay-settings-1"></script>
 <script>
 const SUPABASE_URL = 'https://pxxikzzfrcncwufpzdfp.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_7yQMjUtCtnHC6jgRF4ROLA_CmgsHaZo';

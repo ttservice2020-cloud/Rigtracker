@@ -41,7 +41,9 @@ Deno.serve(async (request) => {
     case "preview_link":
     case "link": {
       const key = text(body.linkKey).replace(/[\s-]/g, "").toUpperCase();
-      if (!/^[A-F0-9]{20}$/.test(key)) return reply(400, { message: "Enter the link key from the profile owner." });
+      if (!/^(?:[A-Z0-9]{6}|[A-F0-9]{20})$/.test(key)) {
+        return reply(400, { message: "Enter the link key from the profile owner." });
+      }
       const number = text(body.employeeNumber);
       if (number && !employeeNumberPattern.test(number)) {
         return reply(400, { message: "Use 1–6 digits for the employee number." });
@@ -52,11 +54,12 @@ Deno.serve(async (request) => {
       if (error?.code === "23505") return reply(409, { message: "That employee number is already in use." });
       if (error?.code === "22023") return reply(400, { message: error.message });
       if (error?.code === "42501") return reply(403, { message: error.message });
+      if (data?.link_key_error) return reply(400, { message: data.link_key_error });
       return error ? reply(502, { message: "Could not check the link key. Try again." }) : reply(200, { profile: data });
     }
     case "unlink": {
       const id = text(body.profileId);
-      if (!/^[0-9]{16}$/.test(id)) return reply(400, { message: "Enter the 16-digit RigTracker Profile ID." });
+      if (!/^[0-9]{16}$/.test(id)) return reply(400, { message: "This profile could not be identified." });
       const { error } = await service.rpc("manage_rigtracker_link", {
         acting_admin: user.id, target_fleet: fleet.id, target_profile_id: id,
         requested_number: null, removing: true,
