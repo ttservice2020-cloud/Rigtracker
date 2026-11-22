@@ -71,8 +71,9 @@ const officeTools = (() => {
     } catch {
       if (currentUser === user && clockRequest === request) {
         officeShift = null;
+        byId('officeClockWidget').classList.toggle('hidden', !(employee && has('hourly')));
         byId('officeClockStatus').textContent = 'Clock unavailable';
-        paintClock();
+        byId('officeClockToggle').textContent = 'Start';
       }
     }
   }
