@@ -163,6 +163,9 @@ const dispatchProgress = (() => {
       const second = departDriver || drivers.find(driver => driver.id === load.second_driver_id)?.name;
       const active = load.status === 'current' && !departedAt;
       const assigning = active && Boolean(droppedAt);
+      const choices = assigning ? relayDriverChoices(load) : [];
+      const showPicker = assigning && choices.length > 0;
+      const noSecondDriver = assigning && !showPicker && !load.second_driver_id;
       const facts = [
         ['Relay location', location], ['Relay address', address], ['Relay date', date],
         [droppedAt ? 'Dropped by' : 'Driver 1', first],
@@ -171,27 +174,30 @@ const dispatchProgress = (() => {
         ['Planned pickup', pickup], ['Dropped', droppedAt && recordedTime(droppedAt)],
         ['Departed', departedAt && recordedTime(departedAt)]
       ];
-      const factsKey = JSON.stringify([assigning, facts]);
+      const factsKey = JSON.stringify([showPicker, noSecondDriver, facts]);
       if (splitFactsKey !== factsKey) {
         splitFactsKey = factsKey;
         splitFacts.replaceChildren(...facts.filter(([, value]) => value).map(([label, value]) => {
           const pair = fact(label, value);
-          if (assigning && label === 'Scheduled Driver 2') pair.lastElementChild.replaceChildren(splitDriver);
+          if (label === 'Scheduled Driver 2') {
+            const value = pair.lastElementChild;
+            if (showPicker) value.replaceChildren(splitDriver);
+            else if (noSecondDriver) value.append(element('div', 'No other active drivers are listed in Dispatch.', 'muted'));
+          }
           return pair;
         }));
       }
-      if (assigning) {
-        const choices = relayDriverChoices(load);
-        const placeholder = new Option('Pending assignment', '');
-        placeholder.disabled = true;
+      if (showPicker) {
         const choicesKey = JSON.stringify(choices);
         if (splitChoicesKey !== choicesKey) {
           splitChoicesKey = choicesKey;
+          const placeholder = new Option('Pending assignment', '');
+          placeholder.disabled = true;
           splitDriver.replaceChildren(placeholder, ...choices.map(({ id, name }) => new Option(name, id)));
         }
         const assigned = load.second_driver_id || '';
         if (splitDriver.value !== assigned) splitDriver.value = assigned;
-        splitDriver.disabled = readOnly || Boolean(request) || !choices.length;
+        splitDriver.disabled = readOnly || Boolean(request);
       }
       toggle('dispatchSplitActions', active);
       toggle('dispatchSplitDrop', !droppedAt);
