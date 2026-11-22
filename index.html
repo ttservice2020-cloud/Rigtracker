@@ -249,8 +249,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 .company-driver-summary{margin-bottom:12px}
 .company-driver-summary .dispatch-detail-facts>div{min-width:0;padding:10px;background:#0d1521;border:1px solid #2b4058;border-radius:8px}
 .company-driver-summary a{color:inherit;text-decoration:underline}
-.company-driver-summary details{margin-top:12px}
-.company-driver-summary summary{cursor:pointer;font-weight:700}
+.company-driver-equipment{margin-top:12px}
 .company-driver-equipment-form{margin-top:10px}
 .company-pay-row{flex-wrap:wrap}
 .company-pay-row form{flex-basis:100%;min-width:0}
@@ -1159,18 +1158,21 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
     <section class="panel company-driver-summary hidden" id="companyDriverAdminSummary" aria-label="Driver quick reference">
      <p class="muted" id="companyDriverAdminOverviewStatus" role="status"></p>
      <dl class="dispatch-detail-facts" id="companyDriverAdminFacts"></dl>
-     <details class="hidden" id="companyDriverEquipmentEditor">
-      <summary>Edit Truck &amp; Trailer</summary>
-      <form class="company-driver-equipment-form" id="companyDriverEquipmentForm">
+     <div class="company-driver-equipment hidden" id="companyDriverEquipmentEditor">
+      <button class="outline" id="companyDriverEquipmentEdit" type="button" aria-expanded="false" aria-controls="companyDriverEquipmentForm">Edit Truck &amp; Trailer</button>
+      <form class="company-driver-equipment-form hidden" id="companyDriverEquipmentForm">
        <div class="dispatch-fields">
-        <div class="field"><label for="companyDriverTruckNumber">Truck number</label><input id="companyDriverTruckNumber" name="truck_number" maxlength="40"></div>
-        <div class="field"><label for="companyDriverTrailerNumber">Trailer number</label><input id="companyDriverTrailerNumber" name="trailer_number" maxlength="40"></div>
+        <div class="field"><label for="companyDriverTruckNumber">Truck number</label><input id="companyDriverTruckNumber" name="truck_number" maxlength="40" autocomplete="off" autocapitalize="characters" spellcheck="false"></div>
+        <div class="field"><label for="companyDriverTrailerNumber">Trailer number</label><input id="companyDriverTrailerNumber" name="trailer_number" maxlength="40" autocomplete="off" autocapitalize="characters" spellcheck="false"></div>
        </div>
        <p class="muted">Enter Bobtail in the trailer field when the driver has no trailer.</p>
        <p class="dispatch-form-issues hidden" id="companyDriverEquipmentError" role="alert"></p>
-       <button class="primary-btn" type="submit">Save Equipment</button>
+       <div class="dispatch-actions">
+        <button class="primary-btn" type="submit">Save Equipment</button>
+        <button class="outline" id="companyDriverEquipmentCancel" type="button">Cancel</button>
+       </div>
       </form>
-     </details>
+     </div>
     </section>
     <nav class="company-driver-record-nav" aria-label="Driver profile sections">
      <button class="outline" type="button" data-company-driver-section="documents" aria-controls="companyDriverAdminDocuments" aria-pressed="false">Documents</button>
@@ -1548,7 +1550,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 <script src="./dispatch-rate-confirmation.js?v=1"></script>
 <script src="./dispatch.js?v=driver-tracking-1"></script>
 <script src="./linked-profiles.js?v=driver-profile-1"></script>
-<script src="./company-driver-tools.js?v=driver-tracking-1"></script>
+<script src="./company-driver-tools.js?v=equipment-editor-2"></script>
 <script src="./company-messages.js?v=driver-messages-1"></script>
 <script src="./driver-paperwork.js?v=1"></script>
 <script src="./driver-workflow.js?v=driver-tracking-1"></script>

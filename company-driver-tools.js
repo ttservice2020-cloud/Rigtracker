@@ -3,7 +3,10 @@ const companyDriverTools = (() => {
   const payBucket = 'company-driver-pay';
   const adminSections = [...document.querySelectorAll('[data-company-driver-section]')];
   const equipmentEditor = byId('companyDriverEquipmentEditor');
+  const equipmentEdit = byId('companyDriverEquipmentEdit');
   const equipmentForm = byId('companyDriverEquipmentForm');
+  const equipmentSave = equipmentForm.querySelector('button[type=submit]');
+  const equipmentCancel = byId('companyDriverEquipmentCancel');
   const historyPageSize = 25;
   const clockFormat = new Intl.DateTimeFormat(undefined, {
     year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
@@ -180,20 +183,33 @@ const companyDriverTools = (() => {
     }
   }
 
-  equipmentEditor.addEventListener('toggle', () => {
-    if (!equipmentEditor.open || !view?.profile.can_edit_equipment) return;
-    fillEquipmentForm(view.profile);
+  function closeEquipmentForm(restoreFocus = true) {
+    equipmentForm.classList.add('hidden');
+    equipmentEdit.setAttribute('aria-expanded', 'false');
     showEquipmentError();
+    if (restoreFocus) equipmentEdit.focus();
+  }
+
+  equipmentEdit.addEventListener('click', () => {
+    if (!view?.profile.can_edit_equipment || equipmentSave.disabled) return;
+    if (!equipmentForm.classList.contains('hidden')) {
+      closeEquipmentForm();
+      return;
+    }
+    fillEquipmentForm(view.profile);
+    equipmentForm.classList.remove('hidden');
+    equipmentEdit.setAttribute('aria-expanded', 'true');
+    byId('companyDriverTruckNumber').focus();
   });
+  equipmentCancel.addEventListener('click', () => closeEquipmentForm());
 
   equipmentForm.addEventListener('submit', async event => {
     event.preventDefault();
     const selection = view;
-    const control = equipmentForm.querySelector('button[type=submit]');
-    if (!selection?.profile.can_edit_equipment || !selection.dispatchDriverId || control.disabled) return;
+    if (!selection?.profile.can_edit_equipment || !selection.dispatchDriverId || equipmentSave.disabled) return;
     const { truck_number, trailer_number } = Object.fromEntries(new FormData(equipmentForm));
     const { assigned_truck_number, assigned_trailer_number } = selection.profile;
-    control.disabled = true;
+    equipmentSave.disabled = equipmentCancel.disabled = true;
     showEquipmentError();
     try {
       const { data: profile, error } = await supabaseClient.rpc('set_dispatch_driver_equipment', {
@@ -204,13 +220,12 @@ const companyDriverTools = (() => {
       if (!sameAdmin(selection)) return;
       selection.profile = profile;
       paintQuickReference(profile);
-      equipmentEditor.open = false;
-      equipmentEditor.querySelector('summary').focus();
+      closeEquipmentForm();
       showToast('Truck and trailer saved.');
     } catch (error) {
       if (sameAdmin(selection)) showEquipmentError(error.message || 'Could not save the truck and trailer.');
     } finally {
-      if (sameAdmin(selection)) control.disabled = false;
+      if (sameAdmin(selection)) equipmentSave.disabled = equipmentCancel.disabled = false;
     }
   });
 
@@ -768,11 +783,10 @@ const companyDriverTools = (() => {
     const owner = accountTypeFor(user) === 'fleet';
     if (!user || !fleet || (!owner && source === 'links' && !officeTools.canLinkProfiles())) return;
     view = { user, fleet, profile, source, owner, files: new Set(), pending: new Set(), pages: {} };
-    equipmentEditor.open = false;
+    closeEquipmentForm(false);
     equipmentEditor.classList.add('hidden');
     equipmentForm.reset();
-    equipmentForm.querySelector('button[type=submit]').disabled = false;
-    showEquipmentError();
+    equipmentSave.disabled = equipmentCancel.disabled = false;
     byId('companyDriverAdminTitle').textContent = source === 'payroll' ? name(profile) : 'Driver Profile';
     byId('companyDriverAdminStatus').textContent = 'Loading driver profile…';
     for (const id of ['companyDriverAdminContent','companyDriverAdminSummary','companyDriverAdminMessage',
