@@ -630,9 +630,23 @@ const companyDriverTools = (() => {
     const additional = Number(load.pay_entry?.additionalPay ?? load.additional_pay ?? 0) || 0;
     const empty = Number(load.pay_entry?.emptyPay ?? 0) || 0;
     const stop = Number(load.stop_pay ?? 0) || 0;
-    const baseKnown = money(rawTotal) || money(rawBase);
+    let calculatedBase = null;
+    const scale = load.pay_scale || {};
+    const loadedMiles = Number(load.loaded_miles);
+    const emptyMiles = Number(load.empty_miles || 0);
+    const gross = Number(load.gross);
+    const rate = Number(scale.mile_rate);
+    const percentage = Number(scale.split_percent);
+    const perMile = Number.isFinite(loadedMiles) && Number.isFinite(rate)
+      ? loadedMiles * rate + emptyMiles * (Number(scale.empty_mile_rate) || 0) : null;
+    const percent = Number.isFinite(gross) && Number.isFinite(percentage) ? gross * percentage / 100 : null;
+    if (scale.method === 'per_mile') calculatedBase = perMile;
+    else if (scale.method === 'load_percent') calculatedBase = percent;
+    else if (scale.method === 'higher_of' && perMile !== null && percent !== null) calculatedBase = Math.max(perMile, percent);
+    const baseKnown = money(rawTotal) || money(rawBase) || calculatedBase !== null;
     const base = money(rawTotal) ? Number(rawTotal)
-      : money(rawBase) ? Number(rawBase) + empty + additional : additional;
+      : money(rawBase) ? Number(rawBase) + empty + additional
+      : calculatedBase !== null ? calculatedBase + additional : additional;
     return { baseKnown, base, empty, additional, stop, total: base + stop };
   }
 
