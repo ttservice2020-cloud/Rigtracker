@@ -803,7 +803,8 @@ const companyDriverTools = (() => {
           const doc = report.report?.document;
           if (doc) more.append(button(report.kind === 'pickup' ? 'View signed pickup BOL' : 'View signed delivery BOL', () => driverLoadWorkflow.openDocument(doc)));
           const lumper = report.report?.lumperFee;
-          more.append(element('p', lumper && Number(lumper) > 0 ? 'Lumper fee reported: ' + currency.format(Number(lumper)) : 'Lumper fee: None reported', 'muted'));
+          more.append(element('p', !report.report ? 'Lumper fee: Driver update not recorded' : lumper && Number(lumper) > 0
+            ? 'Lumper fee reported: ' + currency.format(Number(lumper)) : 'Lumper fee: None reported', 'muted'));
         }
         if (freight.rateConfirmation?.path) more.append(button('View Rate Confirmation', () => openRateConfirmation(freight.rateConfirmation.path)));
         row.append(summary, more, choose, add);
