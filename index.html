@@ -449,7 +449,16 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
       <button class="back hidden" id="fleetToolBack" type="button" onclick="accountTypeFor(currentUser)==='employee'?officeTools.openDashboard():showFleetSection('dashboard')">← Back to Dashboard</button>
       <h1 id="fleetPageTitle">Fleet Admin Dashboard</h1>
      </div>
-     <div class="tag hidden" id="fleetIdBadge"></div>
+     <div class="fleet-page-actions">
+      <div class="message-notice-anchor">
+       <button type="button" class="outline hidden" id="companyDispatchMessagesButton" onclick="companyMessaging.open()">Messages</button>
+       <div class="company-message-notice-panel hidden" id="companyMessageNoticePanel" role="region" aria-label="New message notifications">
+        <div class="company-message-notice-header"><strong>New messages</strong><button type="button" id="companyMessageNoticeClose" aria-label="Close message notifications">×</button></div>
+        <div id="companyMessageNoticeList"></div>
+       </div>
+      </div>
+      <div class="tag hidden" id="fleetIdBadge"></div>
+     </div>
     </div>
     <div id="fleetDashboard">
      <div class="fleet-summary">
@@ -508,8 +517,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
        <div class="dispatch-rail-list" id="dispatchRailList"></div>
       </aside>
       <div class="dispatch-center">
-       <div class="dispatch-clock"><span>Dispatch clock</span> <time id="dispatchClock" role="timer"></time>
-        <button type="button" class="outline" id="companyDispatchMessagesButton" onclick="companyMessaging.open()">Messages</button></div>
+       <div class="dispatch-clock"><span>Dispatch clock</span> <time id="dispatchClock" role="timer"></time></div>
        <div class="fleet-dashboard-nav dispatch-nav" id="dispatchTabs" role="tablist" aria-label="Dispatch">
         <button id="dispatch-tab-current" type="button" role="tab" aria-selected="true" aria-controls="dispatch-panel-current" data-dispatch-tab="current">Current Loads</button>
         <button id="dispatch-tab-create" type="button" role="tab" aria-selected="false" aria-controls="dispatch-panel-create" data-dispatch-tab="create" tabindex="-1">Create a Load</button>
@@ -1951,6 +1959,7 @@ function renderFleetSections(){
   fleetDispatch:dispatch,
   fleetToolPanel:Boolean(tool),
   fleetToolBack:operation,
+  companyDispatchMessagesButton:dispatch,
   fleetIdBadge:hasFleet&&fleetSection==='profiles',
   fleetLoading:!office&&!dashboard&&(!operation||fleetSection==='links')&&fleetLoadState==='loading',
   fleetUnavailable:!office&&(!operation||fleetSection==='links')&&fleetLoadState==='error',
