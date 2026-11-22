@@ -344,7 +344,7 @@ const companyMessaging = (() => {
     }
   }
 
-  async function openDriver({dispatchId, profileId}) {
+  async function openDriver({dispatchId, profileId, channel}) {
     const user = currentUser;
     await open();
     if (currentUser !== user || !byId('companyMessagesPage').classList.contains('active')) return;
@@ -352,6 +352,12 @@ const companyMessaging = (() => {
     if (!driver) { showToast('Link the driver’s Company Driver profile to open their conversations.'); return; }
     byId('companyMessageDriverPicker').value = driver.profile_id;
     selectDriver();
+    if (channel) {
+      const member = crew();
+      if (member?.scope.includes(channel)) await jumpToTeam(member.id, channel, driver);
+      else showToast('This account can’t open the requested conversation.');
+      return;
+    }
     byId('companyMessageDriverCard').scrollIntoView?.({ block: 'start' });
   }
 

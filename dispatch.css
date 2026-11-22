@@ -130,6 +130,9 @@
 .dispatch-detail-facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(125px,100%),1fr));gap:8px;margin:0}
 .dispatch-detail-facts dt{color:var(--muted);font-size:13px}
 .dispatch-detail-facts dd{margin:0;overflow-wrap:anywhere;font-weight:700}
+.dispatch-assigned-driver+.dispatch-assigned-driver{margin-top:8px}
+.dispatch-assigned-driver a{display:block;color:#a6d2ff;font-weight:500}
+.dispatch-message-drivers{justify-content:flex-end}
 .dispatch-detail-grid{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:10px}
 .dispatch-detail-grid>section{min-width:0}
 .dispatch-milestones{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));list-style:none;gap:7px;padding:0;margin:12px 0 16px}

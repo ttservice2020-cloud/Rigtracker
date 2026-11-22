@@ -85,10 +85,13 @@ const dispatchProgress = (() => {
     return { stops, next, stage, status };
   }
 
-  function bind({ byId, toggle, element, button, getLoad, getLoads, getRouteNumber, loadDrivers, proLabel, describeRoute, editLoad,
+  function bind({ byId, toggle, element, button, getLoad, getLoads, getRouteNumber, loadDrivers, loadDriverContacts, messageDriver,
+    proLabel, describeRoute, editLoad,
     back, setProgress, hasUpdate, openRateConfirmation, canEdit, paintLeaseStatus, saveLoadAction }) {
     const view = byId('dispatchLoadDetail');
     const manual = byId('dispatchArrivalForm');
+    const messageButton = byId('dispatchDetailMessage');
+    const messageDrivers = byId('dispatchMessageDrivers');
     const milestones = ['Assigned', 'En Route to Pickup', 'At Pickup', 'In Transit', 'At Receiver', 'Complete'];
     let activeId;
     let selectedStop;
@@ -103,6 +106,34 @@ const dispatchProgress = (() => {
       const pair = element('div');
       pair.append(element('dt', label), element('dd', value || '—'));
       return pair;
+    }
+
+    function driverAssignment(drivers) {
+      if (!drivers.length) return fact('Assigned driver', '');
+      const pair = element('div');
+      const values = element('dd');
+      for (const driver of drivers) {
+        const contact = element('div', '', 'dispatch-assigned-driver');
+        contact.append(element('strong', driver.name));
+        if (driver.phone) {
+          const phone = element(driver.dial ? 'a' : 'div', driver.phone);
+          if (driver.dial) phone.href = 'tel:' + driver.dial;
+          contact.append(phone);
+        }
+        values.append(contact);
+      }
+      pair.append(element('dt', drivers.length > 1 ? 'Assigned drivers' : 'Assigned driver'), values);
+      return pair;
+    }
+
+    function reachableDrivers(load) {
+      return loadDriverContacts(load).filter(driver => driver.canMessage || driver.dial);
+    }
+
+    function closeMessageDrivers() {
+      toggle('dispatchMessageDrivers', false);
+      messageButton.setAttribute('aria-expanded', 'false');
+      messageDrivers.replaceChildren();
     }
 
     function openManual(stop) {
@@ -188,6 +219,12 @@ const dispatchProgress = (() => {
       toggle('dispatchLiveUpdate', hasUpdate(load.id));
       toggle('dispatchDetailEdit', current);
       toggle('dispatchDetailComplete', current);
+      const drivers = loadDriverContacts(load);
+      toggle('dispatchDetailMessage', drivers.length > 0);
+      const reachable = reachableDrivers(load);
+      messageButton.disabled = reachable.length === 0;
+      messageButton.title = reachable.length ? '' : 'No linked conversation or phone number on file.';
+      if (reachable.length < 2) closeMessageDrivers();
       byId('dispatchDetailEdit').disabled = readOnly || Boolean(request);
       byId('dispatchDetailComplete').disabled = readOnly || Boolean(request) || Boolean(breakdown?.active || traffic?.active);
       byId('dispatchLoadNoteList').replaceChildren(driverLoadWorkflow.loadNotes(load.progress?.loadNotes));
@@ -209,8 +246,12 @@ const dispatchProgress = (() => {
         return step;
       }));
       const equipment = load.details.equipmentType === 'Other' ? load.details.equipmentTypeOther : load.details.equipmentType;
+      const lastTrailerReport = stops.findLast(stop => stop.progress.driverReport?.bobtail || stop.progress.driverReport?.trailer)
+        ?.progress.driverReport;
+      const trailer = Object.hasOwn(load.progress || {}, 'dispatchTrailerOverride') ? load.progress.dispatchTrailerOverride
+        : lastTrailerReport?.bobtail ? 'Bobtail' : load.details.trailerNumber || lastTrailerReport?.trailer;
       byId('dispatchDetailAssignment').replaceChildren(
-        fact('Assigned driver', loadDrivers(load)), fact('Equipment', equipment),
+        driverAssignment(drivers), fact('Truck number', load.details.truckNumber), fact('Trailer number', trailer),
         fact('Loaded miles', load.details.loadedMiles), fact('Pickup number', load.details.pickupNumber)
       );
       toggle('dispatchDetailArrival', Boolean(next) && current);
@@ -250,7 +291,7 @@ const dispatchProgress = (() => {
         const report = stop.progress.driverReport;
         if (report) {
           const reported = [
-            report.trailer && 'Trailer ' + report.trailer,
+            report.bobtail ? 'Departed bobtail' : report.trailer && 'Trailer ' + report.trailer,
             report.commodity,
             report.weight && 'Weight ' + report.weight,
             report.pieces && 'Pieces ' + report.pieces,
@@ -281,7 +322,7 @@ const dispatchProgress = (() => {
         fact('Shipper contact', contacts(details.pickups)), fact('Receiver contact', contacts(details.receivers)),
         fact('Loaded miles', details.loadedMiles ? Number(details.loadedMiles).toLocaleString() + ' mi' : ''),
         fact('Route / shipping number', [details.routeNumber, details.brokerLoadNumber].filter(Boolean).join(' · ')),
-        fact('Pickup number', details.pickupNumber), fact('Stop pay', money(details.stopPay)),
+        fact('Pickup number', details.pickupNumber), fact('BOL number', details.bolNumber), fact('Stop pay', money(details.stopPay)),
         fact('Additional driver pay', [money(details.driver1AdditionalPay), money(details.driver2AdditionalPay)].filter(Boolean).join(' / '))
       );
       const docs = byId('dispatchDetailDocuments');
@@ -342,6 +383,7 @@ const dispatchProgress = (() => {
     }
 
     function show(id) {
+      closeMessageDrivers();
       if (activeId !== id) byId('dispatchLoadNoteText').value = '';
       if (!getLoad(id)) return;
       if (activeId !== id) historyDate = '';
@@ -353,6 +395,7 @@ const dispatchProgress = (() => {
     }
 
     function close() {
+      closeMessageDrivers();
       activeId = null;
       selectedStop = null;
       view.classList.add('hidden');
@@ -363,6 +406,28 @@ const dispatchProgress = (() => {
       if (active()) history(active());
     });
     byId('dispatchDetailBack').addEventListener('click', back);
+    messageButton.addEventListener('click', () => {
+      const load = active();
+      if (!load) return;
+      if (messageButton.getAttribute('aria-expanded') === 'true') return closeMessageDrivers();
+      const choices = reachableDrivers(load);
+      if (choices.length === 1) return messageDriver(choices[0]);
+      if (!choices.length) return;
+      messageDrivers.replaceChildren(...choices.map(choice => button(choice.name, () => {
+        const driver = active() && reachableDrivers(active()).find(driver => driver.id === choice.id);
+        closeMessageDrivers();
+        if (driver) messageDriver(driver);
+      })));
+      toggle('dispatchMessageDrivers', true);
+      messageButton.setAttribute('aria-expanded', 'true');
+      messageDrivers.firstElementChild.focus();
+    });
+    messageDrivers.addEventListener('keydown', event => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      closeMessageDrivers();
+      messageButton.focus();
+    });
     byId('dispatchBreakdownResume').addEventListener('click', () => void updateLoad('resolve_breakdown',
       { report_id: active()?.progress?.breakdown?.id, resolution: 'back_on_road' }));
     byId('dispatchBreakdownRecover').addEventListener('click', () => void updateLoad('resolve_breakdown',

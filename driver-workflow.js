@@ -176,7 +176,7 @@ const driverLoadWorkflow = (() => {
   function offerFreight(freight) {
     const card = offerCard('Shipment Details');
     const fields = offerFields([
-      ['Route number', freight.route], ['Pickup number', freight.pickupNumber],
+      ['Route number', freight.route], ['Pickup number', freight.pickupNumber], ['BOL number', freight.bolNumber],
       ['Broker load number', freight.brokerLoadNumber], ['Broker', freight.brokerName],
       ['Broker phone', freight.brokerPhone], ['Broker email', freight.brokerEmail],
       ['Commodity', freight.commodity], ['Equipment', freight.equipment],
@@ -359,7 +359,7 @@ const driverLoadWorkflow = (() => {
   function stopReport(stop) {
     const report = stop.progress?.driverReport;
     if (!report) return [];
-    const details = [report.trailer && 'Trailer ' + report.trailer, report.commodity,
+    const details = [report.bobtail ? 'Departed bobtail' : report.trailer && 'Trailer ' + report.trailer, report.commodity,
       report.weight && 'Weight ' + report.weight, report.pieces && report.pieces + ' pieces',
       report.bol && 'BOL ' + report.bol,
       report.droppedTrailer && 'Dropped trailer ' + report.droppedTrailer,
@@ -386,24 +386,65 @@ const driverLoadWorkflow = (() => {
     const form = node('form');
     const title = stop.kind === 'pickup' ? 'Depart Pickup' : 'Depart Delivery';
     form.append(node('h3', title));
-    const state = node('select');
-    state.name = 'loaded_state';
-    setOptions(state, [['loaded','Loaded'],['empty','Empty']], 'Select loaded or empty');
-    const picked = input('Trailer pickup number (optional)', 'picked_trailer', { maxLength:40 });
-    picked.querySelector('input').addEventListener('input', event => { state.required = Boolean(event.target.value.trim()); });
-    form.append(fields(
-      input('Trailer number', 'trailer', { maxLength:40 }),
-      input('Commodity', 'commodity', { maxLength:120 }),
-      input('Weight', 'weight', { inputMode:'decimal', maxLength:20 }),
-      input('Pieces', 'pieces', { inputMode:'numeric', maxLength:20 }),
-      input('BOL number', 'bol', { maxLength:100 }),
-      input('Lumper fee paid ($, optional)', 'lumperFee', { inputMode:'decimal', maxLength:20 }),
-      input('Trailer drop number (optional)', 'dropped_trailer', { maxLength:40 }),
-      picked, field('Picked-up trailer status', state)
-    ));
     const key = JSON.stringify([load.id, stop.key]);
     const draft = paperworkDrafts.get(key) || { files: [], saving: false };
     paperworkDrafts.set(key, draft);
+    const submit = submitButton(title);
+    const state = node('select');
+    state.name = 'loaded_state';
+    setOptions(state, [['loaded','Loaded'],['empty','Empty']], 'Select loaded or empty');
+    const trailer = input('Trailer number', 'trailer', { maxLength:40, value:load.incomingTrailer ?? '' });
+    const trailerNumber = trailer.querySelector('input');
+    if (load.incomingTrailer != null) trailerNumber.dataset.incomingTrailer = load.incomingTrailer;
+    const bobtail = input('Bobtail (leaving without a trailer)', 'bobtail', { type:'checkbox', value:'true' });
+    bobtail.classList.add('dispatch-checkbox');
+    const check = bobtail.querySelector('input');
+    const dropped = input('Trailer drop number (optional)', 'dropped_trailer', { maxLength:40 });
+    const droppedNumber = dropped.querySelector('input');
+    const picked = input('Trailer pickup number (optional)', 'picked_trailer', { maxLength:40 });
+    const pickedNumber = picked.querySelector('input');
+    const alert = node('p', '', 'driver-trailer-alert');
+    alert.setAttribute('role', 'alert');
+    alert.id = 'driver-trailer-alert';
+    trailerNumber.setAttribute('aria-describedby', alert.id);
+    function updateTrailer() {
+      trailerNumber.disabled = pickedNumber.disabled = state.disabled = check.checked;
+      const incoming = trailerNumber.dataset.incomingTrailer;
+      const departure = trailerNumber.value.trim().toUpperCase();
+      const picked = pickedNumber.value.trim().toUpperCase();
+      state.required = !check.checked && Boolean(picked);
+      const hookMismatch = !check.checked && Boolean(picked) && departure !== picked;
+      const mismatch = incoming != null && departure !== incoming.toUpperCase()
+        && !check.checked && !droppedNumber.value.trim() && !picked;
+      alert.textContent = hookMismatch ? 'Trailer number must match the picked-up trailer.'
+        : mismatch
+        ? 'Trailer mismatch. ' + (incoming ? 'Arrival trailer: ' + incoming + '. ' : 'You arrived bobtail. ') +
+          'Enter the same trailer, record a trailer drop or pickup, or select Bobtail.'
+        : '';
+      trailerNumber.setAttribute('aria-invalid', String(hookMismatch || mismatch));
+      submit.disabled = draft.saving || hookMismatch || mismatch;
+      return !hookMismatch && !mismatch;
+    }
+    check.addEventListener('change', updateTrailer);
+    for (const control of [trailerNumber, droppedNumber]) control.addEventListener('input', updateTrailer);
+    pickedNumber.addEventListener('input', () => {
+      if (pickedNumber.value.trim()) trailerNumber.value = pickedNumber.value.trim();
+      updateTrailer();
+    });
+    updateTrailer();
+    const pickupFreight = stop.kind === 'pickup' && !load.return_of ? [
+      input('Commodity', 'commodity', { maxLength:120 }),
+      input('Weight', 'weight', { inputMode:'decimal', maxLength:20 }),
+      input('Pieces', 'pieces', { inputMode:'numeric', maxLength:20 }),
+      input('BOL number', 'bol', { maxLength:100 })
+    ] : [];
+    form.append(fields(
+      trailer, bobtail, ...pickupFreight,
+      input('Lumper fee paid ($, optional)', 'lumperFee', { inputMode:'decimal', maxLength:20 }),
+      dropped,
+      picked, field('Picked-up trailer status', state)
+    ));
+    form.append(alert);
     const paperworkTitle = stop.kind === 'pickup' ? 'BOL' : 'proof of delivery';
     const paperwork = button('', () => {
       if (!draft.saving) driverPaperwork.edit(draft, 'Upload ' + paperworkTitle, pro(load) + ' · ' + stop.info.company, updatePaperwork);
@@ -413,13 +454,12 @@ const driverLoadWorkflow = (() => {
       paperwork.textContent = total ? 'Edit ' + paperworkTitle + ' · ' + total + (total === 1 ? ' file' : ' files') : 'Add ' + paperworkTitle;
     }
     updatePaperwork();
-    const submit = submitButton(title);
     const actions = node('div', '', 'dispatch-actions');
     actions.append(paperwork, submit);
     form.append(actions);
     form.addEventListener('submit', async event => {
       event.preventDefault();
-      if (draft.saving || !currentUser) return;
+      if (draft.saving || !currentUser || !updateTrailer()) return;
       const user = currentUser;
       const data = { ...values(form), stop: stop.key };
       draft.saving = paperwork.disabled = submit.disabled = true;
@@ -441,7 +481,8 @@ const driverLoadWorkflow = (() => {
       } catch (error) {
         if (currentUser === user) showToast(error.message || 'Could not upload the paperwork.');
       } finally {
-        draft.saving = paperwork.disabled = submit.disabled = false;
+        draft.saving = paperwork.disabled = false;
+        updateTrailer();
         submit.textContent = originalLabel;
       }
     });
@@ -449,8 +490,9 @@ const driverLoadWorkflow = (() => {
   }
 
   function returnForm(load) {
+    const section = node('details', '', 'driver-return-request');
+    section.append(node('summary', 'Request a Return Load'));
     const form = node('form');
-    form.append(node('h3', 'Request return load'));
     const mode = node('select');
     mode.name = 'mode';
     setOptions(mode, [['destination','New Destination'],['reverse','Reverse Load']], 'Choose an option');
@@ -466,14 +508,20 @@ const driverLoadWorkflow = (() => {
     mode.addEventListener('change', update);
     update();
     const submit = submitButton('Request Return Load');
-    form.append(fields(field('Return route', mode), destination), submit);
+    form.append(fields(field('Return route', mode), destination,
+      input('BOL number (optional)', 'bol', { maxLength:100 }),
+      input('Commodity (optional)', 'commodity', { maxLength:120 }),
+      input('Weight (lb, optional)', 'weight', { type:'number', min:'0.01', max:'999999999999.99', step:'0.01', inputMode:'decimal' }),
+      input('Pieces (optional)', 'pieces', { type:'number', min:'1', max:'999999999', step:'1', inputMode:'numeric' })
+    ), submit);
     const requestId = crypto.randomUUID();
     form.addEventListener('submit', event => {
       event.preventDefault();
       void mutate(submit, 'driver', 'request_return', load.id, { ...values(form), request_id: requestId },
         result => 'B-' + result.pro + ' created for Dispatch review.', () => { selected = requestId; form.reset(); });
     });
-    return form;
+    section.append(form);
+    return section;
   }
 
   function paintProgress(load, panel) {
@@ -740,6 +788,16 @@ const driverLoadWorkflow = (() => {
     }
     const info = byId('driver-load-view-info');
     if (info) paintLoadInfo(load, info);
+    if (previous.incomingTrailer !== load.incomingTrailer) {
+      const trailer = byId('driverLoadProgressActions')?.querySelector('input[name=trailer]');
+      if (trailer) {
+        const previousNumber = trailer.dataset.incomingTrailer ?? '';
+        if (trailer.value.trim().toUpperCase() === previousNumber.toUpperCase()) trailer.value = load.incomingTrailer ?? '';
+        if (load.incomingTrailer == null) delete trailer.dataset.incomingTrailer;
+        else trailer.dataset.incomingTrailer = load.incomingTrailer;
+        trailer.dispatchEvent(new Event('input'));
+      }
+    }
     if (JSON.stringify(previous.stops) !== JSON.stringify(load.stops)) {
       byId('driverLoadStops')?.replaceWith(showAllStops(load));
       const before = previous.stops.find(stop => !stop.progress?.completedAt);
@@ -818,6 +876,12 @@ const driverLoadWorkflow = (() => {
     const form = node('form', '', 'panel');
     form.append(node('h3', pro({ ...load, return_of:true })),
       node('p', ['From A-' + load.source_pro, load.driver].filter(Boolean).join(' · '), 'muted'));
+    const freight = load.freight || {};
+    const cargo = offerFields([
+      ['BOL number', freight.bolNumber], ['Commodity', freight.commodity],
+      ['Weight', offerNumber(freight.weight, quantity, ' lb')], ['Pieces', offerNumber(freight.pieces, quantity)]
+    ], 'dispatch-detail-facts');
+    if (cargo.childElementCount) form.append(cargo);
     form.append(fields(
       input('Shipper', 'shipper', { value:load.shipper || '', maxLength:160, required:true }),
       input('Receiver', 'receiver', { value:load.receiver || '', maxLength:160, required:true }),

@@ -255,8 +255,8 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 .driver-load-stops li[aria-current="step"]{border-color:#4c8dff;background:#13294a}
 #companySignupFields{border:0;padding:0;margin:0;min-inline-size:0}
 </style>
-<link rel="stylesheet" href="./dispatch.css?v=load-operations-1">
-<link rel="stylesheet" href="./driver-app.css?v=load-screen-1">
+<link rel="stylesheet" href="./dispatch.css?v=load-header-1">
+<link rel="stylesheet" href="./driver-app.css?v=return-cargo-1">
 <link rel="stylesheet" href="./office-tools.css?v=1">
 </head>
 <body>
@@ -544,10 +544,12 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
          </div>
          <div class="dispatch-actions">
           <button class="outline hidden" id="dispatchDetailRateConfirmation" type="button">View Rate Confirmation</button>
+          <button class="outline hidden" id="dispatchDetailMessage" type="button" aria-controls="dispatchMessageDrivers" aria-expanded="false">Message</button>
           <button class="outline" id="dispatchDetailEdit" type="button">Edit Load</button>
           <button class="outline" id="dispatchDetailComplete" type="button">Mark Completed</button>
          </div>
         </header>
+        <div class="dispatch-actions hidden dispatch-message-drivers" id="dispatchMessageDrivers" role="group" aria-label="Choose a driver to message"></div>
         <p class="dispatch-load-lock hidden" id="dispatchDetailLock" role="status"></p>
         <section class="dispatch-breakdown hidden" id="dispatchBreakdown" aria-labelledby="dispatchBreakdownTitle">
          <h3 id="dispatchBreakdownTitle"></h3>
@@ -1413,14 +1415,14 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 </dialog>
 <div id="modal"><div class="modal-card"><h2 id="modalTitle"></h2><div id="modalBody"></div><button class="primary-btn" onclick="closeModal()">Close</button></div></div>
 
-<script src="./dispatch-progress.js?v=paperwork-1"></script>
+<script src="./dispatch-progress.js?v=load-header-1"></script>
 <script src="./dispatch-rate-confirmation.js?v=1"></script>
-<script src="./dispatch.js?v=load-operations-1"></script>
+<script src="./dispatch.js?v=load-header-1"></script>
 <script src="./linked-profiles.js?v=short-profile-id-1"></script>
 <script src="./company-driver-tools.js?v=paperwork-1"></script>
-<script src="./company-messages.js?v=photo-attachments-1"></script>
+<script src="./company-messages.js?v=load-header-1"></script>
 <script src="./driver-paperwork.js?v=1"></script>
-<script src="./driver-workflow.js?v=load-screen-1"></script>
+<script src="./driver-workflow.js?v=return-cargo-1"></script>
 <script src="./fleet-admin-driver.js?v=1"></script>
 <script src="./company-safety.js?v=1"></script>
 <script src="./driver-app.js?v=load-screen-1"></script>

@@ -20,6 +20,14 @@
 .driver-load-stop-title{margin:12px 0 0}
 .driver-assignment-group>h3{margin:8px 0}
 .driver-load-queued{padding:10px 12px;border-left:3px solid #62b5ff;background:#132640}
+.driver-return-request{margin:12px 0;padding:10px 12px;border:1px solid #36567c;border-radius:8px}
+.driver-return-request summary{cursor:pointer;font-weight:700;padding:6px 0}
+.driver-return-request form{margin-top:8px}
+#driverWorkflowDetail label.dispatch-checkbox{display:flex;flex-direction:row;align-items:center;justify-content:flex-start;gap:8px}
+#driverWorkflowDetail label.dispatch-checkbox input{order:-1;width:18px;height:18px;min-height:0;margin:0;accent-color:var(--accent)}
+.driver-trailer-alert{color:#ffb1ba;font-weight:600;margin:8px 0}
+.driver-trailer-alert:empty{display:none}
+#driverWorkflowDetail input[aria-invalid="true"]{border-color:#f45065}
 .driver-load-tabs{display:flex;gap:8px;margin-top:12px}
 .driver-load-tabs button{flex:1;min-width:0;min-height:44px}
 .driver-load-tabs button[aria-selected="true"]{background:#182f4f;border-color:#81c4ff;color:#fff}

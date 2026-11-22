@@ -119,6 +119,50 @@ const fleetDispatchApp = (() => {
       .filter(Boolean).join(' / ');
   }
 
+  function loadContactKey(load) {
+    return [load.id, load.driver_id, load.second_driver_id].join(':');
+  }
+
+  function loadDriverContacts(load) {
+    const contacts = state?.loadContacts?.key === loadContactKey(load) ? state.loadContacts.drivers : null;
+    return [load.driver_id, load.second_driver_id].flatMap((id, index) => {
+      if (!id) return [];
+      const phone = String(contacts?.get(id)?.phone ?? '').trim();
+      const [, prefix = '', digits = ''] = phone.match(/^(\+?)([\d\s().-]+)/) || [];
+      const number = digits.replace(/\D/g, '');
+      return [{
+        id, name: state?.drivers.find(driver => driver.id === id)?.name || 'Driver ' + (index + 1),
+        phone, dial: number ? prefix + number : '',
+        canMessage: state?.access.messages && contacts?.get(id)?.can_message === true
+      }];
+    });
+  }
+
+  async function readLoadContacts(load) {
+    const scope = state;
+    if (!scope?.access.dispatch || !load || (!load.driver_id && !load.second_driver_id)) return;
+    const key = loadContactKey(load);
+    if (scope.contactRequest?.key === key) return;
+    const pending = { key };
+    scope.contactRequest = pending;
+    try {
+      const { data, error } = await scope.client.rpc('dispatch_load_driver_contacts', { target_load: load.id });
+      const current = getLoad(progressView?.id());
+      if (error || state !== scope || scope.contactRequest !== pending || !current || loadContactKey(current) !== key) return;
+      scope.loadContacts = { key, drivers: new Map(data.map(driver => [driver.driver_id, driver])) };
+      progressView.paint();
+    } catch {
+      // Keep the load available when a contact lookup is temporarily unavailable.
+    } finally {
+      if (scope.contactRequest === pending) scope.contactRequest = null;
+    }
+  }
+
+  function messageDriver(driver) {
+    if (driver.canMessage) void companyMessaging.openDriver({ dispatchId: driver.id, channel: 'dispatch' });
+    else if (driver.dial) window.location.href = 'sms:' + driver.dial;
+  }
+
   function lastContractAssignment(contract) {
     return state.loads.reduce((last, load) => {
       if (load.contract_load_id !== contract.id || !load.assigned_at) return last;
@@ -360,6 +404,7 @@ const fleetDispatchApp = (() => {
     paintLoads();
     paintDrivers();
     progressView?.paint();
+    void readLoadContacts(getLoad(progressView?.id()));
   }
 
   function addStop(kind, data = {}) {
@@ -735,6 +780,7 @@ const fleetDispatchApp = (() => {
       const number = await reservePro();
       if (!number || state !== scope || edit !== draft) return;
       if (draft.row?.details.rateConfirmation) details.rateConfirmation = draft.row.details.rateConfirmation;
+      if (draft.row?.details.bolNumber) details.bolNumber = draft.row.details.bolNumber;
       if (draft.ratePhoto) {
         const photo = draft.ratePhoto;
         const path = photo.path ??= scope.fleetId + '/' + draft.id + '/' + crypto.randomUUID() + '.' + photo.extension;
@@ -1192,6 +1238,7 @@ const fleetDispatchApp = (() => {
     selectTab(tab, false, true);
     watchLoad(latest.id);
     progressView.show(latest.id);
+    void readLoadContacts(latest);
     paintLoads();
   }
 
@@ -1380,6 +1427,8 @@ const fleetDispatchApp = (() => {
         paintLoads();
         paintDrivers();
         progressView?.paint();
+        const current = getLoad(progressView?.id());
+        if (current && scope.loadContacts?.key !== loadContactKey(current)) void readLoadContacts(current);
       };
       scope.channel = scope.client.channel('dispatch-loads-' + scope.fleetId)
         .on('postgres_changes', { ...target, event: 'UPDATE' }, applied)
@@ -1397,7 +1446,8 @@ const fleetDispatchApp = (() => {
   if (progressEnabled) {
     progressView = dispatchProgress.bind({
       byId, toggle, element, button, getLoad, getLoads: () => state?.loads || [], getRouteNumber,
-      loadDrivers, proLabel, describeRoute: route, editLoad: load => openLoad(load), back: () => selectTab(selectedTab, true),
+      loadDrivers, loadDriverContacts, messageDriver, proLabel, describeRoute: route,
+      editLoad: load => openLoad(load), back: () => selectTab(selectedTab, true),
       setProgress: recordProgress, hasUpdate: id => Boolean(state?.updates.has(id)),
       canEdit: canEditLoad, paintLeaseStatus, saveLoadAction,
       openRateConfirmation: attachment => viewRateConfirmation(attachment)
