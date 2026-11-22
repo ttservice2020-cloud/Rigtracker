@@ -202,7 +202,8 @@ const driverLoadWorkflow = (() => {
   function paintOffer(load, panel) {
     const cards = node('div', '', 'load-offer-grid');
     cards.append(offerStops(load, 'pickup'), offerStops(load, 'delivery'),
-      offerFreight(load.offer?.freight || {}), offerPay(load.offer?.pay));
+      offerFreight(load.offer?.freight || {}));
+    if (accountTypeFor(currentUser) !== 'fleet' || load.offer?.pay) cards.append(offerPay(load.offer?.pay));
     const actions = node('div', '', 'dispatch-actions load-offer-actions');
     const respond = async (control, action, message) => {
       const other = control === accept ? reject : accept;
@@ -457,10 +458,12 @@ const driverLoadWorkflow = (() => {
 
   async function refresh(quiet = false, redraw = !quiet) {
     const user = currentUser;
-    if ((quiet && driverRead) || !user || !['driver','company'].includes(accountTypeFor(user))) return;
+    const role = accountTypeFor(user);
+    const screen = byId('driverLoadsPage');
+    const canRead = role === 'driver' || role === 'company' || (role === 'fleet' && screen.classList.contains('active'));
+    if ((quiet && driverRead) || !user || !canRead) return;
     const request = {};
     driverRead = request;
-    const screen = byId('driverLoadsPage');
     try {
       const data = await rpc('driver', 'list');
       if (driverRead !== request || user !== currentUser) return;
@@ -474,7 +477,7 @@ const driverLoadWorkflow = (() => {
       seenDriver = new Set(keys);
       driverInitialized = true;
       const viewing = screen.classList.contains('active') && !document.hidden;
-      const updated = accountTypeFor(user) === 'company' && companyLoadUpdate(user, data, viewing);
+      const updated = role === 'company' && companyLoadUpdate(user, data, viewing);
       if (typeof rigTrackerApp !== 'undefined') {
         rigTrackerApp.badge('loads', keys.length || (updated ? '•' : ''), keys.length ? 'new assignments or yard trailers' : 'load update');
       }
@@ -605,13 +608,16 @@ const driverLoadWorkflow = (() => {
 
   function open() {
     if (!byId('driverLoadsPage').classList.contains('active')) selected = null;
+    byId('driverLoadsTitle').textContent = accountTypeFor(currentUser) === 'fleet' ? 'My Loads' : 'Loads';
     showPage('driverLoadsPage');
     byId('driverWorkflowStatus').textContent = 'Loading your assignments…';
     return refresh();
   }
 
   function back() {
-    showPage(accountTypeFor(currentUser) === 'driver' ? 'dashboardPage' : 'rigTrackerProfilePage');
+    const role = accountTypeFor(currentUser);
+    if (role === 'fleet') return showFleetSection('dashboard');
+    showPage(role === 'driver' ? 'dashboardPage' : 'rigTrackerProfilePage');
   }
 
   function reset() {
@@ -651,7 +657,7 @@ const driverLoadWorkflow = (() => {
 
   setInterval(() => {
     if (!currentUser || document.hidden) return;
-    if (dispatchFleet()) void refreshOffice(true);
+    if (dispatchFleet() && !byId('driverLoadsPage').classList.contains('active')) void refreshOffice(true);
     else void refresh(true);
   }, 10000);
 
