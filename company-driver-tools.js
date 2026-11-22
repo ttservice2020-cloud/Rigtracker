@@ -58,13 +58,41 @@ const companyDriverTools = (() => {
     return view === selection && currentUser === selection.user;
   }
 
+  const profilePayCurrency = new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' });
+  const profileFileBucket = 'fleet-driver-profile-files';
+  const fileTabs = { documents: 'documents', company: 'company', tax: 'tax' };
+  const sectionPermission = section => 'driver_' + (section === 'company' ? 'company_file' : section);
+  const fileExtensions = { 'application/pdf': 'pdf', 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
+
+  function profileFields(selection) {
+    return selection.profile.profile_id ? { profile_number: selection.profile.profile_id }
+      : { roster_driver: selection.dispatchDriverId };
+  }
+
   function selectAdminSection(section) {
+    if (!view) return;
+    const requested = adminSections.find(control => control.dataset.companyDriverSection === section && !control.classList.contains('hidden'));
+    const selected = requested || adminSections.find(control => !control.classList.contains('hidden'));
     for (const control of adminSections) {
-      const visible = !control.classList.contains('hidden') && control.dataset.companyDriverSection === section;
-      control.setAttribute('aria-pressed', String(visible));
-      byId(control.getAttribute('aria-controls')).classList.toggle('hidden', !visible);
+      control.setAttribute('aria-pressed', String(control === selected));
+      byId(control.getAttribute('aria-controls')).classList.toggle('hidden', control !== selected);
     }
-    if (section === 'history' && view && !view.historyLoaded) void loadHistory(view);
+    const active = selected?.dataset.companyDriverSection;
+    if (['history','bols'].includes(active) && !view.pages[active]) void loadHistory(view, active);
+    if (fileTabs[active] && !view.files.has(active)) void loadProfileFiles(view, active);
+    if (['pay_status','pay_settlements'].includes(active)) void loadProfilePay(view, active);
+  }
+
+  function quickFact(label, value, href) {
+    const cell = element('div');
+    const detail = element('dd', href ? '' : value || '—');
+    if (href) {
+      const link = element('a', value);
+      link.href = href;
+      detail.append(link);
+    }
+    cell.append(element('dt', label), detail);
+    return cell;
   }
 
   function paintPresence(presence) {
@@ -74,102 +102,214 @@ const companyDriverTools = (() => {
   }
 
   async function loadOverview(selection, initialProfile) {
-    if (!selection.owner) return;
     const status = byId('companyDriverAdminOverviewStatus');
     try {
-      const profile = initialProfile ?? await profileRequest('overview', selection.fleet, { profile_number: selection.profile.profile_id });
+      const profile = initialProfile ?? await profileRequest('overview', selection.fleet, profileFields(selection));
       if (!sameAdmin(selection)) return;
+      selection.profile = profile;
       selection.linked = profile.linked;
-      selection.dispatchDriverId = profile.linked ? profile.dispatch_driver_id : null;
-      byId('companyDriverAdminTitle').textContent = name(profile);
-      byId('companyDriverAdminMessage').classList.toggle('hidden', !profile.linked);
-      byId('companyDriverAdminPaySettings').classList.toggle('hidden', !selection.dispatchDriverId);
+      selection.dispatchDriverId = profile.dispatch_driver_id;
+      byId('companyDriverAdminTitle').textContent = 'Driver Profile';
+      byId('companyDriverReviewIssue').classList.toggle('hidden', selection.owner || !selection.dispatchDriverId);
+      const canMessage = profile.company_driver && profile.linked;
+      byId('companyDriverAdminMessage').classList.toggle('hidden', !canMessage);
+      byId('companyDriverAdminMessagingStatus').textContent = canMessage ? '' : 'Conversations are available for linked Company Driver accounts.';
+      byId('companyDriverAdminPaySettings').classList.toggle('hidden', !selection.owner || !selection.dispatchDriverId);
       const availability = { assigned: 'On a load', available: 'Available', 'off-duty': 'Off duty' };
-      const facts = [
-        ['RigTracker ID', profile.display_profile_id], ['Employee number', profile.employee_number],
-        ['Fleet status', profile.linked ? 'Active' : 'Former driver'],
-        ['Email', profile.email], ['Phone', profile.phone], ['Driver’s license', profile.license_number],
-        ['Equipment', profile.equipment], ['Dispatch availability', availability[profile.availability]]
-      ];
-      byId('companyDriverAdminFacts').replaceChildren(...facts.filter(([, value]) => value)
-        .flatMap(([label, value]) => [element('dt', label), element('dd', value)]));
-      if (profile.linked) paintPresence(profile.presence);
+      const type = { company: 'Company Driver', owner_op: 'Owner Op' }[profile.driver_type];
+      const phoneNumber = profile.phone?.replace(/[^+\d]/g, '');
+      byId('companyDriverAdminFacts').replaceChildren(
+        quickFact('Name', name(profile)), quickFact('Phone', profile.phone, phoneNumber ? 'tel:' + phoneNumber : null),
+        quickFact('Email', profile.email, profile.email ? 'mailto:' + profile.email : null),
+        quickFact('Driver type', type), quickFact('DL number', profile.license_number),
+        quickFact('Truck', profile.truck), quickFact('Trailer', profile.trailer)
+      );
+      byId('companyDriverCompanyFacts').replaceChildren(
+        quickFact('RigTracker ID', profile.display_profile_id), quickFact('Employee number', profile.employee_number),
+        quickFact('Fleet status', profile.linked ? 'Active' : profile.profile_id ? 'Former driver' : 'Roster only'),
+        quickFact('Equipment', profile.equipment), quickFact('Dispatch availability', availability[profile.availability])
+      );
+      if (profile.linked) paintPresence(profile.presence || {});
+      const allowed = new Set(profile.tabs || []);
+      for (const control of adminSections) control.classList.toggle('hidden', !allowed.has(sectionPermission(control.dataset.companyDriverSection)));
+      byId('companyDriverAdminSummary').classList.remove('hidden');
+      byId('companyDriverAdminContent').classList.remove('hidden');
+      byId('companyDriverAdminStatus').textContent = allowed.size ? '' : 'Ask your Fleet Admin for access to driver profile tabs.';
       status.textContent = '';
+      selectAdminSection(selection.source === 'payroll' ? 'pay_settlements' : 'company');
+      if (profile.company_driver && profile.profile_id && (selection.owner ||
+        (selection.source === 'payroll' && allowed.has('driver_pay_settlements')))) await loadAdmin();
     } catch (error) {
-      if (sameAdmin(selection)) status.textContent = error.message || 'Could not load this driver profile.';
+      if (sameAdmin(selection)) byId('companyDriverAdminStatus').textContent = error.message || 'Could not load this driver profile.';
     }
   }
 
-  async function openRoster(driver) {
+  async function openRoster(driver, fleet) {
     const user = currentUser;
-    const fleet = adminFleetId;
-    if (!fleet || accountTypeFor(user) !== 'fleet') return;
+    const role = accountTypeFor(user);
+    if (!fleet || !['fleet','employee'].includes(role)) return;
     const request = {};
     rosterRequest = request;
-    const current = () => rosterRequest === request && user === currentUser && fleet === adminFleetId &&
+    const current = () => rosterRequest === request && user === currentUser &&
       byId('fleetWorkspace').classList.contains('active') && !byId('dispatch-panel-drivers').classList.contains('hidden');
     try {
       const profile = await profileRequest('overview', fleet, { roster_driver: driver.id });
-      if (current()) return openAdmin(profile, 'dispatch', profile);
+      if (current()) return openAdmin(profile, 'dispatch', profile, fleet);
     } catch (error) {
-      if (current()) showToast(error.code === '22023' ? 'Link a Company Driver profile to view this driver’s records.'
-        : error.message || 'Could not open the driver profile.');
+      if (current()) showToast(error.message || 'Could not open the driver profile.');
     } finally { if (rosterRequest === request) rosterRequest = null; }
   }
 
-  function historyRow(load) {
+  function historyRow(load, selection, section) {
     const row = element('article', '', 'dispatch-load-row');
     const summary = element('div');
-    summary.append(element('strong', (load.return_load ? 'B-' : 'A-') + load.pro_number));
+    const pro = (load.return_load ? 'B-' : 'A-') + load.pro_number;
+    summary.append(element('strong', pro));
     const route = [load.origin, load.destination].filter(Boolean).join(' → ');
     if (route) summary.append(element('p', route));
     const completed = Date.parse(load.completed_at);
     if (Number.isFinite(completed)) summary.append(element('p', 'Completed ' + clockFormat.format(completed)));
     const actions = element('div', '', 'dispatch-actions');
-    actions.append(button('Open Load', async () => {
-      await showFleetSection('dispatch', 'history');
-      if (fleetSection === 'dispatch' && byId('fleetWorkspace').classList.contains('active')) {
-        await fleetDispatchApp.openRecord(load.load_id);
-      }
-    }));
-    if (load.paperwork.length) {
-      const label = load.paperwork.length > 1 ? 'Paperwork' : load.paperwork[0].kind === 'delivery' ? 'Proof of Delivery' : 'BOL';
-      actions.append(button('View ' + label, () => driverLoadWorkflow.openDocument(load.paperwork.map(file => file.path),
-        (load.return_load ? 'B-' : 'A-') + load.pro_number + ' ' + label)));
+    if (section === 'history' && (selection.owner || officeTools.has('dispatch'))) {
+      actions.append(button('Open Load', async () => {
+        if (selection.owner) await showFleetSection('dispatch', 'history');
+        else await showOfficeDispatch('history');
+        if (fleetSection === 'dispatch' && byId('fleetWorkspace').classList.contains('active')) {
+          await fleetDispatchApp.openRecord(load.load_id);
+        }
+      }));
+    }
+    const groups = new Map();
+    for (const file of load.paperwork) {
+      if (!groups.has(file.stop)) groups.set(file.stop, { ...file, paths: [] });
+      groups.get(file.stop).paths.push(file.path);
+    }
+    for (const file of groups.values()) {
+      const label = file.kind === 'delivery' ? 'Proof of Delivery' : 'BOL';
+      const caption = [label, file.company].filter(Boolean).join(' · ');
+      actions.append(button('View ' + caption, () => driverLoadWorkflow.openDocument(file.paths, pro + ' · ' + caption)));
     }
     row.append(summary, actions);
     return row;
   }
 
-  async function loadHistory(selection, more = false) {
-    if (!selection.owner || selection.historyPending) return;
-    const control = byId('companyDriverHistoryMore');
-    const status = byId('companyDriverHistoryStatus');
-    const cursor = more ? selection.historyCursor : null;
-    selection.historyPending = true;
+  async function loadHistory(selection, section, more = false) {
+    if (selection.pending.has(section)) return;
+    const prefix = section === 'bols' ? 'companyDriverBols' : 'companyDriverHistory';
+    const control = byId(prefix + 'More');
+    const status = byId(prefix + 'Status');
+    const cursor = more ? selection.pages[section]?.cursor : null;
+    selection.pending.add(section);
     control.disabled = true;
-    status.textContent = 'Loading completed loads…';
+    status.textContent = 'Loading…';
     try {
-      const page = await profileRequest('history', selection.fleet, { profile_number: selection.profile.profile_id,
+      const page = await profileRequest(section, selection.fleet, { ...profileFields(selection),
         ...(cursor ? { before_time: cursor.updated_at, before_load: cursor.load_id } : {}) });
       if (!sameAdmin(selection)) return;
       const rows = page.slice(0, historyPageSize);
-      byId('companyDriverHistoryList').append(...rows.map(historyRow));
-      selection.historyLoaded = true;
-      selection.historyCursor = rows.at(-1);
+      byId(prefix + 'List').append(...rows.map(load => historyRow(load, selection, section)));
+      selection.pages[section] = { cursor: rows.at(-1) };
       control.classList.toggle('hidden', page.length <= historyPageSize);
-      status.textContent = rows.length || more ? '' : 'No completed loads for this driver.';
+      status.textContent = rows.length || more ? '' : section === 'bols' ? 'No bills of lading or delivery paperwork.' : 'No completed loads for this driver.';
     } catch (error) {
-      if (sameAdmin(selection)) status.textContent = error.message || 'Could not load history. Select Load History to retry.';
+      if (sameAdmin(selection)) status.textContent = error.message || 'Could not load these records. Select the tab to retry.';
     } finally {
-      selection.historyPending = false;
+      selection.pending.delete(section);
       if (sameAdmin(selection)) control.disabled = false;
     }
   }
 
+  async function openProfileFile(path) {
+    try {
+      const { data, error } = await supabaseClient.storage.from(profileFileBucket).createSignedUrl(path, 90);
+      if (error) throw error;
+      const link = document.createElement('a');
+      link.href = data.signedUrl;
+      link.target = '_blank';
+      link.rel = 'noopener';
+      link.click();
+    } catch (error) { showToast(error.message || 'Could not open the file.'); }
+  }
+
+  async function loadProfileFiles(selection, section) {
+    if (selection.pending.has(section)) return;
+    const container = document.querySelector('[data-driver-profile-files="' + fileTabs[section] + '"]');
+    if (!selection.dispatchDriverId) {
+      container.replaceChildren(element('p', 'No driver roster entry is linked.', 'muted'));
+      return;
+    }
+    const folder = [selection.fleet, selection.dispatchDriverId, fileTabs[section]].join('/');
+    const bucket = supabaseClient.storage.from(profileFileBucket);
+    selection.pending.add(section);
+    container.replaceChildren(element('p', 'Loading files…', 'muted'));
+    try {
+      const { data, error } = await bucket.list(folder, { limit:100, sortBy:{ column:'created_at', order:'desc' } });
+      if (error) throw error;
+      if (!sameAdmin(selection)) return;
+      const files = data.filter(file => file.id);
+      container.replaceChildren(...files.map(file => {
+        const row = element('article', '', 'dispatch-load-row');
+        const label = file.name.replace(/^[0-9a-f-]{36}-/i, '');
+        row.append(element('strong', label), button('Open', () => openProfileFile(folder + '/' + file.name)));
+        return row;
+      }));
+      if (!files.length) container.append(element('p', 'No files on record.', 'muted'));
+      if (selection.owner) {
+        const fileInput = element('input');
+        fileInput.type = 'file';
+        fileInput.accept = Object.keys(fileExtensions).join(',');
+        fileInput.className = 'hidden';
+        const upload = button('Upload File', () => fileInput.click());
+        fileInput.addEventListener('change', async () => {
+          const file = fileInput.files[0];
+          const extension = fileExtensions[file?.type];
+          if (!extension || !file.size || file.size > 10485760) {
+            showToast('Choose a PDF or image up to 10 MB.');
+            fileInput.value = '';
+            return;
+          }
+          upload.disabled = true;
+          try {
+            const name = file.name.replace(/\.[^.]+$/, '').replace(/[^a-z0-9 ._-]/gi, '_').slice(0, 100) || 'Document';
+            const { error } = await bucket.upload(folder + '/' + crypto.randomUUID() + '-' + name + '.' + extension, file);
+            if (error) throw error;
+            if (sameAdmin(selection)) { showToast('File uploaded.'); await loadProfileFiles(selection, section); }
+          } catch (error) {
+            if (sameAdmin(selection)) showToast(error.message || 'Could not upload this file.');
+          } finally { upload.disabled = false; fileInput.value = ''; }
+        });
+        container.append(upload, fileInput);
+      }
+      selection.files.add(section);
+    } catch (error) {
+      if (sameAdmin(selection)) container.replaceChildren(element('p', error.message || 'Could not load these files.', 'muted'));
+    } finally { selection.pending.delete(section); }
+  }
+
+  async function loadProfilePay(selection, section) {
+    if (selection.pending.has(section)) return;
+    selection.pending.add(section);
+    const summary = byId(section === 'pay_status' ? 'companyDriverPayStatusRows' : 'companyDriverDraftSettlements');
+    summary.replaceChildren(element('p', 'Loading pay records…', 'muted'));
+    try {
+      const result = await profileRequest(section, selection.fleet, profileFields(selection));
+      if (!sameAdmin(selection)) return;
+      const isStatus = section === 'pay_status';
+      const drafts = result.settlements.map(record => element('p',
+        record.settlement_number + ' · Draft' + (isStatus ? '' : ' · ' + profilePayCurrency.format(Number(record.total_pay)))));
+      if (!isStatus && !(selection.profile.company_driver && (selection.owner || selection.source === 'payroll'))) paintStatements('companyDriverAdminPayList', result.statements);
+      const states = !isStatus ? [] : result.statements.map(record => element('p',
+        record.title + ' · ' + settlementStatus[record.status] + (record.submitted_at ? ' · ' + clockFormat.format(new Date(record.submitted_at)) : '')));
+      summary.replaceChildren(...drafts, ...states);
+      if (!drafts.length && !states.length && (isStatus || !result.statements.length)) summary.append(element('p', 'No pay records on file.', 'muted'));
+    } catch (error) {
+      if (sameAdmin(selection)) summary.replaceChildren(element('p', error.message || 'Could not load these pay records.', 'muted'));
+    } finally { selection.pending.delete(section); }
+  }
+
   async function refreshAdminPresence() {
     const selection = view;
-    if (!selection?.linked || selection.presencePending || !byId('companyDriverAdminPage').classList.contains('active')) return;
+    if (!selection?.linked || !selection.profile.tabs?.includes('driver_company_file') || selection.presencePending || !byId('companyDriverAdminPage').classList.contains('active')) return;
     selection.presencePending = true;
     try {
       const presence = await profileRequest('presence', selection.fleet, { profile_number: selection.profile.profile_id });
@@ -190,10 +330,17 @@ const companyDriverTools = (() => {
     control.addEventListener('click', () => selectAdminSection(control.dataset.companyDriverSection));
   }
   byId('companyDriverHistoryMore').addEventListener('click', () => {
-    if (view?.historyCursor) void loadHistory(view, true);
+    if (view?.pages.history?.cursor) void loadHistory(view, 'history', true);
+  });
+  byId('companyDriverBolsMore').addEventListener('click', () => {
+    if (view?.pages.bols?.cursor) void loadHistory(view, 'bols', true);
+  });
+  byId('companyDriverReviewIssue').addEventListener('click', () => {
+    if (view?.dispatchDriverId) void officeTools.openReviewIssue(view.dispatchDriverId, name(view.profile));
   });
   byId('companyDriverAdminMessage').addEventListener('click', () => {
-    if (view?.linked) void companyMessaging.openDriver({ profileId: view.profile.profile_id });
+    if (view?.linked) void companyMessaging.openDriver({ profileId: view.profile.profile_id,
+      ...(view.owner ? {} : { channel: 'dispatch' }) });
   });
   byId('companyDriverAdminPaySettings').addEventListener('click', async () => {
     const selection = view;
@@ -205,7 +352,7 @@ const companyDriverTools = (() => {
   });
 
   function name(profile) {
-    return [profile.first_name, profile.last_name].filter(Boolean).join(' ') || 'Company Driver';
+    return [profile.first_name, profile.last_name].filter(Boolean).join(' ') || profile.name || 'Driver';
   }
 
   function amount(started, ended) {
@@ -314,7 +461,9 @@ const companyDriverTools = (() => {
     replacementKey = record.storage_key;
     pendingUpload = null;
     form.reset();
-    for (const name of ['title', 'period_start', 'period_end']) form.elements.namedItem(name).value = record[name];
+    for (const name of ['period_start', 'period_end']) form.elements.namedItem(name).value = record[name];
+    byId('newPaySettlementNumber').value = record.settlement_number || record.title;
+    byId('companyPayDraftField').classList.add('hidden');
     byId('companyPayFormTitle').textContent = 'Send corrected statement';
     byId('companyPayReplacementNote').textContent = 'Replacing ' + record.title;
     byId('companyPayCancelReplacement').classList.remove('hidden');
@@ -328,7 +477,17 @@ const companyDriverTools = (() => {
     byId('companyPayFormTitle').textContent = 'Send a statement for review';
     byId('companyPayReplacementNote').textContent = '';
     byId('companyPayCancelReplacement').classList.add('hidden');
+    paintPayNumber();
   }
+
+  function paintPayNumber() {
+    if (replacementKey) return;
+    const drafts = byId('companyPayDraft');
+    byId('companyPayDraftField').classList.toggle('hidden', drafts.options.length <= 1);
+    byId('newPaySettlementNumber').value = drafts.value ? drafts.selectedOptions[0].textContent : '';
+  }
+
+  byId('companyPayDraft').addEventListener('change', paintPayNumber);
 
   function paintStatements(id, records, canManagePay = false) {
     const reviewing = id === 'driverPayList';
@@ -470,8 +629,7 @@ const companyDriverTools = (() => {
       if (view !== selection || adminRequest !== request || currentUser !== selection.user) return;
       byId('companyDriverAdminContent').classList.remove('hidden');
       byId('companyDriverAdminStatus').textContent = '';
-      adminSections.find(control => control.dataset.companyDriverSection === 'clock')
-        .classList.toggle('hidden', !detail.can_manage_clock);
+      byId('companyDriverAdminClockPanel').classList.toggle('hidden', !detail.can_manage_clock);
       const control = byId('companyDriverClockSwitch');
       control.classList.toggle('hidden', !detail.linked);
       control.setAttribute('aria-pressed', String(detail.enabled));
@@ -479,34 +637,37 @@ const companyDriverTools = (() => {
       byId('companyDriverClockArchive').classList.toggle('hidden', detail.linked);
       byId('companyDriverAdminShifts').replaceChildren(shiftList(detail.shifts));
       byId('companyDriverPayForm').classList.toggle('hidden', !detail.can_manage_pay);
+      const drafts = byId('companyPayDraft');
+      const selected = drafts.value;
+      drafts.replaceChildren(new Option('Generate a new settlement number', ''),
+        ...(detail.settlement_drafts || []).map(draft => new Option(draft.number, draft.id)));
+      if ([...drafts.options].some(option => option.value === selected)) drafts.value = selected;
+      paintPayNumber();
       paintStatements('companyDriverAdminPayList', detail.documents, detail.can_manage_pay);
     } catch (error) {
       if (view === selection && currentUser === selection.user) byId('companyDriverAdminStatus').textContent = error.message || 'Could not load the driver’s settings.';
     }
   }
 
-  function openAdmin(profile, source = 'links', initialProfile) {
+  function openAdmin(profile, source = 'links', initialProfile, rosterFleet) {
     const user = currentUser;
-    const fleet = source === 'payroll' ? payroll?.fleet_id : adminFleetId;
+    const fleet = rosterFleet || (source === 'payroll' ? payroll?.fleet_id : adminFleetId || officeTools.dispatchFleet());
     const owner = accountTypeFor(user) === 'fleet';
-    if (!user || !fleet || (source !== 'payroll' && !owner)) return;
-    view = { user, fleet, profile, source, owner };
-    byId('companyDriverAdminTitle').textContent = name(profile);
-    byId('companyDriverAdminStatus').textContent = 'Loading Company Driver records…';
-    byId('companyDriverAdminContent').classList.add('hidden');
-    byId('companyDriverAdminMessage').classList.add('hidden');
-    byId('companyDriverAdminPaySettings').classList.add('hidden');
-    byId('companyDriverAdminFacts').replaceChildren();
-    byId('companyDriverHistoryList').replaceChildren();
-    byId('companyDriverHistoryMore').classList.add('hidden');
-    byId('companyDriverAdminPresence').textContent = '';
-    byId('companyDriverAdminOverviewStatus').textContent = 'Loading driver profile…';
-    for (const control of adminSections) control.classList.toggle('hidden', !owner && control.dataset.companyDriverSection !== 'documents');
-    selectAdminSection(source === 'payroll' ? 'documents' : 'overview');
+    if (!user || !fleet || (!owner && source === 'links' && !officeTools.canLinkProfiles())) return;
+    view = { user, fleet, profile, source, owner, files: new Set(), pending: new Set(), pages: {} };
+    byId('companyDriverAdminTitle').textContent = source === 'payroll' ? name(profile) : 'Driver Profile';
+    byId('companyDriverAdminStatus').textContent = 'Loading driver profile…';
+    for (const id of ['companyDriverAdminContent','companyDriverAdminSummary','companyDriverAdminMessage',
+      'companyDriverAdminPaySettings','companyDriverHistoryMore','companyDriverBolsMore','companyDriverPayForm',
+      'companyDriverAdminClockPanel','companyDriverReviewIssue']) byId(id).classList.add('hidden');
+    for (const id of ['companyDriverAdminFacts','companyDriverCompanyFacts','companyDriverHistoryList','companyDriverBolsList',
+      'companyDriverHistoryStatus','companyDriverBolsStatus','companyDriverAdminPresence','companyDriverAdminPayList',
+      'companyDriverDraftSettlements','companyDriverPayStatusRows']) byId(id).replaceChildren();
+    for (const container of document.querySelectorAll('[data-driver-profile-files]')) container.replaceChildren();
+    byId('companyPayDraft').replaceChildren(new Option('Generate a new settlement number', ''));
     clearPayForm();
     showPage('companyDriverAdminPage');
-    void loadOverview(view, initialProfile);
-    return loadAdmin();
+    return loadOverview(view, initialProfile);
   }
 
   byId('companyDriverClockSwitch').addEventListener('click', async event => {
@@ -535,12 +696,12 @@ const companyDriverTools = (() => {
     const selection = view;
     if (!selection || control.disabled) return;
     const file = form.elements.namedItem('file').files[0];
-    const { title, period_start, period_end } = Object.fromEntries(new FormData(form));
+    const { settlement_id, period_start, period_end } = Object.fromEntries(new FormData(form));
     const replacing = replacementKey;
     const extensions = { 'application/pdf': 'pdf', 'image/jpeg': 'jpeg', 'image/png': 'png', 'image/webp': 'webp' };
     const extension = extensions[file?.type];
     if (!extension || !file.size || file.size > 10485760) { showToast('Choose a PDF or photo up to 10 MB.'); return; }
-    if (!title.trim() || period_end < period_start) { showToast('Enter a title and a valid pay period.'); return; }
+    if (!period_start || !period_end || period_end < period_start) { showToast('Enter a valid pay period.'); return; }
     control.disabled = true;
     try {
       if (pendingUpload?.file !== file) {
@@ -551,11 +712,11 @@ const companyDriverTools = (() => {
         pendingUpload = { file, objectKey };
       }
       if (view !== selection || currentUser !== selection.user) return;
-      await rpc('publish_pay', selection.fleet, selection.profile.profile_id,
-        { title, period_start, period_end, storage_key:pendingUpload.objectKey, replaces_key: replacing });
+      const sent = await rpc('publish_pay', selection.fleet, selection.profile.profile_id,
+        { settlement_id, period_start, period_end, storage_key:pendingUpload.objectKey, replaces_key: replacing });
       if (view === selection && currentUser === selection.user) {
         clearPayForm();
-        showToast('Statement sent to the driver for review.');
+        showToast(sent?.settlement_number ? 'Settlement ' + sent.settlement_number + ' sent for review.' : 'Statement sent to the driver for review.');
         await Promise.all([loadAdmin(), refreshPayroll(true)]);
       }
     } catch (error) {
@@ -958,8 +1119,8 @@ const companyDriverTools = (() => {
 
   function backAdmin() {
     if (view?.source === 'payroll') return openPayroll(byId('companyPayrollTitle').textContent);
-    if (view?.source === 'dispatch') return showFleetSection('dispatch', 'drivers');
-    return showFleetSection('links');
+    if (view?.source === 'dispatch') return view.owner ? showFleetSection('dispatch', 'drivers') : showOfficeDispatch('drivers');
+    return view?.owner ? showFleetSection('links') : showPage('fleetWorkspace');
   }
 
   function refresh() {

@@ -7,6 +7,11 @@ const officeTools = (() => {
   const tabs = [...document.querySelectorAll('[data-office-tool]')];
   const permissionLabels = [...document.querySelectorAll('#newEmployeePermissionOptions [name=officePermission]')]
     .map(field => [field.value, field.closest('label').textContent.trim()]);
+  const driverTabLabels = [...document.querySelectorAll('#newEmployeeDriverProfileAccess [name=driverProfilePermission]')]
+    .map(field => [field.value, field.closest('label').textContent.trim()]);
+  const issueDialog = byId('officeReviewIssueDialog');
+  const issueForm = byId('officeReviewIssueForm');
+  let issueRequest;
   const requests = new Map();
   const clock = new Intl.DateTimeFormat(undefined, {
     year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
@@ -29,7 +34,8 @@ const officeTools = (() => {
   function renderTools() {
     for (const tab of tabs) {
       const key = tab.dataset.officeTool;
-      const available = key === 'profiles' ? employee?.office_can_manage_profiles
+      const available = key === 'review-issue' ? Boolean(employee && !employee.password_required)
+        : key === 'profiles' ? employee?.office_can_manage_profiles
         : key === 'link-profiles' ? canLinkProfiles()
         : key === 'safety' ? employee?.office_is_official : key === 'messages' ? messagesAllowed()
         : key === 'settlements' ? has(key) || Boolean(fuelSettingsFleet()) : has(key);
@@ -222,15 +228,20 @@ const officeTools = (() => {
     byId('officeProfileFuelSettings').checked = Boolean(row.office_can_manage_fuel_settings);
     visible('officeProfileDesignationFields',admin);
     const assigned = row.office_permissions || [];
-    byId('officeProfilePermissionOptions').replaceChildren(...permissionLabels.map(([key,label])=>{
+    const options = labels => labels.map(([key,label]) => {
       const option = document.createElement('label');
       const field = document.createElement('input');
-      field.type = 'checkbox'; field.name = 'permission'; field.value = key;
+      field.type = 'checkbox';
+      field.name = 'permission';
+      field.value = key;
       field.checked = assigned.includes(key);
       field.disabled = !admin && !has(key);
       option.append(field,' '+label);
       return option;
-    }));
+    });
+    byId('officeProfilePermissionOptions').replaceChildren(...options(permissionLabels));
+    byId('officeProfileDriverTabOptions').replaceChildren(...(admin ? options(driverTabLabels) : []));
+    visible('officeProfileDriverTabFields',admin);
     passwordForm.reset();
     byId('officeProfileStatus').textContent = row.password_required ? 'A temporary password is required at sign-in.' : '';
     updateEditAccess();
@@ -356,8 +367,87 @@ const officeTools = (() => {
     showPage('fleetWorkspace');
   }
 
+  async function issueRpc(fleet, action, target, payload) {
+    const { data, error } = await supabaseClient.rpc('file_office_review_issue', {
+      target_fleet: fleet, action, ...(target ? { target_driver:target } : {}),
+      ...(payload ? { payload } : {})
+    });
+    if (error) throw error;
+    return data;
+  }
+
+  async function openReviewIssue(driverId, driverName) {
+    if (!employee || employee.password_required || issueDialog.open) return;
+    const request = { user:currentUser, fleet:employee.fleet_id, driverId, id:crypto.randomUUID() };
+    issueRequest = request;
+    issueForm.reset();
+    byId('officeReviewIssueClose').disabled = false;
+    byId('officeReviewIssueContext').textContent = driverName || '';
+    const status = byId('officeReviewIssueStatus');
+    const choices = byId('officeReviewIssueChoices');
+    choices.replaceChildren();
+    status.textContent = 'Loading officials…';
+    byId('officeReviewIssueSubmit').disabled = true;
+    issueDialog.showModal();
+    try {
+      const reviewers = await issueRpc(request.fleet, 'reviewers');
+      if (issueRequest !== request || currentUser !== request.user || !issueDialog.open) return;
+      choices.replaceChildren(...reviewers.map(reviewer => {
+        const label = document.createElement('label');
+        const control = document.createElement('input');
+        control.type = 'checkbox';
+        control.name = 'reviewer';
+        control.value = reviewer.id;
+        label.append(control, ' ' + reviewer.name);
+        return label;
+      }));
+      status.textContent = reviewers.length ? '' : 'No active officials are available for review.';
+      byId('officeReviewIssueSubmit').disabled = !reviewers.length;
+    } catch (error) {
+      if (issueRequest === request && currentUser === request.user) status.textContent = error.message || 'Could not load officials.';
+    }
+  }
+
+  byId('officeReviewIssueClose').addEventListener('click', () => issueDialog.close());
+  issueDialog.addEventListener('cancel', event => {
+    if (issueRequest?.saving) event.preventDefault();
+  });
+  issueDialog.addEventListener('close', () => {
+    issueRequest = null;
+    issueForm.reset();
+    byId('officeReviewIssueChoices').replaceChildren();
+  });
+  issueForm.addEventListener('submit', async event => {
+    event.preventDefault();
+    const request = issueRequest;
+    if (!request || request.saving || currentUser !== request.user) return;
+    const data = new FormData(issueForm);
+    const title = data.get('title').trim();
+    const description = data.get('description').trim();
+    const reviewers = data.getAll('reviewer');
+    const status = byId('officeReviewIssueStatus');
+    if (!title || !description || !reviewers.length) {
+      status.textContent = 'Enter a title and description, and choose at least one official.';
+      return;
+    }
+    const submit = byId('officeReviewIssueSubmit');
+    const close = byId('officeReviewIssueClose');
+    close.disabled = submit.disabled = request.saving = true;
+    status.textContent = 'Filing issue…';
+    try {
+      await issueRpc(request.fleet, 'file', request.driverId, { id:request.id, title, description, reviewers });
+      if (issueRequest !== request || currentUser !== request.user) return;
+      issueDialog.close();
+      showToast('Issue filed for the selected officials.');
+    } catch (error) {
+      if (issueRequest === request && currentUser === request.user) status.textContent = error.message || 'Could not file the issue. Try again.';
+    } finally {
+      if (issueRequest === request) close.disabled = submit.disabled = request.saving = false;
+    }
+  });
+
   const routes = {
-    'link-profiles':openProfileLink,
+    'link-profiles':openProfileLink,'review-issue':()=>openReviewIssue(),
     bol_payments:()=>fleetBolPayments.open(employee.fleet_id),
     dispatch:()=>showOfficeDispatch('current'),drivers:()=>showOfficeDispatch('drivers'),
     messages:()=>companyMessaging.open(),payroll:()=>officePayroll.open(),
@@ -374,6 +464,8 @@ const officeTools = (() => {
   function reset() {
     employee = null;
     editing = null;
+    issueRequest = null;
+    if (issueDialog.open) issueDialog.close();
     requests.clear();
     hasPrivateThreads = false;
     employeeRequest = null;
@@ -387,5 +479,5 @@ const officeTools = (() => {
     renderTools();
   }
 
-  return { has,canLinkProfiles,fuelSettingsFleet,readEmployee,setEmployee,refreshEmployee,setPrivateThreads,openDashboard,dispatchFleet,dispatchAccess,loadRoster,updateCreateAccess,reset };
+  return { has,canLinkProfiles,fuelSettingsFleet,readEmployee,setEmployee,refreshEmployee,setPrivateThreads,openDashboard,openReviewIssue,dispatchFleet,dispatchAccess,loadRoster,updateCreateAccess,reset };
 })();

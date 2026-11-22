@@ -246,6 +246,9 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 .company-driver-record-nav{display:flex;flex-wrap:wrap;gap:8px}
 .company-driver-record-nav button[aria-pressed="true"]{background:#173a58;border-color:#358ce0;color:#edf6ff}
 .company-driver-record-nav button{min-height:42px}
+.company-driver-summary{margin-bottom:12px}
+.company-driver-summary .dispatch-detail-facts>div{min-width:0;padding:10px;background:#0d1521;border:1px solid #2b4058;border-radius:8px}
+.company-driver-summary a{color:inherit;text-decoration:underline}
 .company-pay-row{flex-wrap:wrap}
 .company-pay-row form{flex-basis:100%;min-width:0}
 .company-pay-row [hidden]{display:none}
@@ -982,6 +985,19 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
           <label><input type="checkbox" name="officePermission" value="activity"> Activity Log</label>
          </div>
         </fieldset>
+        <fieldset class="employee-setup-step" id="newEmployeeDriverProfileAccess">
+         <legend>Driver Profile Tabs</legend>
+         <div class="employee-access-list">
+          <label><input type="checkbox" name="driverProfilePermission" value="driver_documents"> Documents</label>
+          <label><input type="checkbox" name="driverProfilePermission" value="driver_bols"> BOLs</label>
+          <label><input type="checkbox" name="driverProfilePermission" value="driver_company_file"> Company File</label>
+          <label><input type="checkbox" name="driverProfilePermission" value="driver_messages"> Messages</label>
+          <label><input type="checkbox" name="driverProfilePermission" value="driver_history"> Load History</label>
+          <label><input type="checkbox" name="driverProfilePermission" value="driver_pay_settlements"> Pay Settlements</label>
+          <label><input type="checkbox" name="driverProfilePermission" value="driver_tax"> Tax Information</label>
+          <label><input type="checkbox" name="driverProfilePermission" value="driver_pay_status"> Pay Status</label>
+         </div>
+        </fieldset>
        </fieldset>
        <p>Username <output id="newEmployeeUsername" for="newEmployeeId">—</output></p>
        <div class="employee-setup-actions">
@@ -1134,23 +1150,47 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
    <div id="companyDriverClockList"></div>
   </section>
   <section id="companyDriverAdminPage" class="page fleet-account-page">
-   <div class="page-head"><div><button class="back" type="button" onclick="companyDriverTools.backAdmin()">← Back</button><h1 id="companyDriverAdminTitle">Company Driver</h1></div>
-    <button class="outline hidden" type="button" id="companyDriverAdminMessage">Message Driver</button>
-    <button class="outline hidden" type="button" id="companyDriverAdminPaySettings">Edit Pay Settings</button>
-   </div>
+   <div class="page-head"><div><button class="back" type="button" onclick="companyDriverTools.backAdmin()">← Back</button><h1 id="companyDriverAdminTitle">Driver Profile</h1></div><button class="outline hidden" id="companyDriverReviewIssue" type="button">File a Review Issue</button></div>
    <p id="companyDriverAdminStatus" class="muted" role="status"></p>
    <div id="companyDriverAdminContent" class="hidden">
-    <nav class="company-driver-record-nav" aria-label="Driver profile sections">
-     <button class="outline" type="button" data-company-driver-section="overview" aria-controls="companyDriverAdminOverview" aria-pressed="true">Overview</button>
-     <button class="outline" type="button" data-company-driver-section="history" aria-controls="companyDriverAdminHistory" aria-pressed="false">Load History</button>
-     <button class="outline" type="button" data-company-driver-section="clock" aria-controls="companyDriverAdminClockPanel" aria-pressed="false">Time Clock</button>
-     <button class="outline" type="button" data-company-driver-section="documents" aria-controls="companyDriverAdminDocuments" aria-pressed="false">Documents</button>
-    </nav>
-    <section class="panel" id="companyDriverAdminOverview">
-     <h2>General Info</h2>
+    <section class="panel company-driver-summary hidden" id="companyDriverAdminSummary" aria-label="Driver quick reference">
      <p class="muted" id="companyDriverAdminOverviewStatus" role="status"></p>
      <dl class="dispatch-detail-facts" id="companyDriverAdminFacts"></dl>
+    </section>
+    <nav class="company-driver-record-nav" aria-label="Driver profile sections">
+     <button class="outline" type="button" data-company-driver-section="documents" aria-controls="companyDriverAdminDocuments" aria-pressed="false">Documents</button>
+     <button class="outline" type="button" data-company-driver-section="bols" aria-controls="companyDriverAdminBols" aria-pressed="false">BOLs</button>
+     <button class="outline" type="button" data-company-driver-section="company" aria-controls="companyDriverAdminCompany" aria-pressed="true">Company File</button>
+     <button class="outline" type="button" data-company-driver-section="messages" aria-controls="companyDriverAdminMessages" aria-pressed="false">Messages</button>
+     <button class="outline" type="button" data-company-driver-section="history" aria-controls="companyDriverAdminHistory" aria-pressed="false">Load History</button>
+     <button class="outline" type="button" data-company-driver-section="pay_settlements" aria-controls="companyDriverAdminSettlements" aria-pressed="false">Pay Settlements</button>
+     <button class="outline" type="button" data-company-driver-section="tax" aria-controls="companyDriverAdminTax" aria-pressed="false">Tax Information</button>
+     <button class="outline" type="button" data-company-driver-section="pay_status" aria-controls="companyDriverAdminPayStatus" aria-pressed="false">Pay Status</button>
+    </nav>
+    <section class="panel" id="companyDriverAdminCompany">
+     <h2>Company File</h2>
+     <dl class="dispatch-detail-facts" id="companyDriverCompanyFacts"></dl>
      <p id="companyDriverAdminPresence"></p>
+     <button class="outline hidden" type="button" id="companyDriverAdminPaySettings">Edit Pay Settings</button>
+     <div data-driver-profile-files="company"></div>
+     <section class="hidden" id="companyDriverAdminClockPanel">
+      <h3>Time Clock</h3>
+      <button class="outline" id="companyDriverClockSwitch" type="button" aria-pressed="false"></button>
+      <p id="companyDriverClockArchive" class="muted hidden">Fleet link ended.</p>
+      <h4>Recent shifts</h4>
+      <div id="companyDriverAdminShifts"></div>
+     </section>
+    </section>
+    <section class="panel hidden" id="companyDriverAdminBols">
+     <h2>BOLs &amp; Proof of Delivery</h2>
+     <p class="muted" id="companyDriverBolsStatus" role="status"></p>
+     <div class="dispatch-load-list" id="companyDriverBolsList"></div>
+     <button class="outline hidden" type="button" id="companyDriverBolsMore">Load More</button>
+    </section>
+    <section class="panel hidden" id="companyDriverAdminMessages">
+     <h2>Messages</h2>
+     <p class="muted" id="companyDriverAdminMessagingStatus"></p>
+     <button class="outline hidden" type="button" id="companyDriverAdminMessage">Open Conversations</button>
     </section>
     <section class="panel hidden" id="companyDriverAdminHistory">
      <h2>Completed loads</h2>
@@ -1158,21 +1198,28 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
      <div class="dispatch-load-list" id="companyDriverHistoryList"></div>
      <button class="outline hidden" type="button" id="companyDriverHistoryMore">Load More</button>
     </section>
-    <section class="panel hidden" id="companyDriverAdminClockPanel">
-     <h2>Time Clock</h2>
-     <button class="outline" id="companyDriverClockSwitch" type="button" aria-pressed="false"></button>
-     <p id="companyDriverClockArchive" class="muted hidden">Fleet link ended.</p>
-     <h3>Recent shifts</h3>
-     <div id="companyDriverAdminShifts"></div>
-    </section>
     <section class="panel hidden" id="companyDriverAdminDocuments">
+     <h2>Documents</h2>
+     <div data-driver-profile-files="documents"></div>
+    </section>
+    <section class="panel hidden" id="companyDriverAdminTax">
+     <h2>Tax Information</h2>
+     <div data-driver-profile-files="tax"></div>
+    </section>
+    <section class="panel hidden" id="companyDriverAdminPayStatus">
+     <h2>Pay Status</h2>
+     <div id="companyDriverPayStatusRows" class="dispatch-load-list"></div>
+    </section>
+    <section class="panel hidden" id="companyDriverAdminSettlements">
      <h2>Pay Settlements</h2>
+     <div id="companyDriverDraftSettlements" class="dispatch-load-list"></div>
      <div id="companyDriverAdminPayList" class="dispatch-load-list"></div>
      <form id="companyDriverPayForm">
       <h3 id="companyPayFormTitle">Send a statement for review</h3>
       <p class="muted" id="companyPayReplacementNote"></p>
       <div class="form-grid fleet-account-fields">
-       <div class="field"><label for="newPayTitle">Statement title</label><input id="newPayTitle" name="title" maxlength="120" required></div>
+       <div class="field"><label for="newPaySettlementNumber">Settlement Number</label><input id="newPaySettlementNumber" readonly placeholder="Assigned when sent"></div>
+       <div class="field hidden" id="companyPayDraftField"><label for="companyPayDraft">Use an existing draft (optional)</label><select id="companyPayDraft" name="settlement_id"><option value="">Generate a new settlement number</option></select></div>
        <div class="field"><label for="newPayStart">Pay period start</label><input id="newPayStart" name="period_start" type="date" required></div>
        <div class="field"><label for="newPayEnd">Pay period end</label><input id="newPayEnd" name="period_end" type="date" required></div>
        <div class="field"><label for="newPayFile">Statement file</label><input id="newPayFile" name="file" type="file" accept="application/pdf,image/jpeg,image/png,image/webp" required></div>
@@ -1386,6 +1433,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
     <div class="fleet-tools-grid">
      <button type="button" class="card fleet-tool hidden" data-office-tool="safety" id="companyOfficeSafetyButton">Safety &amp; Compliance</button>
      <button type="button" class="card fleet-tool hidden" data-office-tool="policies">Policies <small>Coming later</small></button>
+     <button type="button" class="card fleet-tool hidden" data-office-tool="review-issue">File a Review Issue</button>
      <button type="button" class="card fleet-tool hidden" data-office-tool="activity">Activity Log <small>Coming later</small></button>
     </div>
    </section>
@@ -1421,6 +1469,17 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
  <p id="driverInstallSteps"></p>
  <form method="dialog"><button class="primary-btn" type="submit">Done</button></form>
 </dialog>
+<dialog class="office-profile-dialog" id="officeReviewIssueDialog" aria-labelledby="officeReviewIssueTitle">
+ <div class="office-profile-heading"><h2 id="officeReviewIssueTitle">File a Review Issue</h2><button class="outline" type="button" id="officeReviewIssueClose">Close</button></div>
+ <p id="officeReviewIssueContext" class="muted"></p>
+ <form id="officeReviewIssueForm">
+  <div class="field"><label for="officeReviewSubject">Title</label><input id="officeReviewSubject" name="title" maxlength="120" required></div>
+  <div class="field"><label for="officeReviewDescription">Description</label><textarea id="officeReviewDescription" name="description" rows="4" maxlength="2000" required></textarea></div>
+  <fieldset><legend>Officials who can review this issue</legend><div class="employee-access-list" id="officeReviewIssueChoices"></div></fieldset>
+  <p id="officeReviewIssueStatus" role="status" class="muted"></p>
+  <button class="primary-btn" id="officeReviewIssueSubmit" type="submit" disabled>File Issue</button>
+ </form>
+</dialog>
 <dialog class="office-profile-dialog" id="officeProfileDialog" aria-labelledby="officeProfileTitle">
  <div class="office-profile-heading"><div><h2 id="officeProfileTitle">Edit Profile</h2><p class="muted" id="officeProfileIdentity"></p></div><button class="outline" type="button" id="officeProfileClose">Close</button></div>
  <form id="officeProfileAccessForm">
@@ -1432,6 +1491,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
   <p class="muted hidden" id="officeProfileOfficialAccess">Officials have access to standard Office tools.</p>
   <label class="office-toggle hidden" id="officeProfileFuelAccess"><input id="officeProfileFuelSettings" type="checkbox" role="switch"> Manage Weekly Fuel Surcharge</label>
   <fieldset id="officeProfilePermissionFields"><legend>Access</legend><div class="employee-access-list" id="officeProfilePermissionOptions"></div></fieldset>
+  <fieldset id="officeProfileDriverTabFields"><legend>Driver Profile Tabs</legend><div class="employee-access-list" id="officeProfileDriverTabOptions"></div></fieldset>
   <button class="primary-btn" type="submit">Save Access</button>
  </form>
  <form id="officeProfilePasswordForm">
@@ -1459,9 +1519,9 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 
 <script src="./dispatch-progress.js?v=saved-locations-1"></script>
 <script src="./dispatch-rate-confirmation.js?v=1"></script>
-<script src="./dispatch.js?v=saved-locations-1"></script>
-<script src="./linked-profiles.js?v=short-profile-id-1"></script>
-<script src="./company-driver-tools.js?v=paperwork-1"></script>
+<script src="./dispatch.js?v=driver-profile-1"></script>
+<script src="./linked-profiles.js?v=driver-profile-1"></script>
+<script src="./company-driver-tools.js?v=settlement-number-1"></script>
 <script src="./company-messages.js?v=message-notice-1"></script>
 <script src="./driver-paperwork.js?v=1"></script>
 <script src="./driver-workflow.js?v=saved-locations-1"></script>
@@ -1469,7 +1529,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 <script src="./company-safety.js?v=1"></script>
 <script src="./driver-app.js?v=load-screen-1"></script>
 <script src="./fleet-bol-payments.js?v=paperwork-1"></script>
-<script src="./office-tools.js?v=office-time-clock-1"></script>
+<script src="./office-tools.js?v=driver-profile-1"></script>
 <script src="./office-payroll.js?v=office-hourly-payroll-1"></script>
 <script>
 const SUPABASE_URL = 'https://pxxikzzfrcncwufpzdfp.supabase.co';
@@ -2346,7 +2406,7 @@ async function createFleetEmployee(event){
  if(!officeRole){showToast('Enter a job title.');return}
  const isOfficial=document.getElementById('newEmployeeDesignation').value==='official';
  const canManageProfiles=document.getElementById('newEmployeeManageProfiles').checked;
- const permissions=Array.from(form.querySelectorAll('[name="officePermission"]:checked'),input=>input.value);
+ const permissions=Array.from(form.querySelectorAll('[name="officePermission"]:checked, [name="driverProfilePermission"]:checked'),input=>input.value);
  const backButton=document.getElementById('employeeSetupBack');
  button.disabled=true;
  backButton.disabled=true;

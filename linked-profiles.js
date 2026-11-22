@@ -36,12 +36,12 @@ async function loadFleetProfileLinks(){
    const row=document.createElement('tr');
    const nameCell=row.insertCell();
    const name=[profile.first_name,profile.last_name].filter(Boolean).join(' ')||'—';
-   if(profile.profile_type==='company_driver'){
+   if(['company_driver','driver'].includes(profile.profile_type)){
     const open=document.createElement('button');
     open.type='button';
     open.className='link-btn company-driver-profile-link';
     open.textContent=name;
-    open.addEventListener('click',()=>companyDriverTools.openAdmin(profile));
+    open.addEventListener('click',()=>companyDriverTools.openAdmin(profile,'links',null,fleetId));
     nameCell.append(open);
    }else nameCell.textContent=name;
    row.insertCell().textContent=linkedProfileLabels[profile.profile_type];
