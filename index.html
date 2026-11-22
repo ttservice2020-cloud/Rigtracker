@@ -582,10 +582,12 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
           <h3>Stops</h3>
           <ol id="dispatchDetailStops" class="dispatch-detail-stops"></ol>
          </section>
-         <section class="panel">
-          <h3>Freight Details</h3>
+         <details class="panel dispatch-freight-popup hidden" id="dispatchDetailFreightPopup">
+          <summary>Freight Details &amp; Documents</summary>
           <dl id="dispatchDetailFreight" class="dispatch-detail-facts"></dl>
-         </section>
+          <h4>Documents &amp; driver charges</h4>
+          <div id="dispatchDetailDocuments" class="dispatch-detail-documents"></div>
+         </details>
         </div>
         <section class="panel hidden" id="dispatchDetailHistory">
          <h3>Route History</h3>
@@ -720,6 +722,10 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
           <details class="panel" id="dispatchFreightDetails">
            <summary>Freight Details</summary>
            <div class="dispatch-fields">
+            <div class="field"><label for="dispatchTruckNumber">Truck number</label><input id="dispatchTruckNumber" name="truckNumber" maxlength="40"></div>
+            <div class="field"><label for="dispatchTrailerNumber">Trailer number</label><input id="dispatchTrailerNumber" name="trailerNumber" maxlength="40"></div>
+            <div class="field"><label for="dispatchBrokerPhone">Broker contact number</label><input id="dispatchBrokerPhone" name="brokerPhone" type="tel" maxlength="40"></div>
+            <div class="field"><label for="dispatchBrokerEmail">Broker email</label><input id="dispatchBrokerEmail" name="brokerEmail" type="email" maxlength="254"></div>
             <div class="field"><label for="dispatchCommodity">Commodity</label>
              <select id="dispatchCommodity" name="commodity">
               <option value="">Select a commodity</option>
