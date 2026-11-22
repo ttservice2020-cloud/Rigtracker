@@ -897,6 +897,11 @@ const companyDriverTools = (() => {
     clearPayForm();
     payrollBadges([], false);
     byId('companyPayrollQueue').replaceChildren();
+    byId('companyPayrollLoadSettlements').replaceChildren();
+    byId('companyPayrollSettlementPreview').replaceChildren();
+    byId('companyPayrollSettlementPreview').classList.add('hidden');
+    byId('companyPayrollCreateSettlement').disabled = true;
+    payrollSettlementLoads = [];
     byId('companyPayrollDriver').replaceChildren();
     byId('companyPayrollOpenDriver').onclick = null;
     adminRequest = null; clockRequest = null; payRequest = null;
