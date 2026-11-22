@@ -15,6 +15,7 @@ const companyDriverTools = (() => {
   let payroll;
   let payrollRequest;
   let payrollLoadRequest;
+  let payrollSettlementLoads = [];
   let payrollOrigin;
   let payrollSection;
   let fuelRequest;
@@ -608,11 +609,81 @@ const companyDriverTools = (() => {
     } finally { if (payrollRequest === request) payrollRequest = null; }
   }
 
+  function payScaleLabel(scale) {
+    if (!scale) return 'Pay scale not set';
+    const money = new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 4 });
+    if (scale.method === 'per_load') return 'Per load · manual pay';
+    if (scale.method === 'hourly') return 'Hourly · hours need review';
+    if (scale.method === 'split') return scale.split_percent + '% split';
+    if (scale.method === 'per_mile') return money.format(Number(scale.mile_rate || 0)) + ' per loaded mile' +
+      (scale.empty_mile_rate ? ' · ' + money.format(Number(scale.empty_mile_rate)) + ' per empty mile' : '');
+    if (scale.method === 'load_percent') return scale.split_percent + '% of load gross';
+    if (scale.method === 'higher_of') return 'Higher of ' + scale.split_percent + '% or ' +
+      money.format(Number(scale.mile_rate || 0)) + ' per loaded mile';
+    return 'Pay scale not set';
+  }
+
+  function settlementLoadPay(load) {
+    const money = value => value !== null && value !== '' && value !== undefined && Number.isFinite(Number(value));
+    const rawTotal = load.pay_entry?.totalPay;
+    const rawBase = load.pay_entry?.amount ?? load.manual_pay;
+    const additional = Number(load.pay_entry?.additionalPay ?? load.additional_pay ?? 0) || 0;
+    const empty = Number(load.pay_entry?.emptyPay ?? 0) || 0;
+    const stop = Number(load.stop_pay ?? 0) || 0;
+    const baseKnown = money(rawTotal) || money(rawBase);
+    const base = money(rawTotal) ? Number(rawTotal)
+      : money(rawBase) ? Number(rawBase) + empty + additional : additional;
+    return { baseKnown, base, empty, additional, stop, total: base + stop };
+  }
+
+  function createSettlementPreview() {
+    const selected = [...byId('companyPayrollLoadSettlements').querySelectorAll('[data-settlement-load]:checked')]
+      .map(input => payrollSettlementLoads.find(load => load.load_id === input.value)).filter(Boolean);
+    const preview = byId('companyPayrollSettlementPreview');
+    if (!selected.length) {
+      preview.replaceChildren(element('p', 'Select at least one completed load.', 'muted'));
+      preview.classList.remove('hidden');
+      return;
+    }
+    const driver = byId('companyPayrollDriver').selectedOptions[0]?.textContent || 'Company Driver';
+    const currency = new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' });
+    const rows = selected.map(load => {
+      const label = (load.is_return ? 'B-' : 'A-') + load.pro_number;
+      const pay = settlementLoadPay(load);
+      const row = element('div', '', 'settlement-preview-line');
+      const miles = [load.loaded_miles != null ? Number(load.loaded_miles).toLocaleString() + ' loaded mi' : '',
+        load.empty_miles != null ? Number(load.empty_miles).toLocaleString() + ' empty mi' : ''].filter(Boolean).join(' · ');
+      row.append(element('strong', label), element('span', miles || 'Miles not recorded'),
+        element('span', 'Pay scale: ' + payScaleLabel(load.pay_scale)));
+      if (pay.baseKnown) row.append(element('span', 'Base / saved pay: ' + currency.format(pay.base - pay.additional - pay.empty)));
+      else row.append(element('span', 'Base pay not entered · review needed', 'muted'));
+      if (pay.empty) row.append(element('span', 'Empty-mile pay: ' + currency.format(pay.empty)));
+      if (pay.stop) row.append(element('span', 'Stop pay: ' + currency.format(pay.stop)));
+      if (pay.additional) row.append(element('span', 'Additional pay: ' + currency.format(pay.additional)));
+      return { row, pay };
+    });
+    const total = rows.reduce((sum, item) => sum + item.pay.total, 0);
+    const missingBase = rows.some(item => !item.pay.baseKnown);
+    preview.replaceChildren(
+      element('h3', 'Settlement Preview'),
+      element('p', driver + ' · ' + selected.length + ' completed load' + (selected.length === 1 ? '' : 's')),
+      ...rows.map(item => item.row),
+      element('strong', 'Known pay items: ' + currency.format(total), 'settlement-preview-total'),
+      ...(missingBase ? [element('p', 'One or more loads have no base pay entered. Review before issuing the settlement.', 'muted')] : [])
+    );
+    const print = button('Print / Save as PDF', () => window.print());
+    preview.append(print);
+    preview.classList.remove('hidden');
+    preview.scrollIntoView?.({ block: 'nearest' });
+  }
+
   async function loadSettlementLoads(fleet, profileId) {
     const list = byId('companyPayrollLoadSettlements');
     const request = {};
     payrollLoadRequest = request;
     const active = () => payrollLoadRequest === request && currentUser && byId('companyPayrollPage').classList.contains('active');
+    payrollSettlementLoads = [];
+    byId('companyPayrollSettlementPreview').classList.add('hidden');
     if (!profileId) {
       list.replaceChildren(element('p', 'Select a driver to view completed loads.', 'muted'));
       return;
@@ -624,10 +695,10 @@ const companyDriverTools = (() => {
       });
       if (error) throw error;
       if (!active()) return;
-      const rows = Array.isArray(data) ? data : [];
+      payrollSettlementLoads = Array.isArray(data) ? data : [];
       const currency = new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' });
-      list.replaceChildren(...(rows.length ? rows.map(load => {
-        const row = element('article', '', 'dispatch-load-row');
+      list.replaceChildren(...(payrollSettlementLoads.length ? payrollSettlementLoads.map(load => {
+        const row = element('article', '', 'dispatch-load-row company-pay-load-row');
         const summary = element('div');
         const label = (load.is_return ? 'B-' : 'A-') + load.pro_number;
         const place = stop => [stop?.city, stop?.state].filter(Boolean).join(', ') || stop?.company || '';
@@ -635,30 +706,37 @@ const companyDriverTools = (() => {
         summary.append(element('strong', label + (load.route_number ? ' · Route ' + load.route_number : '')));
         if (route) summary.append(element('p', route));
         if (load.updated_at) summary.append(element('p', 'Completed ' + clockFormat.format(new Date(load.updated_at)), 'muted'));
-        const amount = Number(load.pay_entry?.amount ?? load.manual_pay);
-        const emptyPay = Number(load.pay_entry?.emptyPay ?? 0);
-        const additional = Number(load.additional_pay ?? 0);
-        if (Number.isFinite(amount)) {
-          summary.append(element('p', 'Saved driver pay: ' + currency.format(amount + emptyPay + additional)));
-        } else if (additional > 0) {
-          summary.append(element('p', 'Additional pay: ' + currency.format(additional) + ' · Base pay needs review.', 'muted'));
-        } else {
-          summary.append(element('p', 'Pay details need review before settlement.', 'muted'));
-        }
-        row.append(summary);
+        const miles = [load.loaded_miles != null ? Number(load.loaded_miles).toLocaleString() + ' loaded mi' : '',
+          load.empty_miles != null ? Number(load.empty_miles).toLocaleString() + ' empty mi' : ''].filter(Boolean).join(' · ');
+        summary.append(element('p', 'Miles: ' + (miles || 'Not recorded')));
+        summary.append(element('p', 'Profile pay scale: ' + payScaleLabel(load.pay_scale)));
+        const pay = settlementLoadPay(load);
+        if (pay.baseKnown) summary.append(element('p', 'Base / saved pay: ' + currency.format(pay.base - pay.additional - pay.empty)));
+        else summary.append(element('p', 'Base pay not entered', 'muted'));
+        if (pay.stop) summary.append(element('p', 'Stop pay: ' + currency.format(pay.stop)));
+        if (pay.additional) summary.append(element('p', 'Additional pay: ' + currency.format(pay.additional)));
+        const choose = element('label', '', 'settlement-load-include');
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.value = load.load_id;
+        checkbox.dataset.settlementLoad = 'true';
+        choose.append(checkbox, element('span', 'Include'));
+        row.append(summary, choose);
         return row;
       }) : [element('p', 'No completed loads are assigned to this driver.', 'muted')]));
+      byId('companyPayrollCreateSettlement').disabled = !payrollSettlementLoads.length;
     } catch (error) {
       if (active()) list.replaceChildren(element('p', error.message || 'Could not load completed loads.', 'muted'));
     }
   }
-
   function paintPayroll(queue) {
     const picker = byId('companyPayrollDriver');
     const selected = picker.value;
     picker.replaceChildren(new Option('Select a Company Driver', ''), ...queue.drivers.map(driver => new Option(name(driver), driver.profile_id)));
     if (queue.drivers.some(driver => driver.profile_id === selected)) picker.value = selected;
     picker.onchange = () => void loadSettlementLoads(payroll?.fleet_id, picker.value);
+    byId('companyPayrollCreateSettlement').disabled = true;
+    byId('companyPayrollCreateSettlement').onclick = createSettlementPreview;
     byId('companyPayrollOpenDriver').onclick = () => {
       const driver = queue.drivers.find(driver => driver.profile_id === picker.value);
       if (driver) openAdmin(driver, 'payroll');
