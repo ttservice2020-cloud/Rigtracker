@@ -84,7 +84,7 @@ const dispatchProgress = (() => {
   }
 
   function bind({ byId, toggle, element, button, getLoad, getLoads, getRouteNumber, loadDrivers, proLabel, describeRoute, editLoad,
-    back, setProgress, hasUpdate }) {
+    back, setProgress, hasUpdate, openRateConfirmation }) {
     const view = byId('dispatchLoadDetail');
     const manual = byId('dispatchArrivalForm');
     const milestones = ['Assigned', 'En Route to Pickup', 'At Pickup', 'In Transit', 'At Receiver', 'Complete'];
@@ -238,18 +238,40 @@ const dispatchProgress = (() => {
         }
         return entry;
       }));
-      const details = load.details;
+      const details = load.details || {};
+      toggle('dispatchDetailFreightPopup', current);
       const commodity = details.commodity === 'Other' ? details.commodityOther : details.commodity;
+      const equipment = details.equipmentType === 'Other' ? details.equipmentTypeOther : details.equipmentType;
+      const contacts = items => (items || []).map((stop, index) => [stop.company || 'Stop ' + (index + 1), stop.phone, stop.email].filter(Boolean).join(' · ')).filter(Boolean).join(' / ');
+      const money = value => value !== '' && value !== null && value !== undefined && Number.isFinite(Number(value))
+        ? new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' }).format(Number(value)) : '';
       byId('dispatchDetailFreight').replaceChildren(
-        fact('Commodity', commodity),
-        fact('Weight', details.weightLbs ? Number(details.weightLbs).toLocaleString() + ' lb' : '')
+        fact('Truck number', details.truckNumber), fact('Trailer number', details.trailerNumber),
+        fact('Commodity', commodity), fact('Weight', details.weightLbs ? Number(details.weightLbs).toLocaleString() + ' lb' : ''),
+        fact('Pieces', details.pieces), fact('Equipment', equipment),
+        fact('Trailer drop', details.trailerDrop === 'yes' ? details.trailerDropNotes || 'Yes' : 'No'),
+        fact('Trailer pickup', details.trailerPickup === 'yes' ? details.trailerPickupNotes || 'Yes' : 'No'),
+        fact('Broker', details.brokerName), fact('Broker contact', [details.brokerPhone, details.brokerEmail].filter(Boolean).join(' · ')),
+        fact('Shipper contacts', contacts(details.pickups)), fact('Receiver contacts', contacts(details.receivers)),
+        fact('Loaded miles', details.loadedMiles ? Number(details.loadedMiles).toLocaleString() + ' mi' : ''),
+        fact('Route / shipping number', [details.routeNumber, details.brokerLoadNumber].filter(Boolean).join(' · ')),
+        fact('Pickup number', details.pickupNumber), fact('Stop pay', money(details.stopPay)),
+        fact('Additional driver pay', [money(details.driver1AdditionalPay), money(details.driver2AdditionalPay)].filter(Boolean).join(' / '))
       );
-      const trailers = [
-        ['Trailer Drop', details.trailerDrop, details.trailerDropNotes],
-        ['Trailer Pickup', details.trailerPickup, details.trailerPickupNotes]
-      ];
-      for (const [label, selected, notes] of trailers) if (selected === 'yes') {
-        byId('dispatchDetailFreight').append(fact(label, notes || 'Requested'));
+      const docs = byId('dispatchDetailDocuments');
+      docs.replaceChildren();
+      if (details.rateConfirmation?.path) docs.append(button('View Rate Confirmation', () => openRateConfirmation(details.rateConfirmation)));
+      else docs.append(element('p', 'Rate confirmation: Not uploaded', 'muted'));
+      for (const stop of stops) {
+        const report = stop.progress?.driverReport;
+        if (stop.kind === 'pickup') {
+          if (report?.document) docs.append(button('View signed pickup BOL · ' + (stop.company || 'Pickup ' + (stop.index + 1)), () => driverLoadWorkflow.openDocument(report.document)));
+          else docs.append(element('p', 'Pickup BOL: Not uploaded · ' + (stop.company || 'Pickup ' + (stop.index + 1)), 'dispatch-document-missing'));
+        } else if (report?.document) docs.append(button('View signed delivery BOL · ' + (stop.company || 'Delivery ' + (stop.index + 1)), () => driverLoadWorkflow.openDocument(report.document)));
+        const lumper = report?.lumperFee;
+        docs.append(element('p', lumper !== undefined && lumper !== '' && Number(lumper) > 0
+          ? 'Lumper fee reported: ' + money(lumper) + ' · ' + (stop.company || 'Stop')
+          : 'Lumper fee: None reported · ' + (stop.company || 'Stop'), 'muted'));
       }
       history(load);
     }
