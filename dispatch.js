@@ -139,6 +139,13 @@ const fleetDispatchApp = (() => {
 
   function loadRow(load, actionLabel, action) {
     const row = element('article', '', 'dispatch-load-row');
+    const pickupStops = load.details.pickups || [];
+    const missingSignedBol = load.status === 'current' && pickupStops.length > 0 &&
+      pickupStops.some((stop, index) => {
+        const key = stop.stopId || 'pickup-' + index;
+        return !load.progress?.stops?.[key]?.driverReport?.document;
+      });
+    row.dataset.bolMissing = String(missingSignedBol);
     const info = element('div');
     info.append(element('strong', load.status === 'contract'
       ? 'Route ' + getRouteNumber(load) : proLabel(load.pro_number)));
@@ -173,7 +180,13 @@ const fleetDispatchApp = (() => {
     toggle('dispatchDetailRateConfirmation', Boolean(open?.details.rateConfirmation?.path));
     const search = byId('dispatchLoadSearch').value.trim().toLowerCase();
     const current = state.loads.filter(load => load.status === 'current');
-    const matching = current.filter(load => matchesLoad(load, search));
+    const matching = current.filter(load => matchesLoad(load, search)).sort((a, b) => {
+      const aNext = dispatchProgress.summarize(a).next;
+      const bNext = dispatchProgress.summarize(b).next;
+      const priority = stop => !stop ? 3 : !Number.isFinite(stop.due) ? 2 : stop.due <= Date.now() ? 0 : 1;
+      const difference = priority(aNext) - priority(bNext);
+      return difference || (aNext?.due ?? Infinity) - (bNext?.due ?? Infinity);
+    });
     const drafts = state.loads.filter(load => load.status === 'draft' && !load.return_of && matchesLoad(load, search));
     const contracts = state.loads.filter(load => load.status === 'contract');
     const history = state.loads.filter(load => load.status === 'completed');
