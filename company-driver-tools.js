@@ -651,7 +651,7 @@ const companyDriverTools = (() => {
       : calculatedBase !== null ? calculatedBase + empty + additional : additional;
     return { baseKnown, base, empty, additional, stop, total: base + stop };
   }
-  function createSettlementPreview() {
+  async function createSettlementPreview() {
     const selected = [...byId('companyPayrollLoadSettlements').querySelectorAll('[data-settlement-load]:checked')]
       .map(input => payrollSettlementLoads.find(load => load.load_id === input.value)).filter(Boolean);
     const preview = byId('companyPayrollSettlementPreview');
@@ -660,38 +660,54 @@ const companyDriverTools = (() => {
       preview.classList.remove('hidden');
       return;
     }
-    const driver = byId('companyPayrollDriver').selectedOptions[0]?.textContent || 'Company Driver';
-    const currency = new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' });
-    const rows = selected.map(load => {
-      const label = (load.is_return ? 'B-' : 'A-') + load.pro_number;
-      const pay = settlementLoadPay(load);
-      const row = element('div', '', 'settlement-preview-line');
-      const miles = [load.loaded_miles != null ? Number(load.loaded_miles).toLocaleString() + ' loaded mi' : '',
-        load.empty_miles != null ? Number(load.empty_miles).toLocaleString() + ' empty mi' : ''].filter(Boolean).join(' · ');
-      row.append(element('strong', label), element('span', miles || 'Miles not recorded'),
-        element('span', 'Pay scale: ' + payScaleLabel(load.pay_scale)));
-      if (pay.baseKnown) row.append(element('span', 'Base / saved pay: ' + currency.format(pay.base - pay.additional - pay.empty)));
-      else row.append(element('span', 'Base pay not entered · review needed', 'muted'));
-      if (pay.empty) row.append(element('span', 'Empty-mile pay: ' + currency.format(pay.empty)));
-      if (pay.stop) row.append(element('span', 'Stop pay: ' + currency.format(pay.stop)));
-      if (pay.additional) row.append(element('span', 'Additional pay: ' + currency.format(pay.additional)));
-      return { row, pay };
-    });
-    const total = rows.reduce((sum, item) => sum + item.pay.total, 0);
-    const missingBase = rows.some(item => !item.pay.baseKnown);
-    preview.replaceChildren(
-      element('h3', 'Settlement Preview'),
-      element('p', driver + ' · ' + selected.length + ' completed load' + (selected.length === 1 ? '' : 's')),
-      ...rows.map(item => item.row),
-      element('strong', 'Known pay items: ' + currency.format(total), 'settlement-preview-total'),
-      ...(missingBase ? [element('p', 'One or more loads have no base pay entered. Review before issuing the settlement.', 'muted')] : [])
-    );
-    const print = button('Print / Save as PDF', () => window.print());
-    preview.append(print);
+    const user = currentUser;
+    const profileId = byId('companyPayrollDriver').value;
+    const fleet = payroll?.fleet_id;
+    const control = byId('companyPayrollCreateSettlement');
+    control.disabled = true;
+    preview.replaceChildren(element('p', 'Saving settlement draft…', 'muted'));
     preview.classList.remove('hidden');
-    preview.scrollIntoView?.({ block: 'nearest' });
+    try {
+      const { data: created, error } = await supabaseClient.rpc('create_company_driver_settlement', {
+        target_fleet: fleet, target_profile: profileId, requested_load_ids: selected.map(load => load.load_id)
+      });
+      if (error) throw error;
+      if (currentUser !== user || byId('companyPayrollDriver').value !== profileId) return;
+      await loadSettlementLoads(fleet, profileId);
+      const driver = byId('companyPayrollDriver').selectedOptions[0]?.textContent || 'Company Driver';
+      const currency = new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' });
+      const rows = selected.map(load => {
+        const label = (load.is_return ? 'B-' : 'A-') + load.pro_number;
+        const pay = settlementLoadPay(load);
+        const row = element('div', '', 'settlement-preview-line');
+        const miles = [load.loaded_miles != null ? Number(load.loaded_miles).toLocaleString() + ' loaded mi' : '',
+          load.empty_miles != null ? Number(load.empty_miles).toLocaleString() + ' empty mi' : ''].filter(Boolean).join(' · ');
+        row.append(element('strong', label), element('span', miles || 'Miles not recorded'),
+          element('span', 'Pay scale: ' + payScaleLabel(load.pay_scale)));
+        if (pay.baseKnown) row.append(element('span', 'Base / saved pay: ' + currency.format(pay.base - pay.additional - pay.empty)));
+        else row.append(element('span', 'Base pay not entered · review needed', 'muted'));
+        if (pay.empty) row.append(element('span', 'Empty-mile pay: ' + currency.format(pay.empty)));
+        if (pay.stop) row.append(element('span', 'Stop pay: ' + currency.format(pay.stop)));
+        if (pay.additional) row.append(element('span', 'Additional pay: ' + currency.format(pay.additional)));
+        return row;
+      });
+      const missingBase = selected.some(load => !settlementLoadPay(load).baseKnown);
+      preview.replaceChildren(
+        element('h3', 'Settlement ' + created.settlement_number + ' · Draft saved'),
+        element('p', driver + ' · ' + selected.length + ' completed load' + (selected.length === 1 ? '' : 's')),
+        ...rows,
+        element('strong', 'Known pay items: ' + currency.format(Number(created.total_pay)), 'settlement-preview-total'),
+        ...(missingBase ? [element('p', 'Some loads have no base pay entered. The saved draft includes recorded stop and additional pay; review it before issuing.', 'muted')] : []),
+        button('Print / Save as PDF', () => window.print())
+      );
+      preview.classList.remove('hidden');
+      preview.scrollIntoView?.({ block: 'nearest' });
+    } catch (error) {
+      if (currentUser === user) preview.replaceChildren(element('p', error.message || 'Could not create this settlement.', 'muted'));
+    } finally {
+      if (currentUser === user) control.disabled = !payrollSettlementLoads.some(load => !load.created_settlement);
+    }
   }
-
   async function loadSettlementLoads(fleet, profileId) {
     const list = byId('companyPayrollLoadSettlements');
     const request = {};
