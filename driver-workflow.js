@@ -444,28 +444,33 @@ const driverLoadWorkflow = (() => {
       trailerNumber.disabled = pickedNumber.disabled = state.disabled = check.checked;
       const incoming = trailerNumber.dataset.incomingTrailer;
       const departure = trailerNumber.value.trim().toUpperCase();
+      const dropped = droppedNumber.value.trim().toUpperCase();
       const picked = pickedNumber.value.trim().toUpperCase();
       const plannedDrop = freight.trailerDropStopId === stop.key && freight.trailerDropNumber;
       const plannedPickup = freight.trailerPickupStopId === stop.key && freight.trailerPickupNumber;
       const plannedBobtail = freight.trailerPickupStopId === stop.key && freight.trailerPickupMode === 'bobtail';
-      const wrongDrop = plannedDrop && droppedNumber.value.trim().toUpperCase() !== plannedDrop.toUpperCase();
+      const wrongDrop = plannedDrop && dropped !== plannedDrop.toUpperCase();
+      const wrongArrivalDrop = !plannedDrop && incoming && dropped && dropped !== incoming.toUpperCase();
       const wrongPickup = plannedPickup && !check.checked && picked !== plannedPickup.toUpperCase();
       const missingBobtail = plannedBobtail && !check.checked;
       state.required = !check.checked && Boolean(picked);
       const hookMismatch = !check.checked && Boolean(picked) && departure !== picked;
+      const unreportedHook = !check.checked && dropped && !picked && departure && departure !== dropped;
       const mismatch = incoming != null && departure !== incoming.toUpperCase()
         && !check.checked && !droppedNumber.value.trim() && !picked;
       alert.textContent = wrongDrop ? 'Enter the planned drop trailer number ' + plannedDrop + '.'
+        : wrongArrivalDrop ? 'The drop trailer must match your arrival trailer ' + incoming + '.'
         : missingBobtail ? 'Select Bobtail to confirm you are leaving without a trailer.'
         : wrongPickup ? 'Enter the planned pickup trailer number ' + plannedPickup + '.'
         : hookMismatch ? 'Trailer number must match the picked-up trailer.'
+        : unreportedHook ? 'Enter the trailer pickup number if you are leaving with a different trailer.'
         : mismatch
         ? 'Trailer mismatch. ' + (incoming ? 'Arrival trailer: ' + incoming + '. ' : 'You arrived bobtail. ') +
           'Enter the same trailer, record a trailer drop or pickup, or select Bobtail.'
         : '';
-      const invalid = wrongDrop || wrongPickup || missingBobtail || hookMismatch || mismatch;
-      trailerNumber.setAttribute('aria-invalid', String(hookMismatch || mismatch));
-      droppedNumber.setAttribute('aria-invalid', String(Boolean(wrongDrop)));
+      const invalid = wrongDrop || wrongArrivalDrop || wrongPickup || missingBobtail || hookMismatch || unreportedHook || mismatch;
+      trailerNumber.setAttribute('aria-invalid', String(Boolean(hookMismatch || unreportedHook || mismatch)));
+      droppedNumber.setAttribute('aria-invalid', String(Boolean(wrongDrop || wrongArrivalDrop)));
       pickedNumber.setAttribute('aria-invalid', String(Boolean(wrongPickup)));
       check.setAttribute('aria-invalid', String(Boolean(missingBobtail)));
       submit.disabled = draft.saving || Boolean(invalid);
@@ -714,8 +719,10 @@ const driverLoadWorkflow = (() => {
     const form = node('form');
     const fields = node('div', '', 'dispatch-fields');
     const odometer = { type: 'text', inputMode: 'numeric', pattern: '[0-9]{1,8}', maxLength: 8 };
+    const truckField = input('Truck number', 'truck_number', { required: true, maxLength: 40, value: reading?.truck_number || mileage.truck || '' });
+    const truck = truckField.querySelector('input');
     fields.append(
-      input('Truck number', 'truck_number', { required: true, maxLength: 40, value: reading?.truck_number || mileage.truck || '' }),
+      truckField,
       input('Starting odometer (mi)', 'start_odometer', { ...odometer, required: true, value: reading?.start_odometer ?? '' })
     );
     if (mileage.can_finish) fields.append(
@@ -723,8 +730,22 @@ const driverLoadWorkflow = (() => {
     );
     const feedback = node('p', message, 'muted');
     feedback.setAttribute('role', 'status');
+    const alert = node('p', '', 'driver-trailer-alert');
+    alert.id = 'driver-mileage-truck-alert';
+    alert.setAttribute('role', 'alert');
+    truck.setAttribute('aria-describedby', alert.id);
     const save = submitButton('Save Mileage');
-    form.append(fields, feedback, save);
+    let saving = false;
+    function validateTruck() {
+      const entered = truck.value.trim().toUpperCase();
+      const mismatch = Boolean(mileage.truck && entered && entered !== mileage.truck.toUpperCase());
+      alert.textContent = mismatch ? 'Truck mismatch. Dispatch assigned truck ' + mileage.truck + '.' : '';
+      truck.setAttribute('aria-invalid', String(mismatch));
+      save.disabled = saving || mismatch;
+    }
+    form.append(fields, alert, feedback, save);
+    truck.addEventListener('input', validateTruck);
+    validateTruck();
     const miles = value => value == null ? '—' : quantity.format(value) + ' mi';
     const facts = reading && offerFields([
       ['Loaded miles', miles(reading.loaded)], ['Empty miles before this load', miles(reading.empty)]
@@ -738,16 +759,24 @@ const driverLoadWorkflow = (() => {
     form.addEventListener('submit', async event => {
       event.preventDefault();
       if (save.disabled) return;
-      save.disabled = true;
+      saving = true;
+      validateTruck();
       feedback.textContent = '';
+      feedback.className = 'muted';
       const user = currentUser;
       try {
         const values = Object.fromEntries(new FormData(form));
         const updated = await mileageRequest('save', load.id, { ...values, updated_at: reading?.updated_at ?? null });
         if (card.isConnected && currentUser === user) paintMileageCard(card, load, updated, 'Mileage saved.');
       } catch (error) {
-        if (currentUser === user) feedback.textContent = error.message || 'Could not save mileage.';
-      } finally { save.disabled = false; }
+        if (currentUser === user) {
+          feedback.className = 'driver-trailer-alert';
+          feedback.textContent = error.message || 'Could not save mileage.';
+        }
+      } finally {
+        saving = false;
+        validateTruck();
+      }
     });
   }
 
@@ -771,6 +800,74 @@ const driverLoadWorkflow = (() => {
     }
   }
 
+  function equipmentIssueCard(load, signature) {
+    const card = offerCard('Truck & Trailer Condition');
+    card.dataset.loadEquipmentIssue = signature;
+    const host = node('div', '', 'load-mileage-content');
+    const status = node('p', '', 'muted');
+    status.setAttribute('role', 'status');
+    const controls = node('div');
+    const unit = node('select');
+    unit.name = 'equipment_id';
+    unit.required = true;
+    unit.setAttribute('aria-label', 'Unit');
+    const note = node('textarea');
+    Object.assign(note, { name: 'note', maxLength: 2000, required: true, rows: 3 });
+    const submit = submitButton('Mark Out of Service');
+    const form = node('form');
+    form.append(field('Unit', unit), field('Describe the issue', note), submit);
+    let options;
+    async function request(action, payload) {
+      const { data, error } = await supabaseClient.rpc('driver_equipment_issue', {
+        action, target_load: load.id, ...(payload ? { payload } : {})
+      });
+      if (error) throw error;
+      return data;
+    }
+    async function loadOptions() {
+      launch.disabled = true;
+      status.textContent = 'Checking assigned equipment…';
+      const user = currentUser;
+      try {
+        const results = await request('read');
+        if (currentUser !== user || !card.isConnected) return;
+        options = results.filter(row => !row.out_of_service);
+        if (!options.length) {
+          status.textContent = results.length ? 'The registered units are already out of service.'
+            : 'No assigned units are registered. Contact Dispatch to report the issue.';
+          return;
+        }
+        setOptions(unit, options.map(row => [row.id, (row.type === 'truck' ? 'Truck ' : 'Trailer ') + row.unit]), 'Select a unit');
+        controls.replaceChildren(form);
+        status.textContent = '';
+        unit.focus();
+      } catch (error) {
+        if (currentUser === user) status.textContent = error.message || 'Could not check assigned equipment.';
+      } finally { launch.disabled = false; }
+    }
+    const launch = button('Report Out of Service', loadOptions);
+    controls.append(launch);
+    host.append(controls, status);
+    card.append(host);
+    form.addEventListener('submit', async event => {
+      event.preventDefault();
+      const selected = options.find(row => row.id === unit.value);
+      if (!selected || submit.disabled) return;
+      submit.disabled = true;
+      const user = currentUser;
+      try {
+        await request('report', { equipment_id: selected.id, equipment_type: selected.type, note: note.value.trim() });
+        if (currentUser !== user || !card.isConnected) return;
+        form.reset();
+        status.textContent = 'Unit ' + selected.unit + ' marked out of service.';
+        controls.replaceChildren(launch);
+      } catch (error) {
+        if (currentUser === user) status.textContent = error.message || 'Could not report the equipment issue.';
+      } finally { submit.disabled = false; }
+    });
+    return card;
+  }
+
   function paintLoadInfo(load, panel) {
     const freight = {
       ...load.freight,
@@ -790,6 +887,11 @@ const driverLoadWorkflow = (() => {
         mileage.append(node('p', isQueued(load) ? 'Finish your current load before logging mileage here.' : 'Loading…', 'load-offer-empty'));
       }
       cards.append(mileage);
+    }
+    if (load.decision === 'accepted' && load.status === 'current' && Number(load.queuePosition) === 1) {
+      const signature = JSON.stringify([load.id, load.incomingTrailer, freight.truckNumber]);
+      const existing = panel.querySelector('[data-load-equipment-issue]');
+      cards.append(existing?.dataset.loadEquipmentIssue === signature ? existing : equipmentIssueCard(load, signature));
     }
     panel.replaceChildren(cards);
     if (detailTab === 'info') void loadMileageCard(panel, load);
@@ -838,7 +940,7 @@ const driverLoadWorkflow = (() => {
   function paintDetails() {
     const panel = byId('driverWorkflowDetail');
     const load = driverData.loads.find(row => row.id === selected);
-    const mileage = panel.querySelector('[data-load-mileage]');
+    const loadInfoForms = [...panel.querySelectorAll('[data-load-mileage], [data-load-equipment-issue]')];
     panel.replaceChildren();
     panel.classList.toggle('hidden', !load);
     const pendingOffer = isOffer(load);
@@ -869,7 +971,7 @@ const driverLoadWorkflow = (() => {
       control.setAttribute('aria-controls', view.id);
       view.setAttribute('aria-labelledby', control.id);
       tabs.append(control);
-      if (key === 'info' && mileage) view.append(mileage);
+      if (key === 'info') view.append(...loadInfoForms);
       paint(load, view);
       return { key, view, control };
     });

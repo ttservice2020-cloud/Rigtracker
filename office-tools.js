@@ -37,6 +37,7 @@ const officeTools = (() => {
       const available = key === 'review-issue' ? Boolean(employee && !employee.password_required)
         : key === 'profiles' ? employee?.office_can_manage_profiles
         : key === 'link-profiles' ? canLinkProfiles()
+        : key === 'equipment' ? has('dispatch') || has('assets')
         : key === 'safety' ? employee?.office_is_official : key === 'messages' ? messagesAllowed()
         : key === 'settlements' ? has(key) || Boolean(fuelSettingsFleet()) : has(key);
       tab.classList.toggle('hidden', !available);
@@ -151,8 +152,13 @@ const officeTools = (() => {
     return has('dispatch') || has('drivers') ? employee.fleet_id : null;
   }
 
+  function equipmentFleet() {
+    return has('dispatch') || has('assets') ? employee.fleet_id : null;
+  }
+
   function dispatchAccess() {
-    return { dispatch:has('dispatch'), drivers:has('drivers'), paySettings:Boolean(employee?.office_is_official), messages:messagesAllowed() };
+    return { dispatch:has('dispatch'), drivers:has('drivers'), equipment:Boolean(equipmentFleet()),
+      maintenance:has('assets'), paySettings:Boolean(employee?.office_is_official), messages:messagesAllowed() };
   }
 
   async function rpc(action, fleet, row, settings) {
@@ -450,6 +456,7 @@ const officeTools = (() => {
     'link-profiles':openProfileLink,'review-issue':()=>openReviewIssue(),
     bol_payments:()=>fleetBolPayments.open(employee.fleet_id),
     dispatch:()=>showOfficeDispatch('current'),drivers:()=>showOfficeDispatch('drivers'),
+    equipment:()=>showOfficeDispatch('equipment'),assets:()=>showOfficeDispatch('equipment'),
     messages:()=>companyMessaging.open(),payroll:()=>officePayroll.open(),
     settlements:()=>companyDriverTools.openPayroll('Load Settlements'),safety:()=>companySafety.open(),
     hourly:openHourly,profiles:()=>{ showPage('officeProfilesPage'); return loadRoster('officeProfiles',employee.fleet_id); }
@@ -479,5 +486,5 @@ const officeTools = (() => {
     renderTools();
   }
 
-  return { has,canLinkProfiles,fuelSettingsFleet,readEmployee,setEmployee,refreshEmployee,setPrivateThreads,openDashboard,openReviewIssue,dispatchFleet,dispatchAccess,loadRoster,updateCreateAccess,reset };
+  return { has,canLinkProfiles,fuelSettingsFleet,readEmployee,setEmployee,refreshEmployee,setPrivateThreads,openDashboard,openReviewIssue,dispatchFleet,equipmentFleet,dispatchAccess,loadRoster,updateCreateAccess,reset };
 })();

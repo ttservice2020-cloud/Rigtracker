@@ -202,6 +202,15 @@ const companyDriverTools = (() => {
     byId('companyDriverTruckNumber').focus();
   });
   equipmentCancel.addEventListener('click', () => closeEquipmentForm());
+  byId('companyDriverEquipmentSearch').addEventListener('click', () => {
+    const selection = view;
+    if (!selection?.profile.can_edit_equipment || equipmentSave.disabled) return;
+    void fleetEquipment.openPicker(selection.fleet, unit => {
+      if (!sameAdmin(selection)) return;
+      equipmentForm.elements.namedItem(unit.equipment_type + '_number').value = unit.unit_number;
+      showEquipmentError();
+    });
+  });
 
   equipmentForm.addEventListener('submit', async event => {
     event.preventDefault();
@@ -272,17 +281,21 @@ const companyDriverTools = (() => {
     }
   }
 
-  async function openRoster(driver, fleet) {
+  async function openRoster(driver, fleet, fromEquipment = false) {
     const user = currentUser;
     const role = accountTypeFor(user);
     if (!fleet || !['fleet','employee'].includes(role)) return;
     const request = {};
     rosterRequest = request;
+    const source = fromEquipment ? 'equipment' : 'drivers';
     const current = () => rosterRequest === request && user === currentUser &&
-      byId('fleetWorkspace').classList.contains('active') && !byId('dispatch-panel-drivers').classList.contains('hidden');
+      byId('fleetWorkspace').classList.contains('active') && !byId('dispatch-panel-' + source).classList.contains('hidden');
     try {
       const profile = await profileRequest('overview', fleet, { roster_driver: driver.id });
-      if (current()) return openAdmin(profile, 'dispatch', profile, fleet);
+      if (!current()) return;
+      const open = openAdmin(profile, fromEquipment ? 'equipment' : 'dispatch', profile, fleet);
+      if (fromEquipment && profile.can_edit_equipment) equipmentEdit.click();
+      return open;
     } catch (error) {
       if (current()) showToast(error.message || 'Could not open the driver profile.');
     } finally { if (rosterRequest === request) rosterRequest = null; }
@@ -1253,6 +1266,7 @@ const companyDriverTools = (() => {
   function backAdmin() {
     if (view?.source === 'payroll') return openPayroll(byId('companyPayrollTitle').textContent);
     if (view?.source === 'dispatch') return view.owner ? showFleetSection('dispatch', 'drivers') : showOfficeDispatch('drivers');
+    if (view?.source === 'equipment') return view.owner ? showFleetSection('dispatch', 'equipment') : showOfficeDispatch('equipment');
     return view?.owner ? showFleetSection('links') : showPage('fleetWorkspace');
   }
 

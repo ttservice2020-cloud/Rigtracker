@@ -36,7 +36,7 @@ const fleetDispatchApp = (() => {
   const companyCalculatedMethods = new Set(['load_percent', 'per_mile', 'higher_of']);
   const payCurrency = new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' });
   const payRate = new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 4 });
-  const ownerAccess = { dispatch:true, drivers:true, paySettings:true, messages:true };
+  const ownerAccess = { dispatch:true, drivers:true, equipment:true, maintenance:true, paySettings:true, messages:true };
   let state;
   let edit;
   let stopId = 0;
@@ -204,7 +204,10 @@ const fleetDispatchApp = (() => {
 
   function availableTabs() {
     if (!state) return [];
-    return tabs.filter(node => node.dataset.dispatchTab === 'drivers' ? state.access.drivers : state.access.dispatch);
+    return tabs.filter(node => {
+      const tab = node.dataset.dispatchTab;
+      return state.access[tab === 'drivers' || tab === 'equipment' ? tab : 'dispatch'];
+    });
   }
 
   function selectTab(tab, focus = false, showDetail = false) {
@@ -223,6 +226,11 @@ const fleetDispatchApp = (() => {
       node.tabIndex = selected ? 0 : -1;
       toggle(node.getAttribute('aria-controls'), selected && !showDetail);
       if (selected && focus) node.focus();
+    }
+    if (tab === 'equipment' && !showDetail) {
+      const { fleetId, drivers, access } = state;
+      const editDriver = access.dispatch ? driver => companyDriverTools.openRoster(driver, fleetId, true) : null;
+      void fleetEquipment.open(fleetId, drivers, editDriver, access.maintenance);
     }
     if (tab === 'activity') void driverLoadWorkflow.refreshOffice(false, true);
     if (['activity', 'create', 'locations'].includes(tab)) {
@@ -547,6 +555,7 @@ const fleetDispatchApp = (() => {
     }
     paintLoads();
     paintDrivers();
+    if (selectedTab === 'equipment') fleetEquipment.setDrivers(scope.fleetId, scope.drivers);
     progressView?.paint();
     void readLoadContacts(getLoad(progressView?.id()));
   }
@@ -791,12 +800,13 @@ const fleetDispatchApp = (() => {
     for (const [key, name] of Object.entries(relayAddressFields)) form.elements[name].value = location[key];
   });
 
-  function fillDriverEquipment(refreshTrailer = false) {
+  function fillDriverEquipment(refreshTruck = false, refreshTrailer = false) {
     const driver = state.drivers.find(row => row.id === form.elements.driver1.value && row.link_active !== false);
     const truck = form.elements.truckNumber;
     const trailer = form.elements.trailerNumber;
-    if (!truck.value || truck.value === edit.autoTruck) {
+    if (!truck.value || refreshTruck || truck.value === edit.autoTruck) {
       edit.autoTruck = truck.value = driver?.assigned_truck_number || '';
+      edit.truckFromDriver = Boolean(driver);
     }
     if (!trailer.value || refreshTrailer || trailer.value === edit.autoTrailer) {
       const current = driver?.assigned_trailer_number || '';
@@ -814,6 +824,7 @@ const fleetDispatchApp = (() => {
       id: fromContract ? null : row?.id,
       pro: fromContract ? null : row?.pro_number,
       contractId: fromContract ? row.id : row?.contract_load_id,
+      truckFromDriver: data.truckFromDriver === 'yes',
       trailerFromDriver: !fromContract && data.trailerFromDriver === 'yes'
     };
     form.reset();
@@ -829,7 +840,7 @@ const fleetDispatchApp = (() => {
     form.elements.driver1.value = assignment?.driver_id ?? '';
     form.elements.driver2.value = assignment?.second_driver_id ?? '';
     form.elements.trailerNumber.placeholder = '';
-    if (fromContract || !row || row.status === 'draft') fillDriverEquipment(edit.trailerFromDriver);
+    if (fromContract || !row || row.status === 'draft') fillDriverEquipment(edit.truckFromDriver, edit.trailerFromDriver);
     form.elements.secondDriverMode.value = assignment?.second_driver_id ? 'assigned'
       : assignment?.details?.secondDriverMode === 'unknown' ? 'unknown' : 'none';
     const newStopIds = new Map();
@@ -992,6 +1003,7 @@ const fleetDispatchApp = (() => {
     }
     const data = new FormData(form);
     const details = Object.fromEntries(formDetails.map(key => [key, data.get(key)?.trim() ?? '']));
+    if (draft.truckFromDriver) details.truckFromDriver = 'yes';
     if (draft.trailerFromDriver) details.trailerFromDriver = 'yes';
     if (details.fuelSurchargeOverride) details.fuelSurchargeOverride = Number(details.fuelSurchargeOverride).toFixed(4);
     for (const key of ['driver1AdditionalPay', 'driver2AdditionalPay']) {
@@ -1430,7 +1442,10 @@ const fleetDispatchApp = (() => {
   form.addEventListener('input', event => {
     const name = event.target.name;
     if (name === 'driver1' && (!edit.row || edit.row.status === 'draft')) fillDriverEquipment();
-    if (name === 'truckNumber') delete edit.autoTruck;
+    if (name === 'truckNumber') {
+      delete edit.autoTruck;
+      edit.truckFromDriver = false;
+    }
     if (name === 'trailerNumber') {
       delete edit.autoTrailer;
       edit.trailerFromDriver = false;
@@ -1484,14 +1499,14 @@ const fleetDispatchApp = (() => {
     return load.details.routeNumber || '';
   }
 
-  function viewLoad(load) {
+  function viewLoad(load, returnTab) {
     const latest = getLoad(load.id) || load;
     if (!progressView) {
       openLoad(latest);
       return;
     }
     const tab = latest.status === 'contract' ? 'contract' : latest.status === 'completed' ? 'history' : 'current';
-    selectTab(tab, false, true);
+    selectTab(returnTab || tab, false, true);
     watchLoad(latest.id);
     progressView.show(latest.id);
     void readLoadContacts(latest);
@@ -1781,10 +1796,10 @@ const fleetDispatchApp = (() => {
     return refresh();
   }
 
-  async function openRecord(id) {
+  async function openRecord(id, returnTab) {
     if (!getLoad(id)) await refresh();
     const load = getLoad(id);
-    if (load) viewLoad(load);
+    if (load) viewLoad(load, returnTab);
   }
 
   function openPayProfile(id) {

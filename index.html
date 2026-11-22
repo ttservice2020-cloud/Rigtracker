@@ -251,6 +251,11 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 .company-driver-summary a{color:inherit;text-decoration:underline}
 .company-driver-equipment{margin-top:12px}
 .company-driver-equipment-form{margin-top:10px}
+.equipment-required{color:#ff8585}
+.fleet-equipment-units{display:flex;flex-wrap:wrap;gap:8px}
+.fleet-equipment-units .outline[data-status="good"]{color:#a4edbe;border-color:#449769}
+.fleet-equipment-units .outline[data-status="out"]{color:#ffc1c9;border-color:#ff6479;background:#411922}
+.fleet-equipment-issue{margin:12px 0}
 .company-pay-row{flex-wrap:wrap}
 .company-pay-row form{flex-basis:100%;min-width:0}
 .company-pay-row [hidden]{display:none}
@@ -445,6 +450,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
   <div class="fleet-dashboard-layout">
    <nav class="fleet-dashboard-nav" id="fleetAdminNav" aria-label="Fleet Admin navigation">
     <button type="button" data-fleet-section="dashboard" aria-current="page" onclick="showFleetSection('dashboard')">Dashboard</button>
+    <button type="button" data-fleet-section="equipment" onclick="showFleetSection('dispatch','equipment')">Equipment</button>
     <button type="button" data-fleet-section="profiles" onclick="showFleetSection('profiles')">Employee Profiles</button>
     <button type="button" data-fleet-section="settings" onclick="showFleetSection('settings')">Fleet Settings</button>
    </nav>
@@ -484,7 +490,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
         <button class="card fleet-tool" type="button" onclick="fleetAdminDriver.open('loads')">My Loads <span aria-hidden="true">›</span></button>
         <button class="card fleet-tool" type="button" onclick="fleetAdminDriver.open()">My Driver Profile <span aria-hidden="true">›</span></button>
          <button class="card fleet-tool" type="button" onclick="showFleetSection('links')">Linked Profiles <span aria-hidden="true">›</span></button>
-        <button class="card fleet-tool" type="button" onclick="showFleetSection('assets')">Assets <span aria-hidden="true">›</span></button>
+        <button class="card fleet-tool" type="button" onclick="showFleetSection('dispatch','equipment')">Assets <span aria-hidden="true">›</span></button>
         <button class="card fleet-tool" id="companyFleetMessagesButton" type="button" onclick="showFleetSection('messages')">Messages <span aria-hidden="true">›</span></button>
        </div>
       </section>
@@ -527,6 +533,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
         <button id="dispatch-tab-contract" type="button" role="tab" aria-selected="false" aria-controls="dispatch-panel-contract" data-dispatch-tab="contract" tabindex="-1">Contract Loads</button>
         <button id="dispatch-tab-history" type="button" role="tab" aria-selected="false" aria-controls="dispatch-panel-history" data-dispatch-tab="history" tabindex="-1">Load History</button>
         <button id="dispatch-tab-drivers" type="button" role="tab" aria-selected="false" aria-controls="dispatch-panel-drivers" data-dispatch-tab="drivers" tabindex="-1">Drivers</button>
+        <button id="dispatch-tab-equipment" type="button" role="tab" aria-selected="false" aria-controls="dispatch-panel-equipment" data-dispatch-tab="equipment" tabindex="-1">Equipment</button>
         <button id="dispatch-tab-locations" type="button" role="tab" aria-selected="false" aria-controls="dispatch-panel-locations" data-dispatch-tab="locations" tabindex="-1">Saved Locations</button>
          <button id="dispatch-tab-activity" type="button" role="tab" aria-selected="false" aria-controls="dispatch-panel-activity" data-dispatch-tab="activity" tabindex="-1">Driver Activity</button>
        </div>
@@ -835,6 +842,72 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
        <section id="dispatch-panel-history" class="dispatch-panel hidden" role="tabpanel" aria-labelledby="dispatch-tab-history" tabindex="0">
         <p id="dispatchHistoryEmpty" class="muted" role="status"></p>
         <div id="dispatchHistoryList" class="dispatch-load-list"></div>
+       </section>
+       <section class="dispatch-panel hidden" id="dispatch-panel-equipment" role="tabpanel" aria-labelledby="dispatch-tab-equipment">
+        <section class="panel">
+         <div class="page-head">
+          <div class="field"><label for="fleetEquipmentSearch">Search equipment</label><input id="fleetEquipmentSearch" type="search" placeholder="Unit number, equipment type, or VIN" autocomplete="off"></div>
+          <button class="primary-btn hidden" id="fleetEquipmentAdd" type="button">Add Equipment</button>
+         </div>
+         <p class="muted" id="fleetEquipmentStatus" role="status"></p>
+         <div class="fleet-equipment-units" id="fleetEquipmentList"></div>
+        </section>
+        <section class="panel hidden" id="fleetEquipmentDriverAssignments">
+         <h2>Driver Assignments</h2>
+         <div class="field"><label for="fleetEquipmentDriverSearch">Find a driver</label><input id="fleetEquipmentDriverSearch" type="search" autocomplete="off"></div>
+         <div class="dispatch-load-list" id="fleetEquipmentDriverList"></div>
+        </section>
+        <section class="panel company-driver-summary hidden" id="fleetEquipmentRecord" aria-labelledby="fleetEquipmentTitle">
+         <div class="page-head"><h2 id="fleetEquipmentTitle" tabindex="-1"></h2><button class="outline" id="fleetEquipmentClose" type="button">Close record</button></div>
+         <div class="fleet-equipment-issue hidden" id="fleetEquipmentOpenIssue"></div>
+         <dl class="dispatch-detail-facts" id="fleetEquipmentFacts"></dl>
+         <nav class="company-driver-record-nav" aria-label="Equipment record sections">
+          <button class="outline" id="fleetEquipmentDetailsTab" type="button" aria-pressed="true" aria-controls="fleetEquipmentDetails">Details</button>
+          <button class="outline hidden" id="fleetEquipmentDocsTab" type="button" aria-pressed="false" aria-controls="fleetEquipmentDocs">Documents</button>
+          <button class="outline hidden" id="fleetEquipmentMaintenanceTab" type="button" aria-pressed="false" aria-controls="fleetEquipmentMaintenance">Maintenance</button>
+          <button class="outline hidden" id="fleetEquipmentHistoryTab" type="button" aria-pressed="false" aria-controls="fleetEquipmentHistory">Load History</button>
+         </nav>
+         <div id="fleetEquipmentDetails" class="company-driver-equipment-form">
+          <button class="outline hidden" id="fleetEquipmentEdit" type="button" aria-expanded="false" aria-controls="fleetEquipmentDetailsForm">Edit Details</button>
+          <form id="fleetEquipmentDetailsForm">
+          <div class="dispatch-fields">
+           <div class="field"><label for="fleetEquipmentUnit">Unit number <span class="equipment-required" aria-hidden="true">*</span></label><input id="fleetEquipmentUnit" name="unit_number" required maxlength="40" autocomplete="off"></div>
+           <div class="field"><label for="fleetEquipmentType">Equipment type <span class="equipment-required" aria-hidden="true">*</span></label><select id="fleetEquipmentType" name="equipment_type" required><option value="">Select a type</option><option value="truck">Truck</option><option value="trailer">Trailer</option></select></div>
+           <div class="field"><label for="fleetEquipmentVin">VIN <span class="equipment-required" aria-hidden="true">*</span></label><input id="fleetEquipmentVin" name="vin" required maxlength="32" autocapitalize="characters" spellcheck="false" autocomplete="off"></div>
+           <div class="field"><label for="fleetEquipmentMake">Make</label><input id="fleetEquipmentMake" name="make" maxlength="80"></div>
+           <div class="field"><label for="fleetEquipmentModel">Model</label><input id="fleetEquipmentModel" name="model" maxlength="80"></div>
+           <div class="field"><label for="fleetEquipmentYear">Year</label><input id="fleetEquipmentYear" name="model_year" type="number" min="1900" max="2199" step="1" inputmode="numeric"></div>
+           <div class="field"><label for="fleetEquipmentPlate">Plate</label><input id="fleetEquipmentPlate" name="plate" maxlength="32" autocapitalize="characters"></div>
+           <div class="field"><label for="fleetEquipmentNextPm">Next PM</label><input id="fleetEquipmentNextPm" name="next_pm" type="date"></div>
+           <div class="field"><label for="fleetEquipmentInspection">Inspection Date</label><input id="fleetEquipmentInspection" name="inspection_date" type="date"></div>
+          </div>
+          <p class="dispatch-form-issues hidden" id="fleetEquipmentSaveStatus" role="status"></p>
+          <button class="primary-btn" id="fleetEquipmentSave" type="submit">Save Equipment</button>
+          </form>
+         </div>
+         <div class="hidden" id="fleetEquipmentDocs">
+          <form id="fleetEquipmentUpload">
+           <div class="field"><label for="fleetEquipmentFile">Add a document</label><input id="fleetEquipmentFile" type="file" accept="application/pdf,image/jpeg,image/png,image/webp" required></div>
+           <button class="outline" type="submit">Upload Document</button>
+          </form>
+          <p class="muted" id="fleetEquipmentDocsStatus" role="status"></p>
+          <div class="dispatch-load-list" id="fleetEquipmentDocsList"></div>
+         </div>
+         <div class="hidden" id="fleetEquipmentMaintenance">
+          <form class="hidden" id="fleetEquipmentMaintenanceForm">
+           <div class="field"><label for="fleetEquipmentMaintenanceNote">Maintenance note</label><textarea id="fleetEquipmentMaintenanceNote" name="note" rows="3" maxlength="2000" required></textarea></div>
+           <button class="outline" type="submit">Add Maintenance Record</button>
+          </form>
+          <p class="muted" id="fleetEquipmentMaintenanceStatus" role="status"></p>
+          <div class="dispatch-load-list" id="fleetEquipmentMaintenanceList"></div>
+         </div>
+         <div class="hidden" id="fleetEquipmentHistory">
+          <p class="muted" id="fleetEquipmentHistoryStatus" role="status"></p>
+          <div class="fleet-equipment-units" id="fleetEquipmentHistoryList"></div>
+          <button class="outline hidden" id="fleetEquipmentHistoryMore" type="button">Load More</button>
+         </div>
+         <footer class="hidden" id="fleetEquipmentTrailerPosition"></footer>
+        </section>
        </section>
        <section id="dispatch-panel-drivers" class="dispatch-panel hidden" role="tabpanel" aria-labelledby="dispatch-tab-drivers" tabindex="0">
         <button class="outline hidden" type="button" id="dispatchCreateCompanyDriver" onclick="openCompanyDriverCreate()">Create Company Driver</button>
@@ -1169,6 +1242,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
        <p class="dispatch-form-issues hidden" id="companyDriverEquipmentError" role="alert"></p>
        <div class="dispatch-actions">
         <button class="primary-btn" type="submit">Save Equipment</button>
+        <button class="outline" id="companyDriverEquipmentSearch" type="button">Search Equipment</button>
         <button class="outline" id="companyDriverEquipmentCancel" type="button">Cancel</button>
        </div>
       </form>
@@ -1441,7 +1515,8 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
      <button type="button" class="card fleet-tool hidden" data-office-tool="bol_payments">BOLs &amp; Payments</button>
      <button type="button" class="card fleet-tool hidden" data-office-tool="drivers">Drivers</button>
      <button type="button" class="card fleet-tool hidden" data-office-tool="link-profiles">Link Profiles</button>
-     <button type="button" class="card fleet-tool hidden" data-office-tool="assets">Assets <small>Coming later</small></button>
+     <button type="button" class="card fleet-tool hidden" data-office-tool="equipment">Equipment</button>
+     <button type="button" class="card fleet-tool hidden" data-office-tool="assets">Assets</button>
      <button type="button" class="card fleet-tool hidden" data-office-tool="messages" id="companyOfficeMessagesButton">Messages</button>
     </div>
    </section>
@@ -1530,7 +1605,13 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
  </form>
  <p class="muted" id="officeProfileStatus" role="status"></p>
 </dialog>
-<div id="toast" class="hidden" role="status"></div>
+ <dialog class="office-profile-dialog" id="fleetEquipmentPicker" aria-labelledby="fleetEquipmentPickerTitle">
+  <div class="office-profile-heading"><h2 id="fleetEquipmentPickerTitle">Search Equipment</h2><button class="outline" id="fleetEquipmentPickerClose" type="button">Close</button></div>
+  <div class="field"><label for="fleetEquipmentPickerQuery">Unit number, equipment type, or VIN</label><input id="fleetEquipmentPickerQuery" type="search" autocomplete="off" autofocus></div>
+  <p class="muted" id="fleetEquipmentPickerStatus" role="status"></p>
+  <div class="fleet-equipment-units" id="fleetEquipmentPickerList"></div>
+ </dialog>
+ <div id="toast" class="hidden" role="status"></div>
 <dialog id="driverPaperworkDialog" class="driver-paperwork-dialog" aria-labelledby="driverPaperworkTitle"></dialog>
 <dialog class="office-profile-dialog" id="fleetBolPaymentDialog" aria-labelledby="fleetBolPaymentTitle">
  <h2 id="fleetBolPaymentTitle">Mark Paid</h2>
@@ -1548,17 +1629,18 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 
 <script src="./dispatch-progress.js?v=saved-locations-1"></script>
 <script src="./dispatch-rate-confirmation.js?v=1"></script>
-<script src="./dispatch.js?v=driver-tracking-1"></script>
+<script src="./dispatch.js?v=equipment-registry-1"></script>
 <script src="./linked-profiles.js?v=driver-profile-1"></script>
-<script src="./company-driver-tools.js?v=equipment-editor-2"></script>
+<script src="./fleet-equipment.js?v=1"></script>
+<script src="./company-driver-tools.js?v=equipment-registry-1"></script>
 <script src="./company-messages.js?v=driver-messages-1"></script>
 <script src="./driver-paperwork.js?v=1"></script>
-<script src="./driver-workflow.js?v=driver-tracking-1"></script>
+<script src="./driver-workflow.js?v=equipment-registry-1"></script>
 <script src="./fleet-admin-driver.js?v=1"></script>
 <script src="./company-safety.js?v=1"></script>
 <script src="./driver-app.js?v=load-screen-1"></script>
 <script src="./fleet-bol-payments.js?v=paperwork-1"></script>
-<script src="./office-tools.js?v=driver-profile-1"></script>
+<script src="./office-tools.js?v=equipment-registry-1"></script>
 <script src="./office-payroll.js?v=payroll-date-1"></script>
 <script>
 const SUPABASE_URL = 'https://pxxikzzfrcncwufpzdfp.supabase.co';
@@ -1767,6 +1849,7 @@ async function signOut(){
   currentUser=null;settlements=[];stays=[];taxDocuments=[];
   adminFleetId=null;
   fleetDispatchApp.reset();
+  fleetEquipment.reset();
   fleetLoadState='loading';
   document.getElementById('fleetSetupForm').reset();
   document.getElementById('newEmployeeForm').reset();
@@ -2149,7 +2232,6 @@ async function loadUserData(){
 }
 const fleetSectionTitles={dashboard:'Fleet Admin Dashboard',dispatch:'Dispatch',settings:'Fleet Settings',profiles:'Employee Profiles',links:'Linked Profiles'};
 const fleetTools={
- "assets":{"title":"Assets","status":"Truck and trailer management is coming later."},
  "hr":{"title":"HR","status":"Onboarding and employment records are coming later.","links":["profiles","policies"]},
  "settlements":{"title":"Pay Settlements","status":"Fleet settlement entry and export are coming later."},
  "hourly":{"title":"Hourly Time","status":"Hourly employee and driver time tracking is coming later."},
@@ -2235,7 +2317,7 @@ async function showOfficeDispatch(tab){
   window.location.reload();
   return;
  }
- const fleet=officeTools.dispatchFleet();
+ const fleet=tab==='equipment'?officeTools.equipmentFleet():officeTools.dispatchFleet();
  if(!fleet)return;
  fleetSection='dispatch';
  renderFleetSections();
