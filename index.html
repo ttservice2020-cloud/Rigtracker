@@ -1264,7 +1264,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 <script src="./linked-profiles.js?v=company-signup-1"></script>
 <script src="./company-driver-tools.js?v=office-access-1"></script>
 <script src="./company-messages.js?v=office-access-1"></script>
-<script src="./driver-workflow.js?v=bol-payments-1"></script>
+<script src="./driver-workflow.js?v=office-access-1"></script>
 <script src="./company-safety.js?v=1"></script>
 <script src="./driver-app.js?v=1"></script>
 <script src="./fleet-bol-payments.js?v=1"></script>
@@ -1485,11 +1485,11 @@ async function signOut(){
   companyDriverTools.reset();
   companyMessaging.reset();
   driverLoadWorkflow.reset();
-  fleetBolPayments.reset();
   companySafety.reset();
   rigTrackerApp.reset();
   officeTools.reset();
   resetFleetLinkForm();
+  fleetBolPayments.reset();
   document.querySelectorAll('.page').forEach(page=>page.classList.remove('active'));
   resetSettlementForm();
   document.getElementById('appHeader').classList.add('hidden');

@@ -381,22 +381,6 @@ const driverLoadWorkflow = (() => {
     tab.location.replace(data.signedUrl);
   }
 
-  async function downloadDocument(path, name) {
-    const user = currentUser;
-    const { data, error } = await supabaseClient.storage.from(bucket).download(path);
-    if (currentUser !== user) return;
-    if (error || !data) {
-      showToast('Could not download the paperwork.');
-      return;
-    }
-    const url = URL.createObjectURL(data);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = name;
-    link.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-  }
-
   function returnForm(load) {
     const form = node('form');
     form.append(node('h3', 'Request return load'));
@@ -671,5 +655,5 @@ const driverLoadWorkflow = (() => {
     else void refresh(true);
   }, 10000);
 
-  return { open, back, refresh, refreshOffice, reset, openDocument, downloadDocument };
+  return { open, back, refresh, refreshOffice, reset, openDocument };
 })();

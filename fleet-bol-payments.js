@@ -43,6 +43,24 @@ const fleetBolPayments = (() => {
     return (load.return_load ? 'B-' : 'A-') + load.pro_number;
   }
 
+  async function downloadPaperwork(path, name) {
+    const scope = workspace;
+    if (!scope || !active(scope)) return;
+    try {
+      const { data, error } = await supabaseClient.storage.from('driver-load-documents').download(path);
+      if (!active(scope)) return;
+      if (error || !data) throw error || new Error();
+      const url = URL.createObjectURL(data);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = name;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch {
+      if (active(scope)) showToast('Could not download the paperwork.');
+    }
+  }
+
   function loadRow(load) {
     const row = node('article', '', 'panel');
     row.append(node('h2', pro(load)));
@@ -64,7 +82,7 @@ const fleetBolPayments = (() => {
         actions.append(button('View ' + label, () => driverLoadWorkflow.openDocument(file.path)));
         const extension = file.path.match(/\.([a-z0-9]+)$/i)?.[1] || 'pdf';
         const fileName = pro(load) + '-' + (file.kind === 'delivery' ? 'POD' : 'BOL') + '-' + (index + 1) + '.' + extension;
-        actions.append(button('Download ' + label, () => driverLoadWorkflow.downloadDocument(file.path, fileName)));
+        actions.append(button('Download ' + label, () => void downloadPaperwork(file.path, fileName)));
         entry.append(actions);
         paperwork.append(entry);
       });
