@@ -1049,6 +1049,26 @@ const companyDriverTools = (() => {
       byId('companyPayrollDriver').value === selection.profileId;
   }
 
+  function settlementHourStart(now = new Date()) {
+    return now.getTime() - (now.getMinutes() * 60 + now.getSeconds()) * 1000 - now.getMilliseconds();
+  }
+
+  function refreshSettlementHour() {
+    const selection = settlementView;
+    if (!document.hidden && selection?.profileId && activeSettlementView(selection) &&
+      selection.readHour !== settlementHourStart()) {
+      void loadSettlementLoads(selection.fleet, selection.profileId);
+    }
+  }
+
+  function scheduleSettlementHour() {
+    const now = new Date();
+    setTimeout(function atSettlementHour() {
+      scheduleSettlementHour();
+      refreshSettlementHour();
+    }, settlementHourStart(now) + 60 * 60 * 1000 - now.getTime());
+  }
+
   async function createSettlementPreview() {
     const selection = settlementView;
     if (!selection || selection.saving || !activeSettlementView(selection)) return;
@@ -1108,7 +1128,10 @@ const companyDriverTools = (() => {
       if (activeSettlementView(selection)) preview.replaceChildren(element('p', error.message || 'Could not create this settlement.', 'muted'));
     } finally {
       selection.saving = false;
-      if (settlementView === selection) updateSettlementButton();
+      if (settlementView === selection) {
+        updateSettlementButton();
+        refreshSettlementHour();
+      }
     }
   }
 
@@ -1127,6 +1150,7 @@ const companyDriverTools = (() => {
     if (!profileId || (!force && (selection.request || selection.saving))) return;
     const request = {};
     selection.request = request;
+    selection.readHour = settlementHourStart();
     const active = () => selection.request === request && activeSettlementView(selection);
     try {
       const { data, error } = await supabaseClient.rpc('company_driver_load_settlements', {
@@ -1139,7 +1163,10 @@ const companyDriverTools = (() => {
         list.replaceChildren(element('p', error.message || 'Could not load completed loads.', 'muted'));
       }
     } finally {
-      if (selection.request === request) selection.request = null;
+      if (selection.request === request) {
+        selection.request = null;
+        refreshSettlementHour();
+      }
     }
   }
 
@@ -1161,7 +1188,8 @@ const companyDriverTools = (() => {
       const route = [place(load.pickup), place(load.receiver)].filter(Boolean).join(' → ');
       summary.append(element('strong', label + (load.route_number ? ' · Route ' + load.route_number : '')));
       if (route) summary.append(element('p', route));
-      if (load.updated_at) summary.append(element('p', 'Completed ' + clockFormat.format(new Date(load.updated_at)), 'muted'));
+      const completedAt = load.completed_at || load.updated_at;
+      if (completedAt) summary.append(element('p', 'Completed ' + clockFormat.format(new Date(completedAt)), 'muted'));
       const miles = [load.loaded_miles != null ? Number(load.loaded_miles).toLocaleString() + ' loaded mi' : '',
         load.empty_miles != null ? Number(load.empty_miles).toLocaleString() + ' empty mi' : ''].filter(Boolean).join(' · ');
       summary.append(element('p', 'Miles: ' + (miles || 'Not recorded')));
@@ -1227,7 +1255,7 @@ const companyDriverTools = (() => {
       if (freight.rateConfirmation?.path) more.append(button('View Rate Confirmation', () => openRateConfirmation(freight.rateConfirmation.path)));
       row.append(summary, more, choose, add);
       return row;
-    }) : [element('p', 'No completed loads are assigned to this driver.', 'muted')]));
+    }) : [element('p', 'No loads are ready for settlement for this driver.', 'muted')]));
     updateSettlementButton();
   }
   function paintPayroll(queue) {
@@ -1423,5 +1451,7 @@ const companyDriverTools = (() => {
   }
 
   setInterval(() => { if (!document.hidden) refresh(); },24000);
+  scheduleSettlementHour();
+  document.addEventListener('visibilitychange', refreshSettlementHour);
   return { openDocuments, openClock, openAdmin, openRoster, openPayroll, backPayroll, backAdmin, loadFormer, refresh, reset };
 })();
