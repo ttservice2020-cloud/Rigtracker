@@ -23,8 +23,8 @@ const companyDriverTools = (() => {
   let replacementKey;
   let payroll;
   let payrollRequest;
-  let payrollLoadRequest;
-  let payrollSettlementLoads = [];
+  let settlementView;
+  let payrollQueueSignature;
   let payrollOrigin;
   let payrollSection;
   let fuelRequest;
@@ -964,7 +964,9 @@ const companyDriverTools = (() => {
 
   async function refreshPayroll(force = false) {
     const user = currentUser;
-    if (!user || !['fleet','employee'].includes(accountTypeFor(user)) || (!force && payrollRequest)) return;
+    const page = byId('companyPayrollPage');
+    if (!user || !['fleet','employee'].includes(accountTypeFor(user)) ||
+      (!force && (payrollRequest || page.classList.contains('active')))) return;
     const request = {};
     payrollRequest = request;
     try {
@@ -975,13 +977,13 @@ const companyDriverTools = (() => {
       payrollBadges(notices, Boolean(data));
       if (knownNotices && notices.some(notice => !knownNotices.has(notice))) showToast('A driver responded to a pay settlement.');
       knownNotices = new Set(notices);
-      if (byId('companyPayrollPage').classList.contains('active') && payrollSection === 'records') {
+      if (force && page.classList.contains('active') && payrollSection === 'records') {
         if (!data) {
           byId('companyPayrollStatus').textContent = 'Payroll access is required.';
           return;
         }
         const queue = await rpc('payroll_queue', data.fleet_id);
-        if (currentUser !== user || payrollRequest !== request || !byId('companyPayrollPage').classList.contains('active') || payrollSection !== 'records') return;
+        if (currentUser !== user || payrollRequest !== request || !page.classList.contains('active') || payrollSection !== 'records') return;
         paintPayroll(queue);
         byId('companyPayrollStatus').textContent = '';
       }
@@ -1032,20 +1034,35 @@ const companyDriverTools = (() => {
       : calculatedBase !== null ? calculatedBase + empty + additional : additional;
     return { baseKnown, base, empty, additional, stop, total: base + stop };
   }
+  function checkedSettlementIds() {
+    return [...byId('companyPayrollLoadSettlements').querySelectorAll('[data-settlement-load]:checked:not(:disabled)')]
+      .map(input => input.value);
+  }
+
+  function updateSettlementButton() {
+    byId('companyPayrollCreateSettlement').disabled = Boolean(settlementView?.saving) || !checkedSettlementIds().length;
+  }
+
+  function activeSettlementView(selection) {
+    return settlementView === selection && currentUser === selection.user && payroll?.fleet_id === selection.fleet &&
+      byId('companyPayrollPage').classList.contains('active') && payrollSection === 'records' &&
+      byId('companyPayrollDriver').value === selection.profileId;
+  }
+
   async function createSettlementPreview() {
-    const selected = [...byId('companyPayrollLoadSettlements').querySelectorAll('[data-settlement-load]:checked')]
-      .map(input => payrollSettlementLoads.find(load => load.load_id === input.value)).filter(Boolean);
+    const selection = settlementView;
+    if (!selection || selection.saving || !activeSettlementView(selection)) return;
+    const ids = new Set(checkedSettlementIds());
+    const selected = selection.loads.filter(load => ids.has(load.load_id) && !load.created_settlement);
     const preview = byId('companyPayrollSettlementPreview');
     if (!selected.length) {
       preview.replaceChildren(element('p', 'Select at least one completed load.', 'muted'));
       preview.classList.remove('hidden');
       return;
     }
-    const user = currentUser;
-    const profileId = byId('companyPayrollDriver').value;
-    const fleet = payroll?.fleet_id;
-    const control = byId('companyPayrollCreateSettlement');
-    control.disabled = true;
+    const { fleet, profileId } = selection;
+    selection.saving = true;
+    updateSettlementButton();
     preview.replaceChildren(element('p', 'Saving settlement draft…', 'muted'));
     preview.classList.remove('hidden');
     try {
@@ -1053,8 +1070,12 @@ const companyDriverTools = (() => {
         target_fleet: fleet, target_profile: profileId, requested_load_ids: selected.map(load => load.load_id)
       });
       if (error) throw error;
-      if (currentUser !== user || byId('companyPayrollDriver').value !== profileId) return;
-      await loadSettlementLoads(fleet, profileId);
+      if (!activeSettlementView(selection)) return;
+      paintSettlementLoads(selection, selection.loads.map(load => ids.has(load.load_id) ? {
+        ...load, created_settlement: { number: created.settlement_number }
+      } : load));
+      await loadSettlementLoads(fleet, profileId, true);
+      if (!activeSettlementView(selection)) return;
       const driver = byId('companyPayrollDriver').selectedOptions[0]?.textContent || 'Company Driver';
       const currency = new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' });
       const rows = selected.map(load => {
@@ -1084,127 +1105,159 @@ const companyDriverTools = (() => {
       preview.classList.remove('hidden');
       preview.scrollIntoView?.({ block: 'nearest' });
     } catch (error) {
-      if (currentUser === user) preview.replaceChildren(element('p', error.message || 'Could not create this settlement.', 'muted'));
+      if (activeSettlementView(selection)) preview.replaceChildren(element('p', error.message || 'Could not create this settlement.', 'muted'));
     } finally {
-      if (currentUser === user) control.disabled = !payrollSettlementLoads.some(load => !load.created_settlement);
+      selection.saving = false;
+      if (settlementView === selection) updateSettlementButton();
     }
   }
-  async function loadSettlementLoads(fleet, profileId) {
+
+  async function loadSettlementLoads(fleet, profileId, force = false) {
     const list = byId('companyPayrollLoadSettlements');
-    const request = {};
-    payrollLoadRequest = request;
-    const active = () => payrollLoadRequest === request && currentUser && byId('companyPayrollPage').classList.contains('active');
-    payrollSettlementLoads = [];
-    byId('companyPayrollSettlementPreview').classList.add('hidden');
-    if (!profileId) {
-      list.replaceChildren(element('p', 'Select a driver to view completed loads.', 'muted'));
-      return;
+    const user = currentUser;
+    if (!settlementView || settlementView.user !== user || settlementView.fleet !== fleet || settlementView.profileId !== profileId) {
+      settlementView = { user, fleet, profileId, loads: [] };
+      const preview = byId('companyPayrollSettlementPreview');
+      preview.replaceChildren();
+      preview.classList.add('hidden');
+      list.replaceChildren(element('p', profileId ? 'Loading completed loads…' : 'Select a driver to view completed loads.', 'muted'));
+      updateSettlementButton();
     }
-    list.replaceChildren(element('p', 'Loading completed loads…', 'muted'));
+    const selection = settlementView;
+    if (!profileId || (!force && (selection.request || selection.saving))) return;
+    const request = {};
+    selection.request = request;
+    const active = () => selection.request === request && activeSettlementView(selection);
     try {
       const { data, error } = await supabaseClient.rpc('company_driver_load_settlements', {
         target_fleet: fleet, target_profile: profileId
       });
       if (error) throw error;
-      if (!active()) return;
-      payrollSettlementLoads = Array.isArray(data) ? data : [];
-      const currency = new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' });
-      list.replaceChildren(...(payrollSettlementLoads.length ? payrollSettlementLoads.map(load => {
-        const row = element('article', '', 'dispatch-load-row company-pay-load-row');
-        const summary = element('div');
-        const label = (load.is_return ? 'B-' : 'A-') + load.pro_number;
-        const place = stop => [stop?.city, stop?.state].filter(Boolean).join(', ') || stop?.company || '';
-        const route = [place(load.pickup), place(load.receiver)].filter(Boolean).join(' → ');
-        summary.append(element('strong', label + (load.route_number ? ' · Route ' + load.route_number : '')));
-        if (route) summary.append(element('p', route));
-        if (load.updated_at) summary.append(element('p', 'Completed ' + clockFormat.format(new Date(load.updated_at)), 'muted'));
-        const miles = [load.loaded_miles != null ? Number(load.loaded_miles).toLocaleString() + ' loaded mi' : '',
-          load.empty_miles != null ? Number(load.empty_miles).toLocaleString() + ' empty mi' : ''].filter(Boolean).join(' · ');
-        summary.append(element('p', 'Miles: ' + (miles || 'Not recorded')));
-        summary.append(element('p', 'Profile pay scale: ' + payScaleLabel(load.pay_scale)));
-        const pay = settlementLoadPay(load);
-        if (pay.baseKnown) summary.append(element('p', 'Base / saved pay: ' + currency.format(pay.base - pay.additional - pay.empty)));
-        else summary.append(element('p', 'Base pay not entered', 'muted'));
-        if (pay.stop) summary.append(element('p', 'Stop pay: ' + currency.format(pay.stop)));
-        if (pay.additional) summary.append(element('p', 'Additional pay: ' + currency.format(pay.additional)));
-        const choose = element('label', '', 'settlement-load-include');
-        const checkbox = document.createElement('input');
-        checkbox.type = 'checkbox';
-        checkbox.value = load.load_id;
-        checkbox.dataset.settlementLoad = 'true';
-        checkbox.disabled = Boolean(load.created_settlement);
-        const add = button(load.created_settlement ? 'Already in settlement' : 'Add load to this settlement', () => {
-          if (load.created_settlement) return;
-          checkbox.checked = !checkbox.checked;
-          add.textContent = checkbox.checked ? 'Added · Remove from settlement' : 'Add load to this settlement';
-          byId('companyPayrollCreateSettlement').disabled = !byId('companyPayrollLoadSettlements').querySelector('[data-settlement-load]:checked');
-        });
-        add.disabled = Boolean(load.created_settlement);
-        checkbox.addEventListener('change', () => {
-          add.textContent = checkbox.checked ? 'Added · Remove from settlement' : 'Add load to this settlement';
-          byId('companyPayrollCreateSettlement').disabled = !byId('companyPayrollLoadSettlements').querySelector('[data-settlement-load]:checked');
-        });
-        choose.append(checkbox, element('span', load.created_settlement ? 'Draft ' + load.created_settlement.number : 'Select load'));
-        if (load.created_settlement) {
-          summary.append(element('p', 'Saved in draft ' + load.created_settlement.number +
-            ' · ' + currency.format(Number(load.created_settlement.line_total || 0)), 'muted'));
-        }
-        const freight = load.freight || {};
-        const more = element('details', '', 'settlement-load-details');
-        more.append(element('summary', 'View load details'));
-        const facts = element('dl', '', 'settlement-load-facts');
-        const fact = (label, value) => { if (value !== null && value !== undefined && String(value).trim()) {
-          const pair = element('div'); pair.append(element('dt', label), element('dd', String(value))); facts.append(pair);
-        }};
-        fact('Truck number', freight.truckNumber); fact('Trailer number', freight.trailerNumber);
-        fact('Commodity', freight.commodity === 'Other' ? freight.commodityOther : freight.commodity);
-        fact('Weight', freight.weightLbs ? Number(freight.weightLbs).toLocaleString() + ' lb' : '');
-        fact('Pieces', freight.pieces); fact('Equipment', freight.equipmentType === 'Other' ? freight.equipmentTypeOther : freight.equipmentType);
-        fact('Trailer drop', freight.trailerDrop === 'yes' ? freight.trailerDropNotes || 'Yes' : 'No');
-        fact('Broker', freight.brokerName); fact('Broker contact', [freight.brokerPhone, freight.brokerEmail].filter(Boolean).join(' · '));
-        fact('Shipper', load.pickup?.company); fact('Receiver', load.receiver?.company);
-        fact('Shipper contact', driverLoadWorkflow.stopContact(load.pickup));
-        fact('Receiver contact', driverLoadWorkflow.stopContact(load.receiver));
-        fact('Route / shipping number', [freight.routeNumber, freight.brokerLoadNumber].filter(Boolean).join(' · '));
-        fact('Pickup number', freight.pickupNumber); fact('Loaded miles', load.loaded_miles != null ? Number(load.loaded_miles).toLocaleString() + ' mi' : '');
-        fact('Stop pay', currency.format(Number(load.stop_pay || 0)));
-        fact('Additional pay', currency.format(Number(load.additional_pay || 0)));
-        more.append(facts);
-        for (const report of [...(load.pickup_reports || []), ...(load.receiver_reports || [])].filter(Boolean)) {
-          const label = report.kind === 'pickup' ? 'signed pickup BOL' : 'signed delivery BOL';
-          more.append(...driverLoadWorkflow.paperworkButtons(report.report, label, button));
-          more.append(element('p', driverLoadWorkflow.lumperCharge(report.report), 'muted'));
-        }
-        if (freight.rateConfirmation?.path) more.append(button('View Rate Confirmation', () => openRateConfirmation(freight.rateConfirmation.path)));
-        row.append(summary, more, choose, add);
-        return row;
-      }) : [element('p', 'No completed loads are assigned to this driver.', 'muted')]));
-      byId('companyPayrollCreateSettlement').disabled = !list.querySelector('[data-settlement-load]:checked');
+      if (active()) paintSettlementLoads(selection, Array.isArray(data) ? data : []);
     } catch (error) {
-      if (active()) list.replaceChildren(element('p', error.message || 'Could not load completed loads.', 'muted'));
+      if (active() && selection.signature === undefined) {
+        list.replaceChildren(element('p', error.message || 'Could not load completed loads.', 'muted'));
+      }
+    } finally {
+      if (selection.request === request) selection.request = null;
     }
+  }
+
+  function paintSettlementLoads(selection, loads) {
+    const signature = JSON.stringify(loads);
+    if (selection.signature === signature) return;
+    const list = byId('companyPayrollLoadSettlements');
+    const checked = new Set(checkedSettlementIds());
+    const expanded = new Set([...list.querySelectorAll('.settlement-load-details[open]')]
+      .map(details => details.closest('article').querySelector('[data-settlement-load]').value));
+    selection.loads = loads;
+    selection.signature = signature;
+    const currency = new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' });
+    list.replaceChildren(...(loads.length ? loads.map(load => {
+      const row = element('article', '', 'dispatch-load-row company-pay-load-row');
+      const summary = element('div');
+      const label = (load.is_return ? 'B-' : 'A-') + load.pro_number;
+      const place = stop => [stop?.city, stop?.state].filter(Boolean).join(', ') || stop?.company || '';
+      const route = [place(load.pickup), place(load.receiver)].filter(Boolean).join(' → ');
+      summary.append(element('strong', label + (load.route_number ? ' · Route ' + load.route_number : '')));
+      if (route) summary.append(element('p', route));
+      if (load.updated_at) summary.append(element('p', 'Completed ' + clockFormat.format(new Date(load.updated_at)), 'muted'));
+      const miles = [load.loaded_miles != null ? Number(load.loaded_miles).toLocaleString() + ' loaded mi' : '',
+        load.empty_miles != null ? Number(load.empty_miles).toLocaleString() + ' empty mi' : ''].filter(Boolean).join(' · ');
+      summary.append(element('p', 'Miles: ' + (miles || 'Not recorded')));
+      summary.append(element('p', 'Profile pay scale: ' + payScaleLabel(load.pay_scale)));
+      const pay = settlementLoadPay(load);
+      if (pay.baseKnown) summary.append(element('p', 'Base / saved pay: ' + currency.format(pay.base - pay.additional - pay.empty)));
+      else summary.append(element('p', 'Base pay not entered', 'muted'));
+      if (pay.stop) summary.append(element('p', 'Stop pay: ' + currency.format(pay.stop)));
+      if (pay.additional) summary.append(element('p', 'Additional pay: ' + currency.format(pay.additional)));
+      const choose = element('label', '', 'settlement-load-include');
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.value = load.load_id;
+      checkbox.dataset.settlementLoad = 'true';
+      checkbox.disabled = Boolean(load.created_settlement);
+      checkbox.checked = !checkbox.disabled && checked.has(load.load_id);
+      const addLabel = () => checkbox.disabled ? 'Already in settlement'
+        : checkbox.checked ? 'Added · Remove from settlement' : 'Add load to this settlement';
+      const onSelectionChange = () => {
+        add.textContent = addLabel();
+        updateSettlementButton();
+      };
+      const add = button(addLabel(), () => {
+        if (load.created_settlement) return;
+        checkbox.checked = !checkbox.checked;
+        onSelectionChange();
+      });
+      add.disabled = checkbox.disabled;
+      checkbox.addEventListener('change', onSelectionChange);
+      choose.append(checkbox, element('span', load.created_settlement ? 'Draft ' + load.created_settlement.number : 'Select load'));
+      if (load.created_settlement) {
+        const { number, line_total } = load.created_settlement;
+        const amount = line_total == null ? '' : ' · ' + currency.format(Number(line_total));
+        summary.append(element('p', 'Saved in draft ' + number + amount, 'muted'));
+      }
+      const freight = load.freight || {};
+      const more = element('details', '', 'settlement-load-details');
+      more.open = expanded.has(load.load_id);
+      more.append(element('summary', 'View load details'));
+      const facts = element('dl', '', 'settlement-load-facts');
+      const fact = (label, value) => { if (value !== null && value !== undefined && String(value).trim()) {
+        const pair = element('div'); pair.append(element('dt', label), element('dd', String(value))); facts.append(pair);
+      }};
+      fact('Truck number', freight.truckNumber); fact('Trailer number', freight.trailerNumber);
+      fact('Commodity', freight.commodity === 'Other' ? freight.commodityOther : freight.commodity);
+      fact('Weight', freight.weightLbs ? Number(freight.weightLbs).toLocaleString() + ' lb' : '');
+      fact('Pieces', freight.pieces); fact('Equipment', freight.equipmentType === 'Other' ? freight.equipmentTypeOther : freight.equipmentType);
+      fact('Trailer drop', freight.trailerDrop === 'yes' ? freight.trailerDropNotes || 'Yes' : 'No');
+      fact('Broker', freight.brokerName); fact('Broker contact', [freight.brokerPhone, freight.brokerEmail].filter(Boolean).join(' · '));
+      fact('Shipper', load.pickup?.company); fact('Receiver', load.receiver?.company);
+      fact('Shipper contact', driverLoadWorkflow.stopContact(load.pickup));
+      fact('Receiver contact', driverLoadWorkflow.stopContact(load.receiver));
+      fact('Route / shipping number', [freight.routeNumber, freight.brokerLoadNumber].filter(Boolean).join(' · '));
+      fact('Pickup number', freight.pickupNumber); fact('Loaded miles', load.loaded_miles != null ? Number(load.loaded_miles).toLocaleString() + ' mi' : '');
+      fact('Stop pay', currency.format(Number(load.stop_pay || 0)));
+      fact('Additional pay', currency.format(Number(load.additional_pay || 0)));
+      more.append(facts);
+      for (const report of [...(load.pickup_reports || []), ...(load.receiver_reports || [])].filter(Boolean)) {
+        const label = report.kind === 'pickup' ? 'signed pickup BOL' : 'signed delivery BOL';
+        more.append(...driverLoadWorkflow.paperworkButtons(report.report, label, button));
+        more.append(element('p', driverLoadWorkflow.lumperCharge(report.report), 'muted'));
+      }
+      if (freight.rateConfirmation?.path) more.append(button('View Rate Confirmation', () => openRateConfirmation(freight.rateConfirmation.path)));
+      row.append(summary, more, choose, add);
+      return row;
+    }) : [element('p', 'No completed loads are assigned to this driver.', 'muted')]));
+    updateSettlementButton();
   }
   function paintPayroll(queue) {
     const picker = byId('companyPayrollDriver');
     const selected = picker.value;
-    picker.replaceChildren(new Option('Select a Company Driver', ''), ...queue.drivers.map(driver => new Option(name(driver), driver.profile_id)));
-    if (queue.drivers.some(driver => driver.profile_id === selected)) picker.value = selected;
+    const choices = [['', 'Select a Company Driver'], ...queue.drivers.map(driver => [driver.profile_id, name(driver)])];
+    if (choices.length !== picker.options.length || choices.some(([id, label], index) =>
+      picker.options[index].value !== id || picker.options[index].text !== label)) {
+      picker.replaceChildren(...choices.map(([id, label]) => new Option(label, id)));
+      if (choices.some(([id]) => id === selected)) picker.value = selected;
+    }
     picker.onchange = () => void loadSettlementLoads(payroll?.fleet_id, picker.value);
-    byId('companyPayrollCreateSettlement').disabled = true;
     byId('companyPayrollCreateSettlement').onclick = createSettlementPreview;
     byId('companyPayrollOpenDriver').onclick = () => {
       const driver = queue.drivers.find(driver => driver.profile_id === picker.value);
       if (driver) openAdmin(driver, 'payroll');
     };
-    byId('companyPayrollQueue').replaceChildren(...(queue.records.length ? queue.records.map(record => {
-      const row = element('article', '', 'dispatch-load-row');
-      const summary = element('div');
-      summary.append(element('strong', name(record) + ' · ' + record.title),
-        element('p', settlementStatus[record.status], 'muted'));
-      if (record.review_note) summary.append(element('p', record.review_note));
-      row.append(summary, button('Open Review', () => openAdmin(record, 'payroll')));
-      return row;
-    }) : [element('p', 'No settlements are awaiting review or submission.', 'muted')]));
+    const signature = JSON.stringify(queue.records);
+    if (payrollQueueSignature !== signature) {
+      payrollQueueSignature = signature;
+      byId('companyPayrollQueue').replaceChildren(...(queue.records.length ? queue.records.map(record => {
+        const row = element('article', '', 'dispatch-load-row');
+        const summary = element('div');
+        summary.append(element('strong', name(record) + ' · ' + record.title),
+          element('p', settlementStatus[record.status], 'muted'));
+        if (record.review_note) summary.append(element('p', record.review_note));
+        row.append(summary, button('Open Review', () => openAdmin(record, 'payroll')));
+        return row;
+      }) : [element('p', 'No settlements are awaiting review or submission.', 'muted')]));
+    }
     void loadSettlementLoads(payroll?.fleet_id, picker.value);
   }
 
@@ -1357,7 +1410,7 @@ const companyDriverTools = (() => {
     byId('companyPayrollSettlementPreview').replaceChildren();
     byId('companyPayrollSettlementPreview').classList.add('hidden');
     byId('companyPayrollCreateSettlement').disabled = true;
-    payrollSettlementLoads = [];
+    settlementView = null; payrollQueueSignature = null;
     byId('companyPayrollDriver').replaceChildren();
     byId('companyPayrollOpenDriver').onclick = null;
     adminRequest = null; clockRequest = null; payRequest = null;
