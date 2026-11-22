@@ -153,3 +153,19 @@
  .load-offer-grid{grid-template-columns:minmax(0,1fr)}
  .load-offer-actions>*{flex:1}
 }
+
+.fleet-page-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px;position:relative;z-index:20}
+.message-notice-anchor{position:relative}
+.company-message-notice-panel{position:absolute;top:calc(100% + 10px);right:0;width:min(360px,90vw);max-height:min(65vh,480px);overflow:auto;padding:12px;background:#101a28;border:1px solid #38506c;border-radius:12px;box-shadow:0 12px 34px #0009;z-index:50}
+.company-message-notice-header{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:8px}
+.company-message-notice-header button{min-width:34px;min-height:34px;border:0;border-radius:8px;background:transparent;color:var(--white);font-size:24px}
+#companyMessageNoticeList{display:grid;gap:8px}
+.company-message-notice-card{display:grid;gap:3px;width:100%;padding:9px 11px;text-align:left;color:var(--white);background:#0d1724;border:2px solid #3b526d;border-left-width:5px;border-radius:9px;overflow:hidden}
+.company-message-notice-card[data-kind="maintenance"]{border-color:#ef525d}
+.company-message-notice-card[data-kind="dispatch"]{border-color:#29b66c}
+.company-message-notice-card[data-kind="safety"]{border-color:#e7bd3b}
+.company-message-notice-card[data-kind="private"]{border-color:#7294ed}
+.company-message-notice-card strong{font-size:14px}
+.company-message-notice-card small{color:var(--muted)}
+.company-message-notice-card span{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;color:#cad7e7;font-size:13px;line-height:1.35}
+@media(max-width:580px){.company-message-notice-panel{right:-3px;width:min(340px,90vw)}}
