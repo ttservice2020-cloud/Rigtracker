@@ -190,7 +190,7 @@ const driverLoadWorkflow = (() => {
       ['Empty miles', offerNumber(freight.emptyMiles, quantity, ' mi')],
       ['Trailer drop', freight.trailerDropStopId ? '' : freight.trailerDrop],
       ['Trailer pickup', freight.trailerPickupStopId ? '' : freight.trailerPickup],
-      ['Your stop pay', offerNumber(freight.stopPay, currency)]
+      ['Your stop pay', offerNumber(freight.stopPay, currency) || currency.format(0)]
     ], 'load-offer-freight');
     if (fields.childElementCount) card.append(fields);
     else card.append(node('p', 'No shipment details entered.', 'load-offer-empty'));
@@ -400,10 +400,18 @@ const driverLoadWorkflow = (() => {
         (report.loadedState ? ' (' + report.loadedState + ')' : '')].filter(Boolean);
     const rows = [];
     if (details.length) rows.push(node('p', details.join(' · '), 'muted'));
-    if (Number(report.lumperFee) > 0) rows.push(node('p', 'Lumper fee paid: ' + offerNumber(report.lumperFee, currency), 'muted'));
+    rows.push(node('p', lumperCharge(report), 'muted'));
     const label = stop.kind === 'pickup' ? 'BOL' : 'delivery paperwork';
     rows.push(...paperworkButtons(report, label, button));
     return rows;
+  }
+
+  function lumperCharge(report) {
+    const amount = Number(report?.lumperFee);
+    const reported = Number.isFinite(amount) && amount > 0;
+    const payer = report?.lumperPayer === 'driver' ? 'Driver'
+      : report?.lumperPayer === 'fleet' ? 'Fleet' : 'Payer not recorded';
+    return 'Lumper fee: ' + currency.format(reported ? amount : 0) + (reported ? ' · ' + payer : '');
   }
 
   function paperworkButtons(report, label, makeButton, context = '') {
@@ -544,9 +552,28 @@ const driverLoadWorkflow = (() => {
       input('Pieces', 'pieces', { inputMode:'numeric', maxLength:20 }),
       input('BOL number', 'bol', { maxLength:100 })
     ] : [];
+    const lumper = input('Lumper fee ($)', 'lumperFee', {
+      inputMode:'decimal', maxLength:15, value:'0',
+      pattern:'[0-9]{1,12}(\\.[0-9]{1,2})?|\\.[0-9]{1,2}',
+      title:'Enter a dollar amount with up to two decimal places.'
+    });
+    const amount = lumper.querySelector('input');
+    const payer = node('select');
+    payer.name = 'lumperPayer';
+    payer.setAttribute('aria-label', 'Lumper fee paid by');
+    setOptions(payer, [['driver','Driver'],['fleet','Fleet']], 'Select who paid');
+    const payerField = field('Paid by', payer);
+    function updateLumperPayer() {
+      const reported = amount.validity.valid && Number(amount.value) > 0;
+      payerField.classList.toggle('hidden', !reported);
+      payer.disabled = !reported;
+      payer.required = reported;
+    }
+    amount.addEventListener('input', updateLumperPayer);
+    updateLumperPayer();
     form.append(fields(
       trailer, bobtail, ...pickupFreight,
-      input('Lumper fee paid ($, optional)', 'lumperFee', { inputMode:'decimal', maxLength:20 }),
+      lumper, payerField,
       dropped,
       picked, field('Picked-up trailer status', state)
     ));
@@ -567,7 +594,7 @@ const driverLoadWorkflow = (() => {
       event.preventDefault();
       if (draft.saving || !currentUser || !updateTrailer()) return;
       const user = currentUser;
-      const data = { ...values(form), stop: stop.key };
+      const data = { ...values(form), stop: stop.key, lumperPayer: payer.disabled ? null : payer.value };
       draft.saving = paperwork.disabled = submit.disabled = true;
       const originalLabel = submit.textContent;
       try {
@@ -1409,6 +1436,6 @@ const driverLoadWorkflow = (() => {
     else void refresh(true);
   }, 10000);
 
-  return { open, back, refresh, refreshOffice, reset, paperworkButtons, loadNotes, stopContact,
+  return { open, back, refresh, refreshOffice, reset, paperworkButtons, loadNotes, stopContact, lumperCharge,
     openDocument: (path, label) => driverPaperwork.open(path, label) };
 })();

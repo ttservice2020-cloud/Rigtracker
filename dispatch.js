@@ -282,6 +282,12 @@ const fleetDispatchApp = (() => {
       .filter(Boolean).join(' / ');
   }
 
+  function relayDriverChoices(load) {
+    return (state?.drivers || []).filter(driver => driver.id !== load.driver_id &&
+      (driver.link_active !== false || driver.id === load.second_driver_id))
+      .map(driver => ({ id: driver.id, name: driver.name + (driver.link_active === false ? ' (unlinked)' : '') }));
+  }
+
   function unassignedDriver(tag = 'span') {
     const marker = element(tag, '', 'dispatch-unassigned-driver');
     marker.title = 'No driver currently attached';
@@ -1666,12 +1672,17 @@ const fleetDispatchApp = (() => {
     if (!canEditLoad(load.id)) return false;
     const scope = state;
     try {
-      const { data, error } = await leaseRpc(target, action, args);
+      const { data, error } = action === 'relay_assign'
+        ? await scope.client.rpc('assign_dispatch_relay_driver', {
+          target_load: load.id, expected_updated_at: load.updated_at, editing_session: target.token, next_driver: args.driver
+        })
+        : await leaseRpc(target, action, args);
       if (state !== scope) return false;
       if (error) throw error;
       mergeLoad(data, true);
       paintLoads();
-      if (action === 'relay_drop' || action === 'relay_depart') paintDrivers();
+      if (action === 'relay_drop' || action === 'relay_depart' || action === 'relay_assign') paintDrivers();
+      if (action === 'relay_assign') void readLoadContacts(data);
       return true;
     } catch (error) {
       if (state === scope) {
@@ -1741,7 +1752,7 @@ const fleetDispatchApp = (() => {
       loadDrivers, loadDriverContacts, displayedDriverIds, unassignedDriver, messageDriver, proLabel, describeRoute: route,
       editLoad: load => openLoad(load), back: () => selectTab(selectedTab, true),
       setProgress: recordProgress, hasUpdate: id => Boolean(state?.updates.has(id)),
-      canEdit: canEditLoad, paintLeaseStatus, saveLoadAction,
+      canEdit: canEditLoad, paintLeaseStatus, saveLoadAction, relayDriverChoices,
       openRateConfirmation: attachment => viewRateConfirmation(attachment)
     });
     document.addEventListener('visibilitychange', () => {

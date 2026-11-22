@@ -1167,15 +1167,13 @@ const companyDriverTools = (() => {
         fact('Receiver contact', driverLoadWorkflow.stopContact(load.receiver));
         fact('Route / shipping number', [freight.routeNumber, freight.brokerLoadNumber].filter(Boolean).join(' · '));
         fact('Pickup number', freight.pickupNumber); fact('Loaded miles', load.loaded_miles != null ? Number(load.loaded_miles).toLocaleString() + ' mi' : '');
-        fact('Stop pay', load.stop_pay ? currency.format(Number(load.stop_pay)) : '');
-        fact('Additional pay', load.additional_pay ? currency.format(Number(load.additional_pay)) : '');
+        fact('Stop pay', currency.format(Number(load.stop_pay || 0)));
+        fact('Additional pay', currency.format(Number(load.additional_pay || 0)));
         more.append(facts);
         for (const report of [...(load.pickup_reports || []), ...(load.receiver_reports || [])].filter(Boolean)) {
           const label = report.kind === 'pickup' ? 'signed pickup BOL' : 'signed delivery BOL';
           more.append(...driverLoadWorkflow.paperworkButtons(report.report, label, button));
-          const lumper = report.report?.lumperFee;
-          more.append(element('p', !report.report ? 'Lumper fee: Driver update not recorded' : lumper && Number(lumper) > 0
-            ? 'Lumper fee reported: ' + currency.format(Number(lumper)) : 'Lumper fee: None reported', 'muted'));
+          more.append(element('p', driverLoadWorkflow.lumperCharge(report.report), 'muted'));
         }
         if (freight.rateConfirmation?.path) more.append(button('View Rate Confirmation', () => openRateConfirmation(freight.rateConfirmation.path)));
         row.append(summary, more, choose, add);

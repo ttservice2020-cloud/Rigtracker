@@ -106,16 +106,21 @@ const dispatchProgress = (() => {
 
   function bind({ byId, toggle, element, button, getLoad, getLoads, getRouteNumber, loadDrivers, loadDriverContacts, displayedDriverIds, unassignedDriver, messageDriver,
     proLabel, describeRoute, editLoad,
-    back, setProgress, hasUpdate, openRateConfirmation, canEdit, paintLeaseStatus, saveLoadAction }) {
+    back, setProgress, hasUpdate, openRateConfirmation, canEdit, paintLeaseStatus, saveLoadAction, relayDriverChoices }) {
     const view = byId('dispatchLoadDetail');
     const manual = byId('dispatchArrivalForm');
     const messageButton = byId('dispatchDetailMessage');
     const messageDrivers = byId('dispatchMessageDrivers');
+    const splitFacts = byId('dispatchSplitFacts');
+    const splitDriver = element('select', '', 'dispatch-relay-driver');
+    splitDriver.setAttribute('aria-label', 'Scheduled Driver 2');
     const milestones = ['Assigned', 'En Route to Pickup', 'At Pickup', 'In Transit', 'At Receiver', 'Complete'];
     let activeId;
     let selectedStop;
     let request;
     let historyDate = '';
+    let splitFactsKey;
+    let splitChoicesKey;
 
     const set = (id, text) => { byId(id).textContent = text; };
     const active = () => activeId && getLoad(activeId);
@@ -156,6 +161,8 @@ const dispatchProgress = (() => {
       byId('dispatchSplitStatus').dataset.tone = departedAt ? 'complete' : droppedAt ? 'progress' : 'assigned';
       const first = dropDriver || drivers.find(driver => driver.id === load.driver_id)?.name;
       const second = departDriver || drivers.find(driver => driver.id === load.second_driver_id)?.name;
+      const active = load.status === 'current' && !departedAt;
+      const assigning = active && Boolean(droppedAt);
       const facts = [
         ['Relay location', location], ['Relay address', address], ['Relay date', date],
         [droppedAt ? 'Dropped by' : 'Driver 1', first],
@@ -164,8 +171,28 @@ const dispatchProgress = (() => {
         ['Planned pickup', pickup], ['Dropped', droppedAt && recordedTime(droppedAt)],
         ['Departed', departedAt && recordedTime(departedAt)]
       ];
-      byId('dispatchSplitFacts').replaceChildren(...facts.filter(([, value]) => value).map(([label, value]) => fact(label, value)));
-      const active = load.status === 'current' && !departedAt;
+      const factsKey = JSON.stringify([assigning, facts]);
+      if (splitFactsKey !== factsKey) {
+        splitFactsKey = factsKey;
+        splitFacts.replaceChildren(...facts.filter(([, value]) => value).map(([label, value]) => {
+          const pair = fact(label, value);
+          if (assigning && label === 'Scheduled Driver 2') pair.lastElementChild.replaceChildren(splitDriver);
+          return pair;
+        }));
+      }
+      if (assigning) {
+        const choices = relayDriverChoices(load);
+        const placeholder = new Option('Pending assignment', '');
+        placeholder.disabled = true;
+        const choicesKey = JSON.stringify(choices);
+        if (splitChoicesKey !== choicesKey) {
+          splitChoicesKey = choicesKey;
+          splitDriver.replaceChildren(placeholder, ...choices.map(({ id, name }) => new Option(name, id)));
+        }
+        const assigned = load.second_driver_id || '';
+        if (splitDriver.value !== assigned) splitDriver.value = assigned;
+        splitDriver.disabled = readOnly || Boolean(request) || !choices.length;
+      }
       toggle('dispatchSplitActions', active);
       toggle('dispatchSplitDrop', !droppedAt);
       toggle('dispatchSplitDepart', Boolean(droppedAt));
@@ -407,8 +434,8 @@ const dispatchProgress = (() => {
         ...(relayAddress ? [fact('Relay address', relayAddress)] : []),
         fact('Loaded miles', details.loadedMiles ? Number(details.loadedMiles).toLocaleString() + ' mi' : ''),
         fact('Route / shipping number', [details.routeNumber, details.brokerLoadNumber].filter(Boolean).join(' · ')),
-        fact('Pickup number', details.pickupNumber), fact('BOL number', details.bolNumber), fact('Stop pay', money(details.stopPay)),
-        fact('Additional driver pay', [money(details.driver1AdditionalPay), money(details.driver2AdditionalPay)].filter(Boolean).join(' / '))
+        fact('Pickup number', details.pickupNumber), fact('BOL number', details.bolNumber), fact('Stop pay', money(details.stopPay) || money(0)),
+        fact('Additional driver pay', [money(details.driver1AdditionalPay), money(details.driver2AdditionalPay)].filter(Boolean).join(' / ') || money(0))
       );
       const docs = byId('dispatchDetailDocuments');
       docs.replaceChildren();
@@ -421,11 +448,7 @@ const dispatchProgress = (() => {
         const documents = driverLoadWorkflow.paperworkButtons(report, pickup ? 'signed pickup BOL' : 'signed delivery BOL', button, context);
         docs.append(...documents);
         if (pickup && !documents.length) docs.append(element('p', 'Pickup BOL: Not uploaded · ' + context, 'dispatch-document-missing'));
-        const lumper = report?.lumperFee;
-        docs.append(element('p', !report ? 'Lumper fee: Driver update pending · ' + (stop.company || 'Stop')
-          : lumper !== undefined && lumper !== '' && Number(lumper) > 0
-            ? 'Lumper fee reported: ' + money(lumper) + ' · ' + (stop.company || 'Stop')
-            : 'Lumper fee: None reported · ' + (stop.company || 'Stop'), 'muted'));
+        docs.append(element('p', driverLoadWorkflow.lumperCharge(report) + ' · ' + context, 'muted'));
       }
       history(load);
     }
@@ -529,6 +552,10 @@ const dispatchProgress = (() => {
       { report_id: active()?.progress?.traffic?.id }));
     byId('dispatchSplitDrop').addEventListener('click', () => void updateLoad('relay_drop'));
     byId('dispatchSplitDepart').addEventListener('click', () => void updateLoad('relay_depart'));
+    splitDriver.addEventListener('change', () => {
+      const driver = splitDriver.value;
+      if (driver && driver !== active()?.second_driver_id) void updateLoad('relay_assign', { driver });
+    });
     byId('dispatchDetailEdit').addEventListener('click', () => { if (active()) editLoad(active()); });
     byId('dispatchDetailStart').addEventListener('click', () => { void record('en_route'); });
     byId('dispatchDetailComplete').addEventListener('click', () => {

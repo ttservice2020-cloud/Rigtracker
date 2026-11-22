@@ -152,6 +152,7 @@
 .dispatch-arrival-header,.dispatch-arrival-form{border-top:1px solid #2b4059;padding-top:10px;margin-top:10px}
 .dispatch-relay-progress{display:grid;gap:10px;border-top:1px solid #2b4059;padding-top:10px;margin-top:10px}
 .dispatch-relay-progress h3,.dispatch-relay-progress .dispatch-actions{margin:0}
+.dispatch-relay-driver{width:100%;min-width:0;min-height:36px;padding:4px 6px}
 .dispatch-arrival-header .dispatch-actions{margin-top:0}
 .dispatch-arrival-form [role="alert"]{color:#ffc7cd}
 .dispatch-detail-stops,.dispatch-contract-runs{list-style:none;margin:0;padding:0}
