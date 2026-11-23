@@ -1,0 +1,41 @@
+{
+  "checked_at": "2026-11-23T11:08:26+00:00",
+  "sources_checked": 66,
+  "needs_review": [
+    {
+      "name": "Colorado DR 1098",
+      "url": "https://tax.colorado.gov/sites/tax/files/documents/DR_1098_Colorado_Withholding_Worksheet_for_Employees.pdf",
+      "status": "unavailable"
+    },
+    {
+      "name": "Massachusetts Circular M",
+      "url": "https://www.mass.gov/doc/massachusetts-circular-m-income-tax-withholding-tables-at-50-effective-january-1-2026/download",
+      "status": "unavailable"
+    },
+    {
+      "name": "Louisville Metro Form W-1 instructions",
+      "url": "https://louisvilleky.gov/government/revenue-commission/w-1-tax-form-instructions",
+      "status": "unavailable"
+    },
+    {
+      "name": "Nevada unemployment wage base",
+      "url": "https://detr.nv.gov/Page/UI_Tax",
+      "status": "unavailable"
+    },
+    {
+      "name": "Rhode Island unemployment wage base",
+      "url": "https://dlt.ri.gov/employers/employer-tax-unit",
+      "status": "unavailable"
+    },
+    {
+      "name": "Department of Labor wage garnishment limits",
+      "url": "https://www.dol.gov/agencies/whd/fact-sheets/30-cppa/",
+      "status": "unavailable"
+    },
+    {
+      "name": "DC Office of Tax and Revenue withholding forms",
+      "url": "https://otr.cfo.dc.gov/page/withholding-tax-forms",
+      "status": "changed"
+    }
+  ]
+}
