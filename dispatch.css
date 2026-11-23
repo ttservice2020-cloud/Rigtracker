@@ -258,6 +258,12 @@
 .office-payroll-day{border-top:1px solid #2b4059;padding:8px 0}
 .office-payroll-day summary{cursor:pointer;font-weight:700}
 .office-payroll-day summary strong{float:right;color:#9dceff;font-variant-numeric:tabular-nums}
+.office-payroll-daily-pay{display:flex;flex-wrap:wrap;align-items:end;gap:6px 12px;padding:8px 0}
+.office-payroll-daily-pay .field{width:9rem;margin:0;min-width:0}
+.office-payroll-daily-pay input{width:100%;min-width:0}
+#officePayrollPage .office-payroll-daily-pay button{margin:0}
+.office-payroll-daily-pay [role=status]{flex-basis:100%;margin:0}
+.office-payroll-daily-pay [role=status]:empty{display:none}
 .office-payroll-shift{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:10px;padding:8px;border-top:1px solid #2b4059;color:#c1d1e2}
 .office-payroll-shift>span:last-of-type{font-variant-numeric:tabular-nums}
 .office-payroll-shift button{margin:0;white-space:nowrap}
