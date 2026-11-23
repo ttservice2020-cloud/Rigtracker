@@ -294,7 +294,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 .driver-load-stops li[aria-current="step"]{border-color:#4c8dff;background:#13294a}
 #companySignupFields{border:0;padding:0;margin:0;min-inline-size:0}
 </style>
-<link rel="stylesheet" href="./dispatch.css?v=daily-payroll-1">
+<link rel="stylesheet" href="./dispatch.css?v=dispatch-board-2">
 <link rel="stylesheet" href="./driver-app.css?v=profile-records-1">
 <link rel="stylesheet" href="./office-tools.css?v=statement-period-1">
 </head>
@@ -625,6 +625,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
         <button id="dispatch-tab-create" type="button" role="tab" aria-selected="false" aria-controls="dispatch-panel-create" data-dispatch-tab="create" tabindex="-1">Create a Load</button>
         <button id="dispatch-tab-contract" type="button" role="tab" aria-selected="false" aria-controls="dispatch-panel-contract" data-dispatch-tab="contract" tabindex="-1">Contract Loads</button>
         <button id="dispatch-tab-history" type="button" role="tab" aria-selected="false" aria-controls="dispatch-panel-history" data-dispatch-tab="history" tabindex="-1">Load History</button>
+        <button id="dispatch-tab-day" type="button" role="tab" aria-selected="false" aria-controls="dispatch-panel-day" data-dispatch-tab="day" tabindex="-1">Past 14 Days</button>
         <button id="dispatch-tab-drivers" type="button" role="tab" aria-selected="false" aria-controls="dispatch-panel-drivers" data-dispatch-tab="drivers" tabindex="-1">Drivers</button>
         <button id="dispatch-tab-equipment" type="button" role="tab" aria-selected="false" aria-controls="dispatch-panel-equipment" data-dispatch-tab="equipment" tabindex="-1">Equipment</button>
         <button id="dispatch-tab-locations" type="button" role="tab" aria-selected="false" aria-controls="dispatch-panel-locations" data-dispatch-tab="locations" tabindex="-1">Saved Locations</button>
@@ -642,9 +643,11 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
           <p class="muted" id="dispatchDetailRoute"></p>
          </div>
          <div class="dispatch-actions">
+          <button class="outline dispatch-watch-button hidden" id="dispatchDetailWatch" type="button" aria-pressed="false">Watch load</button>
           <button class="outline hidden" id="dispatchDetailRateConfirmation" type="button">View Rate Confirmation</button>
           <button class="outline hidden" id="dispatchDetailMessage" type="button" aria-controls="dispatchMessageDrivers" aria-expanded="false">Message</button>
           <button class="outline" id="dispatchDetailEdit" type="button">Edit Load</button>
+          <button class="primary-btn hidden" id="dispatchReviewDeparture" type="button">Accept departure</button>
           <button class="outline" id="dispatchDetailComplete" type="button">Mark Completed</button>
          </div>
         </header>
@@ -731,6 +734,10 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
        <section id="dispatch-panel-activity" class="dispatch-panel hidden" role="tabpanel" aria-labelledby="dispatch-tab-activity" tabindex="0">
          <p class="muted" id="dispatchWorkflowStatus" role="status"></p>
          <section class="panel">
+          <h2>Watched load updates</h2>
+          <div id="dispatchDriverUpdates" class="dispatch-load-list"></div>
+         </section>
+         <section class="panel">
           <h2>Return loads to review</h2>
           <div id="dispatchWorkflowReturns" class="dispatch-load-list"></div>
          </section>
@@ -754,16 +761,35 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
          </section>
         </section>
         <section id="dispatch-panel-current" class="dispatch-panel" role="tabpanel" aria-labelledby="dispatch-tab-current" tabindex="0">
-        <div class="field"><label for="dispatchLoadSearch">Search loads</label><input id="dispatchLoadSearch" type="search" placeholder="PRO, driver, or location"></div>
-        <section class="panel">
-         <h2>Active loads</h2>
+        <div class="dispatch-board-controls">
+         <div class="field"><label for="dispatchLoadSearch">Search loads</label><input id="dispatchLoadSearch" type="search" placeholder="PRO, driver, or location"></div>
+         <label class="dispatch-watch-filter"><input id="dispatchWatchedOnly" type="checkbox"> Watched only</label>
+         <button class="outline" id="dispatchSelectWatched" type="button" aria-pressed="false">Select watched loads</button>
+        </div>
+        <div id="dispatchCurrentList" class="dispatch-board">
+         <section class="panel dispatch-board-column" aria-labelledby="dispatchTransitTitle">
+          <h2 id="dispatchTransitTitle">In Transit</h2>
+          <div id="dispatchTransitList" class="dispatch-load-list"></div>
+         </section>
+         <section class="panel dispatch-board-column" aria-labelledby="dispatchWorkingTitle">
+          <h2 id="dispatchWorkingTitle">In Process</h2>
+          <div id="dispatchWorkingList" class="dispatch-load-list"></div>
+         </section>
+         <section class="panel dispatch-board-column" aria-labelledby="dispatchIssuesTitle">
+          <h2 id="dispatchIssuesTitle">Issues</h2>
+          <div id="dispatchIssueList" class="dispatch-load-list"></div>
+         </section>
+        </div>
          <p id="dispatchCurrentEmpty" class="muted" role="status"></p>
-         <div class="dispatch-load-list" id="dispatchCurrentList"></div>
-        </section>
         <section class="panel hidden" id="dispatchDraftSection">
          <h2>Drafts</h2>
          <div class="dispatch-load-list" id="dispatchDraftList"></div>
         </section>
+       </section>
+       <section id="dispatch-panel-day" class="dispatch-panel hidden" role="tabpanel" aria-labelledby="dispatch-tab-day" tabindex="0">
+        <div class="field dispatch-day-picker"><label for="dispatchDayDate">Date</label><input id="dispatchDayDate" type="date" required></div>
+        <p id="dispatchDayEmpty" class="muted" role="status"></p>
+        <div id="dispatchDayList" class="dispatch-load-list"></div>
        </section>
        <section id="dispatch-panel-create" class="dispatch-panel hidden" role="tabpanel" aria-labelledby="dispatch-tab-create" tabindex="0">
         <form id="dispatchLoadForm">
@@ -928,6 +954,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
           <div class="field"><label for="dispatchLocationCity">City</label><input id="dispatchLocationCity" name="city" maxlength="80" required></div>
           <div class="field"><label for="dispatchLocationState">State</label><input id="dispatchLocationState" name="state" maxlength="2" pattern="[A-Za-z]{2}" title="Two-letter state abbreviation" autocapitalize="characters" required></div>
           <div class="field"><label for="dispatchLocationZip">ZIP</label><input id="dispatchLocationZip" name="zip" maxlength="10" pattern="[0-9]{5}(-[0-9]{4})?" title="5-digit or ZIP+4 code" inputmode="numeric" required></div>
+          <div class="field"><label for="dispatchLocationWaitAlert">Wait alert (hours)</label><input id="dispatchLocationWaitAlert" name="wait_alert_hours" type="number" min="0" step="any" placeholder="2" inputmode="decimal"></div>
          </div>
          <p class="dispatch-form-issues hidden" id="dispatchLocationIssues" role="alert"></p>
          <div class="dispatch-actions"><button class="primary-btn" id="dispatchLocationSave" type="submit">Save Location</button><button class="outline hidden" id="dispatchLocationCancel" type="button">Cancel Edit</button></div>
@@ -1848,9 +1875,9 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 </dialog>
 <div id="modal"><div class="modal-card"><h2 id="modalTitle"></h2><div id="modalBody"></div><button class="primary-btn" onclick="closeModal()">Close</button></div></div>
 
-<script src="./dispatch-progress.js?v=dispatch-lumper-1"></script>
+<script src="./dispatch-progress.js?v=dispatch-board-2"></script>
 <script src="./dispatch-rate-confirmation.js?v=1"></script>
-<script src="./dispatch.js?v=relay-resume-1"></script>
+<script src="./dispatch.js?v=dispatch-board-2"></script>
 <script src="./linked-profiles.js?v=driver-push-1"></script>
 <script src="./fleet-equipment.js?v=profile-links-1"></script>
 <script src="./payroll-tax-jurisdictions.js?v=2"></script>

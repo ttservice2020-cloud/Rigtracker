@@ -1,5 +1,6 @@
 const dispatchProgress = (() => {
   const minute = 60_000;
+  const defaultWaitHours = 2;
   const formatters = new Map();
 
   function time(value) {
@@ -42,7 +43,7 @@ const dispatchProgress = (() => {
     }
   }
 
-  function stopsFor(load) {
+  function stopsFor(load, appointments = true) {
     const records = load.progress?.stops || {};
     return [
       ...['pickup', 'receiver'].flatMap(kind => (load.details[kind === 'pickup' ? 'pickups' : 'receivers'] || [])
@@ -51,13 +52,98 @@ const dispatchProgress = (() => {
           return {
             ...stop, kind, key, index,
             progress: records[key] || {},
-            due: instantFor(stop.date, stop.from, stop.zone)
+            due: appointments ? instantFor(stop.date, stop.from, stop.zone) : NaN
           };
         }))
     ];
   }
 
   const appointment = stop => Number.isFinite(stop.due) ? clockText(stop.due, stop.zone) : 'Unscheduled';
+
+  function reportedFreight(report) {
+    return [
+      report.bobtail ? 'Departed bobtail' : report.trailer && 'Trailer ' + report.trailer,
+      report.commodity,
+      report.weight && 'Weight ' + report.weight,
+      report.pieces && 'Pieces ' + report.pieces,
+      report.bol && 'BOL ' + report.bol,
+      report.droppedTrailer && 'Dropped ' + report.droppedTrailer,
+      report.pickedTrailer && 'Picked up ' + report.pickedTrailer + (report.loadedState ? ' (' + report.loadedState + ')' : '')
+    ].filter(Boolean).join(' · ');
+  }
+
+  function facilityDeadline(stop) {
+    const arrival = Date.parse(stop.progress.arrivalAt);
+    if (!Number.isFinite(arrival)) return NaN;
+    const appointment = instantFor(stop.date, stop.from, stop.zone);
+    const raw = stop.waitAlertHours;
+    const hours = raw == null || raw === '' ? defaultWaitHours : Number(raw);
+    const allowed = Number.isFinite(hours) && hours >= 0 ? hours : defaultWaitHours;
+    return Math.max(arrival, (Number.isFinite(appointment) ? appointment : arrival) + allowed * 60 * minute);
+  }
+
+  function facilityHold(stop, now) {
+    const start = facilityDeadline(stop);
+    const end = stop.progress.completedAt ? Date.parse(stop.progress.completedAt) : now;
+    if (!(start < end || (!stop.progress.completedAt && start === end))) return null;
+    const site = stop.kind === 'pickup' ? 'shipper' : 'receiver';
+    return { kind: 'hold', title: 'Stuck at ' + site, start, end, stop,
+      details: 'Wait limit reached ' + recordedTime(start, stop.zone) };
+  }
+
+  function incident(kind, report, now) {
+    return { kind, title: kind === 'breakdown' ? 'Breakdown' : 'Traffic delay',
+      start: Date.parse(report?.reportedAt), end: Date.parse(report?.resolvedAt) || now,
+      details: [report?.location, report?.notes].filter(Boolean).join(' · ') };
+  }
+
+  function boardState(load, now = Date.now()) {
+    const stops = stopsFor(load, false);
+    const next = stops.find(stop => !stop.progress.completedAt);
+    const pending = stops.filter(({ progress }) => progress.completedAt && progress.driverReport?.at && !progress.boardReviewedAt);
+    const held = next && facilityHold(next, now);
+    const issues = ['breakdown', 'traffic'].filter(kind => load.progress?.[kind]?.active)
+      .map(kind => incident(kind, load.progress[kind], now));
+    if (held) issues.push(held);
+    const relay = load.progress?.relay;
+    const atRelay = relay?.droppedAt && !relay.departedAt && !load.progress?.yardPickedUpAt;
+    const final = Boolean(stops.length && !next && pending.length <= 1 && !atRelay);
+    return { next, pending: pending[0], final, atRelay, issues,
+      column: issues.length ? 'issues' : pending.length || final || next?.progress.arrivalAt || atRelay ? 'working' : 'transit' };
+  }
+
+  function dayWindow(day, zone) {
+    const start = instantFor(day, '00:00', zone);
+    const nextDay = new Date(Date.parse(day + 'T00:00Z') + 1440 * minute);
+    return { start, end: instantFor(nextDay.toISOString().slice(0, 10), '00:00', zone) };
+  }
+
+  function daySummary(load, day, { start, end }, now = Date.now()) {
+    const within = value => value >= start && value < end;
+    const overlaps = event => event.start < end && event.end >= start;
+    const stops = stopsFor(load, false);
+    const issues = stops.map(stop => facilityHold(stop, load.status === 'completed' ? Date.parse(load.progress?.completedAt || load.updated_at) : now))
+      .filter(event => event && overlaps(event));
+    for (const kind of ['traffic', 'breakdown']) {
+      const event = incident(kind, load.progress?.[kind], now);
+      if (overlaps(event)) issues.push(event);
+    }
+    for (const note of load.progress?.loadNotes || []) {
+      const kind = { 'Breakdown reported': 'breakdown', 'Traffic delay reported': 'traffic' }[note.label];
+      const time = Date.parse(note.at);
+      if (kind && within(time) && !issues.some(issue => issue.kind === kind && issue.start === time)) {
+        issues.push({ ...incident(kind, { reportedAt: note.at }, time), details: note.body });
+      }
+    }
+    const priority = { breakdown: 0, traffic: 1, hold: 2 };
+    issues.sort((a, b) => priority[a.kind] - priority[b.kind] || a.start - b.start);
+    const worked = stops.some(stop => stop.date === day || within(Date.parse(stop.progress.arrivalAt)) ||
+      within(Date.parse(stop.progress.completedAt))) || [load.assigned_at, load.progress?.completedAt,
+      load.progress?.relay?.droppedAt, load.progress?.relay?.departedAt, load.progress?.yardPickedUpAt]
+      .some(time => within(Date.parse(time)));
+    return worked || issues.length ? { issues } : null;
+  }
+
   function recordedTime(value, zone) {
     const instant = Date.parse(value);
     if (!Number.isFinite(instant)) return '—';
@@ -111,7 +197,7 @@ const dispatchProgress = (() => {
 
   function bind({ byId, toggle, element, button, getLoad, getLoads, getRouteNumber, loadDrivers, loadDriverContacts, displayedDriverIds, unassignedDriver, messageDriver,
     proLabel, describeRoute, editLoad,
-    back, setProgress, hasUpdate, openRateConfirmation, canEdit, paintLeaseStatus, saveLoadAction, relayDriverChoices }) {
+    back, setProgress, hasUpdate, isReviewing = () => false, openRateConfirmation, canEdit, paintLeaseStatus, saveLoadAction, relayDriverChoices }) {
     const view = byId('dispatchLoadDetail');
     const manual = byId('dispatchArrivalForm');
     const messageButton = byId('dispatchDetailMessage');
@@ -383,6 +469,11 @@ const dispatchProgress = (() => {
       toggle('dispatchLiveUpdate', hasUpdate(load.id));
       toggle('dispatchDetailEdit', current || load.status === 'completed');
       toggle('dispatchDetailComplete', current);
+      const review = byId('dispatchReviewDeparture');
+      const { pending, final, issues } = boardState(load);
+      toggle('dispatchReviewDeparture', current && Boolean(pending || final) && !issues.length);
+      review.textContent = final ? 'Accept and complete' : 'Accept departure';
+      review.disabled = readOnly || Boolean(request) || isReviewing(load.id);
       const drivers = loadDriverContacts(load);
       paintSplit(load, contract ? null : split, drivers, readOnly);
       const assigned = displayedDriverIds(load);
@@ -461,16 +552,8 @@ const dispatchProgress = (() => {
         if (stop.progress.completedAt) entry.append(element('p', 'Departed ' + recordedTime(stop.progress.completedAt, stop.zone)));
         const report = stop.progress.driverReport;
         if (report) {
-          const reported = [
-            report.bobtail ? 'Departed bobtail' : report.trailer && 'Trailer ' + report.trailer,
-            report.commodity,
-            report.weight && 'Weight ' + report.weight,
-            report.pieces && 'Pieces ' + report.pieces,
-            report.bol && 'BOL ' + report.bol,
-            report.droppedTrailer && 'Dropped ' + report.droppedTrailer,
-            report.pickedTrailer && 'Picked up ' + report.pickedTrailer + ' (' + report.loadedState + ')'
-          ].filter(Boolean);
-          if (reported.length) entry.append(element('p', reported.join(' · '), 'muted'));
+          const reported = reportedFreight(report);
+          if (reported) entry.append(element('p', reported, 'muted'));
           const label = stop.kind === 'pickup' ? 'BOL' : 'delivery paperwork';
           entry.append(...driverLoadWorkflow.paperworkButtons(report, label, button));
         }
@@ -674,5 +757,5 @@ const dispatchProgress = (() => {
     return { show, close, paint, id: () => activeId, reset: () => { request = null; byId('dispatchLumperDialog').close(); close(); } };
   }
 
-  return { bind, summarize, appointment, clockText, time, recordedTime, localDateTime, relayDriverId };
+  return { bind, summarize, stopsFor, boardState, dayWindow, daySummary, facilityDeadline, reportedFreight, appointment, clockText, time, recordedTime, localDateTime, relayDriverId };
 })();

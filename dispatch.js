@@ -31,6 +31,7 @@ const fleetDispatchApp = (() => {
   const driverTable = 'fleet_dispatch_drivers';
   const locationTable = 'fleet_dispatch_locations';
   const addressParts = ['address', 'city', 'state', 'zip'];
+  const locationRequired = ['name', ...addressParts];
   const relayAddressFields = { address: 'relayAddress', city: 'relayCity', state: 'relayState', zip: 'relayZip' };
   const payLabels = { hourly: 'Hourly', split: 'Split Load', per_mile: 'Per mile', load_percent: 'Load %', higher_of: 'Whichever is higher' };
   const companyCalculatedMethods = new Set(['load_percent', 'per_mile', 'higher_of']);
@@ -127,6 +128,7 @@ const fleetDispatchApp = (() => {
       const row = element('article', '', 'dispatch-load-row');
       const info = element('div');
       info.append(element('strong', location.name), element('p', [location.address, location.city + ', ' + location.state + ' ' + location.zip].join(' · ')));
+      if (location.wait_alert_hours != null) info.append(element('p', 'Wait alert · ' + location.wait_alert_hours + ' hr'));
       row.append(info, button('Edit', () => editLocation(location)));
       return row;
     }));
@@ -156,7 +158,7 @@ const fleetDispatchApp = (() => {
     if (!state || state.locationSaving) return;
     state.locationEdit = location;
     locationForm.reset();
-    for (const field of ['name', ...addressParts]) if (location) locationForm.elements.namedItem(field).value = location[field];
+    if (location) for (const field of [...locationRequired, 'wait_alert_hours']) locationForm.elements.namedItem(field).value = location[field] ?? '';
     byId('dispatchLocationHeading').textContent = location ? 'Edit location' : 'Add a location';
     toggle('dispatchLocationCancel', Boolean(location));
     if (location) byId('dispatchLocationName').focus();
@@ -168,11 +170,12 @@ const fleetDispatchApp = (() => {
     if (!scope?.access.dispatch || scope.locationSaving) return;
     const location = scope.locationEdit;
     const value = Object.fromEntries([...new FormData(locationForm)].map(([key, part]) => [key, part.trim()]));
-    if (Object.values(value).some(part => !part)) {
+    if (locationRequired.some(field => !value[field])) {
       showLocationIssue('Enter the location name, street address, city, state, and ZIP.');
       return;
     }
     value.state = value.state.toUpperCase();
+    value.wait_alert_hours = value.wait_alert_hours === '' ? null : Number(value.wait_alert_hours);
     const table = scope.client.from(locationTable);
     const save = byId('dispatchLocationSave');
     scope.locationSaving = save.disabled = byId('dispatchLocationCancel').disabled = true;
@@ -238,12 +241,17 @@ const fleetDispatchApp = (() => {
     }
     toggle('dispatch-panel-create', showEditor);
     byId('dispatch-panel-create').setAttribute('aria-labelledby', 'dispatch-tab-' + (showEditor ? tab : 'create'));
+    byId('dispatchWorkspace').dataset.board = String(tab === 'current' && view === 'list');
+    if (view === 'list' && (tab === 'current' || tab === 'day')) paintLoads();
     if (tab === 'equipment' && view === 'list') {
       const { fleetId, drivers, access } = state;
       const editDriver = access.dispatch ? driver => companyDriverTools.openRoster(driver, fleetId, true) : null;
       void fleetEquipment.open(fleetId, drivers, editDriver, access.maintenance);
     }
-    if (tab === 'activity') void driverLoadWorkflow.refreshOffice(false, true);
+    if (tab === 'activity' && view === 'list') {
+      paintDriverUpdates();
+      void driverLoadWorkflow.refreshOffice(false, true);
+    }
     if (showEditor || tab === 'activity' || tab === 'locations') {
       void readLocations(state);
       if (tab === 'locations') paintLocations();
@@ -388,22 +396,166 @@ const fleetDispatchApp = (() => {
     return words.join(' ').toLowerCase().includes(search);
   }
 
+  function showWatchButton(control, load) {
+    const watching = state.watchedLoads.has(load.id);
+    control.textContent = watching ? 'Watching' : 'Watch load';
+    control.setAttribute('aria-label', 'Watch ' + proLabel(load.pro_number));
+    control.setAttribute('aria-pressed', String(watching));
+  }
+
+  function toggleWatch(load, control) {
+    if (!state?.access.dispatch || !load) return;
+    const { watchedLoads, watchKey } = state;
+    if (!watchedLoads.delete(load.id)) watchedLoads.add(load.id);
+    try { localStorage.setItem(watchKey, JSON.stringify([...watchedLoads])); } catch {}
+    const restoreFocus = document.activeElement === control && control.dataset.watchLoad;
+    paintLoads();
+    paintDriverUpdates();
+    if (restoreFocus) {
+      const next = [...byId('dispatchCurrentList').querySelectorAll('[data-watch-load]')]
+        .find(button => button.dataset.watchLoad === load.id);
+      (next || byId('dispatchWatchedOnly')).focus({ preventScroll: true });
+    }
+  }
+
+  function boardCard(load, board, choosing) {
+    const pro = proLabel(load.pro_number);
+    const open = () => viewLoad(load, 'current');
+    if (board.column === 'transit') {
+      const row = button(pro, () => choosing ? toggleWatch(load, row) : open());
+      if (choosing) {
+        row.dataset.watchLoad = load.id;
+        row.classList.add('dispatch-watch-button');
+        row.setAttribute('aria-pressed', String(state.watchedLoads.has(load.id)));
+        row.setAttribute('aria-label', 'Watch ' + pro);
+      }
+      return row;
+    }
+
+    const { issues, pending, next, final, atRelay } = board;
+    const row = element('article', '', 'dispatch-load-row dispatch-board-card');
+    row.dataset.boardLoad = load.id;
+    row.dataset.updated = String(state.updates.has(load.id));
+    if (issues.length) row.dataset.issue = issues[0].kind;
+    if (pending || final) row.classList.add('dispatch-board-review');
+    const heading = element('div', '', 'dispatch-board-heading');
+    heading.append(element('strong', pro));
+    const details = [loadDrivers(load), getRouteNumber(load) && 'Route ' + getRouteNumber(load)].filter(Boolean).join(' · ');
+    if (details) heading.append(element('p', details));
+    row.append(heading);
+    for (const issue of issues) {
+      row.append(issueBadge(issue));
+      if (issue.details) row.append(element('p', issue.details));
+    }
+    const stop = issues.find(issue => issue.stop)?.stop || pending || next;
+    if (stop) {
+      const kind = (stop.kind === 'pickup' ? 'Pickup' : 'Delivery') + ' ' + (stop.index + 1);
+      row.append(element('p', [kind, stop.company].filter(Boolean).join(' · ')));
+      if (stop.progress.arrivalAt) row.append(element('p', 'Arrived ' + dispatchProgress.recordedTime(stop.progress.arrivalAt, stop.zone)));
+      if (!stop.progress.completedAt && stop.progress.arrivalAt && !issues.some(issue => issue.kind === 'hold')) {
+        const deadline = dispatchProgress.facilityDeadline(stop);
+        if (Number.isFinite(deadline)) row.append(element('p', 'Wait alert ' + dispatchProgress.recordedTime(deadline, stop.zone)));
+      }
+      if (stop === pending) {
+        const report = stop.progress.driverReport;
+        row.append(element('p', 'Departed ' + dispatchProgress.recordedTime(stop.progress.completedAt, stop.zone)));
+        const freight = dispatchProgress.reportedFreight(report);
+        if (freight) row.append(element('p', freight));
+        if (report.document || report.documents?.length) row.append(element('p', 'Paperwork attached'));
+        else if (stop.kind === 'pickup') row.append(element('p', 'Signed BOL missing', 'dispatch-document-missing'));
+      }
+    }
+    if (atRelay) row.append(element('p', 'At relay'));
+    else if (final) row.append(element('p', 'All stops complete'));
+    const actions = element('div', '', 'dispatch-actions');
+    actions.append(button('Open', open));
+    if (choosing) {
+      const watch = button('', () => toggleWatch(load, watch));
+      watch.dataset.watchLoad = load.id;
+      watch.classList.add('dispatch-watch-button');
+      showWatchButton(watch, load);
+      actions.append(watch);
+    } else if (!issues.length && (pending || final)) {
+      const review = button(final ? 'Accept and complete' : 'Accept departure', () => void acceptBoardDeparture(load));
+      review.className = 'primary-btn';
+      review.disabled = state.boardReviews.has(load.id);
+      actions.append(review);
+    }
+    row.append(actions);
+    return row;
+  }
+
+  function issueBadge(issue) {
+    const tag = element('span', issue.title, 'dispatch-status');
+    tag.dataset.tone = issue.kind;
+    return tag;
+  }
+
+  function paintBoard(matching) {
+    const selection = byId('dispatchSelectWatched');
+    const choosing = selection.getAttribute('aria-pressed') === 'true';
+    const lanes = { transit: [], working: [], issues: [] };
+    for (const load of matching) {
+      const board = dispatchProgress.boardState(load);
+      lanes[board.column].push(boardCard(load, board, choosing));
+    }
+    for (const [column, host, empty] of [['transit', 'dispatchTransitList', 'No loads in transit.'],
+      ['working', 'dispatchWorkingList', 'No stops in process.'], ['issues', 'dispatchIssueList', 'No active issues.']]) {
+      const rows = lanes[column];
+      byId(host).replaceChildren(...(rows.length ? rows : [element('p', state.loaded ? empty : 'Loading…', 'muted')]));
+    }
+  }
+
+  function checkWatchedHolds() {
+    if (!state?.loaded || !state.access.dispatch || !visible()) return;
+    const holds = state.loads.filter(load => load.status === 'current' && state.watchedLoads.has(load.id)).flatMap(load => {
+      const issue = dispatchProgress.boardState(load).issues.find(issue => issue.kind === 'hold');
+      return issue ? [{ load, ...issue, key:load.id + ':' + issue.stop.key }] : [];
+    });
+    const previous = state.watchedHolds;
+    state.watchedHolds = new Set(holds.map(hold => hold.key));
+    if (previous) announceDriverUpdates(holds.filter(hold => !previous.has(hold.key)).map(hold => ({ ...hold, time:hold.start })));
+  }
+
+  function paintDay() {
+    if (!state?.access.dispatch || byId('dispatch-panel-day').classList.contains('hidden')) return;
+    const date = byId('dispatchDayDate');
+    const zone = preferredZone || Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const today = todayForZone(zone);
+    const earliest = new Date(today + 'T00:00:00Z');
+    earliest.setUTCDate(earliest.getUTCDate() - 13);
+    date.min = earliest.toISOString().slice(0, 10);
+    date.max = today;
+    if (!date.value || date.value < date.min || date.value > date.max) date.value = today;
+    const period = dispatchProgress.dayWindow(date.value, zone);
+    const rows = state.loads.filter(load => ['current', 'completed'].includes(load.status))
+      .map(load => ({ load, day: dispatchProgress.daySummary(load, date.value, period) })).filter(row => row.day);
+    rows.sort((a, b) => Number(Boolean(b.day.issues.length)) - Number(Boolean(a.day.issues.length)));
+    byId('dispatchDayList').replaceChildren(...rows.map(({ load, day }) => {
+      const row = element('article', '', 'dispatch-load-row dispatch-day-row');
+      const info = element('div');
+      info.append(element('strong', proLabel(load.pro_number)), element('p', [loadDrivers(load), route(load)].filter(Boolean).join(' · ')));
+      const flags = element('div', '', 'dispatch-day-flags');
+      if (day.issues.length) {
+        row.dataset.issue = day.issues[0].kind;
+        const unique = new Map(day.issues.map(issue => [issue.title, issue]));
+        for (const issue of unique.values()) flags.append(issueBadge(issue));
+      } else {
+        row.dataset.issue = 'smooth';
+        flags.append(issueBadge({ kind: 'smooth', title: 'No issues recorded' }));
+      }
+      info.append(flags);
+      row.append(info, button('View', () => viewLoad(load, 'day')));
+      return row;
+    }));
+    byId('dispatchDayEmpty').textContent = rows.length ? '' : state.loaded ? 'No loads recorded for this day.' : 'Loading loads…';
+  }
+
   function loadRow(load, actionLabel, action) {
     const row = element('article', '', 'dispatch-load-row');
-    const pickupStops = load.details.pickups || [];
-    const missingSignedBol = load.status === 'current' && pickupStops.length > 0 &&
-      pickupStops.some((stop, index) => {
-        const key = stop.stopId || 'pickup-' + index;
-        return !load.progress?.stops?.[key]?.driverReport?.document;
-      });
-    row.dataset.bolMissing = String(missingSignedBol);
-    row.dataset.breakdown = String(load.progress?.breakdown?.active === true);
-    row.dataset.traffic = String(load.progress?.traffic?.active === true && !load.progress?.breakdown?.active);
     const info = element('div');
     info.append(element('strong', load.status === 'contract'
       ? 'Route ' + getRouteNumber(load) : proLabel(load.pro_number)));
-    if (load.progress?.breakdown?.active) info.append(element('p', 'Breakdown reported', 'dispatch-breakdown-label'));
-    else if (load.progress?.traffic?.active) info.append(element('p', 'Held up in traffic', 'dispatch-traffic-label'));
     const lastRun = load.status === 'contract' ? lastContractAssignment(load) : null;
     const drivers = loadDrivers(lastRun || load);
     const driverLabel = load.status === 'contract' && drivers
@@ -411,7 +563,6 @@ const fleetDispatchApp = (() => {
     const number = getRouteNumber(load);
     const label = [load.status !== 'contract' && number && 'Route ' + number, route(load), driverLabel].filter(Boolean).join(' · ');
     if (label) info.append(element('p', label));
-    if (load.status === 'current' && !drivers) info.append(unassignedDriver());
     const { commodity, commodityOther, weightLbs, equipmentType, equipmentTypeOther, trailerDrop, trailerPickup } = load.details;
     const weight = Number(weightLbs);
     const freight = [
@@ -434,27 +585,24 @@ const fleetDispatchApp = (() => {
   function paintLoads() {
     const open = getLoad(progressView?.id());
     toggle('dispatchDetailRateConfirmation', Boolean(open?.details.rateConfirmation?.path));
+    const canWatch = state.access.dispatch && open?.status === 'current';
+    toggle('dispatchDetailWatch', canWatch);
+    if (canWatch) showWatchButton(byId('dispatchDetailWatch'), open);
     const search = byId('dispatchLoadSearch').value.trim().toLowerCase();
-    const current = state.loads.filter(load => load.status === 'current');
+    const onlyWatched = byId('dispatchWatchedOnly').checked;
+    const current = state.loads.filter(load => load.status === 'current' && (!onlyWatched || state.watchedLoads.has(load.id)));
     const urgency = load => load.progress?.breakdown?.active ? 2 : load.progress?.traffic?.active ? 1 : 0;
     const compareAlerts = (a, b) => urgency(b) - urgency(a);
-    const matching = current.filter(load => matchesLoad(load, search)).sort((a, b) => {
-      const alerts = compareAlerts(a, b);
-      if (alerts) return alerts;
-      const aNext = dispatchProgress.summarize(a).next;
-      const bNext = dispatchProgress.summarize(b).next;
-      const priority = stop => !stop ? 3 : !Number.isFinite(stop.due) ? 2 : stop.due <= Date.now() ? 0 : 1;
-      const difference = priority(aNext) - priority(bNext);
-      return difference || (aNext?.due ?? Infinity) - (bNext?.due ?? Infinity);
-    });
+    const matching = current.filter(load => matchesLoad(load, search));
     const drafts = state.loads.filter(load => load.status === 'draft' && !load.return_of && matchesLoad(load, search));
     const contracts = state.loads.filter(load => load.status === 'contract');
     const completedAt = load => load.progress?.completedAt || load.updated_at;
     const history = state.loads.filter(load => load.status === 'completed')
       .sort((a, b) => Date.parse(completedAt(b)) - Date.parse(completedAt(a)));
 
+    const queueLabel = onlyWatched ? 'watched' : 'active';
     byId('dispatchRailStatus').textContent = state.loaded
-      ? (current.length ? current.length + ' active' : 'No current loads')
+      ? (current.length ? current.length + ' ' + queueLabel : 'No ' + queueLabel + ' loads')
       : (state.failed ? 'Loads unavailable' : 'Loading loads…');
     current.sort(compareAlerts);
     byId('dispatchRailList').replaceChildren(...current.map(load => {
@@ -480,11 +628,15 @@ const fleetDispatchApp = (() => {
       row.append(element('small', number ? 'Route ' + number : 'Route not set', 'dispatch-rail-route'),
         drivers ? element('small', drivers) : unassignedDriver('small'),
         element('small', arrival, 'dispatch-rail-arrival'), badge);
+      const latest = latestDriverUpdate(load);
+      if (latest) row.append(element('small', latest.title));
       return row;
     }));
     byId('dispatchCurrentEmpty').textContent = matching.length || !state.loaded
-      ? '' : (search ? 'No active loads match your search.' : 'No active loads.');
-    byId('dispatchCurrentList').replaceChildren(...matching.map(load => loadRow(load, 'Open', () => viewLoad(load))));
+      ? '' : (search ? 'No loads match your search.' : 'No ' + queueLabel + ' loads.');
+    if (progressEnabled && !byId('dispatch-panel-current').classList.contains('hidden')) paintBoard(matching);
+    if (progressEnabled) paintDay();
+    if (progressEnabled) checkWatchedHolds();
     toggle('dispatchDraftSection', drafts.length > 0);
     byId('dispatchDraftList').replaceChildren(...drafts.map(load => loadRow(load, 'Open Draft', () => openLoad(load))));
     byId('dispatchContractEmpty').textContent = contracts.length || !state.loaded ? '' : 'No contract loads.';
@@ -594,6 +746,71 @@ const fleetDispatchApp = (() => {
     return rows;
   }
 
+  function driverUpdates(load) {
+    if (!['current', 'completed'].includes(load.status)) return [];
+    const updates = [];
+    const add = (key, at, title, details, zone) => {
+      const time = Date.parse(at);
+      if (Number.isFinite(time)) updates.push({ load, key, at, time, title, details, zone });
+    };
+    for (const stop of dispatchProgress.stopsFor(load, false)) {
+      const { progress, company, zone } = stop;
+      const place = stop.kind === 'pickup' ? 'pickup' : 'delivery';
+      if (Object.hasOwn(progress, 'arrivalTrailer')) {
+        add('arrive:' + stop.key, progress.previousArrivalAt || progress.arrivalAt, 'Arrived at ' + place, company, zone);
+      }
+      const report = progress.driverReport;
+      if (progress.completedAt && report?.at) {
+        const freight = dispatchProgress.reportedFreight(report);
+        add('depart:' + stop.key, report.at, 'Departed ' + place, [company, freight].filter(Boolean).join(' · '), zone);
+      }
+    }
+    for (const note of load.progress?.loadNotes || []) {
+      if (note.source === 'Driver') add('note:' + note.label + ':' + note.at, note.at, note.label, note.body);
+    }
+    add('yard', load.progress?.yardPickedUpAt, 'Yard trailer picked up', load.details.relayLocation);
+    return updates;
+  }
+
+  function newDriverUpdates(load, previous) {
+    if (load.status !== 'current' || !state.watchedLoads.has(load.id)) return [];
+    const known = new Set(previous ? driverUpdates(previous).map(update => update.key) : []);
+    return driverUpdates(load).filter(update => !known.has(update.key));
+  }
+
+  function latestDriverUpdate(load) {
+    if (!progressEnabled || !state.watchedLoads.has(load.id)) return null;
+    return driverUpdates(load).sort((a, b) => b.time - a.time)[0];
+  }
+
+  function announceDriverUpdates(updates) {
+    // Yard pickups already notify dispatch through the yard handoff queue.
+    updates = updates.filter(update => update.key !== 'yard');
+    if (!updates.length || !visible()) return;
+    const newest = updates.reduce((latest, update) => update.time >= latest.time ? update : latest);
+    const label = proLabel(newest.load.pro_number) + ' · ' + newest.title;
+    showToast(updates.length > 1 ? label + ' (+' + (updates.length - 1) + ' updates)' : label);
+  }
+
+  function paintDriverUpdates() {
+    if (!progressEnabled || !state?.access.dispatch || byId('dispatch-panel-activity').classList.contains('hidden')) return;
+    const list = byId('dispatchDriverUpdates');
+    const updates = state.loads.filter(load => load.status === 'current' && state.watchedLoads.has(load.id)).flatMap(driverUpdates)
+      .sort((a, b) => b.time - a.time).slice(0, 50);
+    const rows = updates.map(({ load, at, title, details, zone }) => {
+      const row = element('article', '', 'dispatch-load-row');
+      const info = element('div');
+      info.append(element('strong', proLabel(load.pro_number) + ' · ' + title),
+        element('p', dispatchProgress.recordedTime(at, zone), 'muted'));
+      if (details) info.append(element('p', details));
+      row.append(info, button('Open load', () => openRecord(load.id, 'activity')));
+      return row;
+    });
+    const empty = !state.loaded ? 'Loading driver load updates…' : state.watchedLoads.size
+      ? 'No driver load updates yet.' : 'Choose Watch load on an active load to see its updates here.';
+    list.replaceChildren(...(rows.length ? rows : [element('p', empty, 'muted')]));
+  }
+
   async function refresh() {
     const scope = state;
     if (!scope) return;
@@ -607,10 +824,14 @@ const fleetDispatchApp = (() => {
       ]);
       if (state !== scope || scope.readRequest !== request) return;
       const previous = new Map(scope.loads.map(load => [load.id, load]));
+      const driverChanges = [];
       const visibleLoads = loads.map(load => {
         const existing = previous.get(load.id);
         if (existing && revision(existing) > revision(load)) return existing;
-        if (scope.loaded && (!existing || revision(existing) !== revision(load)) && load.status === 'current') pulse(load.id);
+        if (scope.loaded && (!existing || revision(existing) !== revision(load))) {
+          if (load.status === 'current') pulse(load.id);
+          if (progressEnabled) driverChanges.push(...newDriverUpdates(load, existing));
+        }
         return load;
       });
       const readIds = new Set(visibleLoads.map(load => load.id));
@@ -619,12 +840,14 @@ const fleetDispatchApp = (() => {
       }
       visibleLoads.sort((a, b) => revision(b) - revision(a));
       Object.assign(scope, { loads: visibleLoads, drivers, loaded: true, failed: false });
+      announceDriverUpdates(driverChanges);
       toggle('dispatchReadError', false);
     } catch (error) {
       if (state !== scope || scope.readRequest !== request) return;
       scope.failed = true;
       toggle('dispatchReadError', true);
     }
+    paintDriverUpdates();
     paintLoads();
     paintDrivers();
     if (selectedTab === 'equipment') fleetEquipment.setDrivers(scope.fleetId, scope.drivers);
@@ -706,8 +929,12 @@ const fleetDispatchApp = (() => {
     zip.pattern = '[0-9]{5}(-[0-9]{4})?';
     zip.title = '5-digit or ZIP+4 code';
     field('zip', 'ZIP', zip, required);
+    const waitAlert = input('number');
+    Object.assign(waitAlert, { min:'0', step:'any', placeholder:'2', inputMode:'decimal' });
+    field('waitAlertHours', 'Wait alert (hours after appointment)', waitAlert);
     useSavedLocation(company, location => {
       for (const key of addressParts) group.querySelector('[data-stop-field=' + key + ']').value = location[key];
+      waitAlert.value = location.wait_alert_hours ?? '';
     });
     const contact = element('div');
     const contactName = input('text', 120);
@@ -1565,6 +1792,18 @@ const fleetDispatchApp = (() => {
   });
   byId('dispatchReload').addEventListener('click', refresh);
   byId('dispatchLoadSearch').addEventListener('input', paintLoads);
+  byId('dispatchWatchedOnly').addEventListener('change', paintLoads);
+  byId('dispatchSelectWatched').addEventListener('click', event => {
+    const control = event.currentTarget;
+    const choosing = control.getAttribute('aria-pressed') !== 'true';
+    control.setAttribute('aria-pressed', String(choosing));
+    control.textContent = choosing ? 'Done selecting' : 'Select watched loads';
+    if (choosing) byId('dispatchWatchedOnly').checked = false;
+    paintLoads();
+  });
+  byId('dispatchDayDate').addEventListener('change', paintDay);
+  byId('dispatchDetailWatch').addEventListener('click', event => toggleWatch(getLoad(progressView?.id()), event.currentTarget));
+  byId('dispatchReviewDeparture').addEventListener('click', () => void acceptBoardDeparture(getLoad(progressView?.id())));
   byId('dispatchDriverSearch').addEventListener('input', paintDrivers);
   byId('dispatchDriverFilter').addEventListener('change', paintDrivers);
   driverForm.addEventListener('submit', addDriver);
@@ -1602,6 +1841,8 @@ const fleetDispatchApp = (() => {
       scope.updates.delete(id);
       const row = [...byId('dispatchRailList').children].find(button => button.dataset.loadId === id);
       if (row) row.dataset.updated = 'false';
+      const board = [...byId('dispatchCurrentList').querySelectorAll('[data-board-load]')].find(card => card.dataset.boardLoad === id);
+      if (board) board.dataset.updated = 'false';
       if (progressView?.id() === id) {
         byId('dispatchLoadDetail').dataset.updated = 'false';
         toggle('dispatchLiveUpdate', false);
@@ -1650,6 +1891,52 @@ const fleetDispatchApp = (() => {
         if (error.code === '55P03') void renewLease();
       }
       return false;
+    }
+  }
+
+  async function acceptBoardDeparture(load) {
+    const scope = state;
+    if (!scope?.access.dispatch || load?.status !== 'current' || scope.boardReviews.has(load.id)) return;
+    const { pending, final, issues } = dispatchProgress.boardState(load);
+    if (issues.length || (!pending && !final)) return;
+    const openLease = lease?.id === load.id ? lease : null;
+    if (openLease && !canEditLoad(load.id)) return;
+    const target = openLease || { scope, id: load.id, token: crypto.randomUUID() };
+    scope.boardReviews.add(load.id);
+    paintLoads();
+    progressView?.paint();
+    try {
+      if (!openLease) {
+        const { data, error } = await leaseRpc(target, 'acquire');
+        if (error) throw error;
+        if (!data?.writable) throw new Error('Another dispatcher has this load open.');
+        target.writable = true;
+      }
+      if (state !== scope) return;
+      const { data, error } = await scope.client.rpc('review_dispatch_departure', {
+        target_load:load.id, expected_updated_at:load.updated_at, editing_session:target.token,
+        target_stop:pending?.key ?? null
+      });
+      if (state !== scope) return;
+      if (error) throw error;
+      if (!data) throw new Error('The departure review could not be saved.');
+      mergeLoad(data);
+      paintDrivers();
+      paintDriverUpdates();
+      if (data.status === 'completed' && progressView?.id() === load.id) selectTab(selectedTab === 'day' ? 'day' : 'current');
+      showToast(proLabel(load.pro_number) + (data.status === 'completed' ? ' completed' : ' · Departure accepted'));
+    } catch (error) {
+      if (state !== scope) return;
+      showToast(error.message || 'The departure review could not be saved.');
+      if (error.code === '40001') await refresh();
+      if (error.code === '55P03' && openLease) void renewLease();
+    } finally {
+      if (!openLease) releaseLease(target);
+      scope.boardReviews.delete(load.id);
+      if (state === scope) {
+        paintLoads();
+        progressView?.paint();
+      }
     }
   }
 
@@ -1758,6 +2045,7 @@ const fleetDispatchApp = (() => {
     const minute = Math.floor(now / 60_000);
     if (state?.clockMinute === minute || !state) return;
     state.clockMinute = minute;
+    checkWatchedHolds();
     for (const row of byId('dispatchRailList').children) {
       const load = getLoad(row.dataset.loadId);
       if (!load) continue;
@@ -1780,8 +2068,13 @@ const fleetDispatchApp = (() => {
     if (typeof scope.client.channel === 'function') {
       const target = { schema: 'public', table: loadTable, filter: 'fleet_id=eq.' + scope.fleetId };
       const applied = event => {
-        if (state !== scope || !event.new?.id || !mergeLoad(event.new, scope.loaded && visible())) return;
+        if (state !== scope || !event.new?.id) return;
+        const previous = getLoad(event.new.id);
+        if (!mergeLoad(event.new, scope.loaded && visible())) return;
         if (!visible()) return;
+        const updates = newDriverUpdates(event.new, previous);
+        if (scope.loaded) announceDriverUpdates(updates);
+        if (updates.length || previous?.status !== event.new.status) paintDriverUpdates();
         paintLoads();
         paintDrivers();
         progressView?.paint();
@@ -1807,6 +2100,7 @@ const fleetDispatchApp = (() => {
       loadDrivers, loadDriverContacts, displayedDriverIds, unassignedDriver, messageDriver, proLabel, describeRoute: route,
       editLoad: load => openLoad(load), back: () => selectTab(selectedTab, true),
       setProgress: recordProgress, hasUpdate: id => Boolean(state?.updates.has(id)),
+      isReviewing: id => Boolean(state?.boardReviews.has(id)),
       canEdit: canEditLoad, paintLeaseStatus, saveLoadAction, relayDriverChoices,
       openRateConfirmation: attachment => viewRateConfirmation(attachment)
     });
@@ -1842,10 +2136,16 @@ const fleetDispatchApp = (() => {
     paintLocations();
     toggle('dispatchPayProfile', false);
     byId('dispatchLoadSearch').value = '';
+    byId('dispatchWatchedOnly').checked = false;
+    byId('dispatchSelectWatched').textContent = 'Select watched loads';
+    byId('dispatchSelectWatched').setAttribute('aria-pressed', 'false');
+    byId('dispatchDayDate').value = '';
+    delete byId('dispatchWorkspace').dataset.board;
     byId('dispatchDriverSearch').value = '';
     byId('dispatchDriverFilter').value = '';
-    for (const id of ['dispatchRailList', 'dispatchCurrentList', 'dispatchDraftList', 'dispatchContractList',
-      'dispatchHistoryList', 'dispatchDriversList', 'dispatchPickups', 'dispatchReceivers',
+    for (const id of ['dispatchRailList', 'dispatchTransitList', 'dispatchWorkingList', 'dispatchIssueList', 'dispatchDayList',
+      'dispatchDraftList', 'dispatchContractList',
+      'dispatchHistoryList', 'dispatchDriversList', 'dispatchDriverUpdates', 'dispatchPickups', 'dispatchReceivers',
       'dispatchShipperContacts', 'dispatchReceiverContacts']) byId(id).replaceChildren();
     toggle('dispatchReadError', false);
   }
@@ -1869,7 +2169,11 @@ const fleetDispatchApp = (() => {
     if (state?.fleetId !== fleetId || state.client !== client || JSON.stringify(state.access) !== JSON.stringify(access)) {
       const destination = tab || selectedTab;
       reset();
-      state = { client, fleetId, access, loads: [], drivers: [], locations: [], locationVersion: 0, updates: new Map(), loaded: false, failed: false };
+      const watchKey = 'rigtracker-dispatch-watch:' + currentUser?.id + ':' + fleetId;
+      let watchedLoads = new Set();
+      try { watchedLoads = new Set(JSON.parse(localStorage.getItem(watchKey)) || []); } catch {}
+      state = { client, fleetId, access, watchKey, watchedLoads, loads: [], drivers: [], locations: [], locationVersion: 0,
+        updates: new Map(), boardReviews: new Set(), loaded: false, failed: false };
       watch(state);
       paintLoads();
       paintDrivers();
