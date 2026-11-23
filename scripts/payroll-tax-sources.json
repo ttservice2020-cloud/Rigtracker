@@ -1,0 +1,112 @@
+[
+  {
+    "name": "IRS Publication 15-T",
+    "url": "https://www.irs.gov/pub/irs-pdf/p15t.pdf",
+    "sha256": "31b3e2428628e8d2e40f6266c2c8f1b9b0b6ccd24607895f9b3be3d9d306d3fb"
+  },
+  {
+    "name": "IRS Publication 15",
+    "url": "https://www.irs.gov/pub/irs-pdf/p15.pdf",
+    "sha256": "b46c3622439d8521e3a0faca4cd5b5ece3451b526f65f06a5e38d5c9f804c88b"
+  },
+  {
+    "name": "USDA federal, state and local tax bulletin directory",
+    "url": "https://help.nfc.usda.gov/systems/TAXES/index.php",
+    "sha256": "a63ec3672e8749aa0c25eafe78d2124e73b7374ff72e56ba3051ab41a82999ae"
+  },
+  {
+    "name": "Colorado DR 1098",
+    "url": "https://tax.colorado.gov/sites/tax/files/documents/DR_1098_Colorado_Withholding_Worksheet_for_Employees.pdf",
+    "sha256": "b6376eaa0f531162e81fb9ddb7782295f5f50f5ba8823e27361c02aac8a279b5"
+  },
+  {
+    "name": "Georgia employer tax guide",
+    "url": "https://dor.georgia.gov/document/document/2026-employers-tax-guide-updated-september-2026/download",
+    "sha256": "d63c2828c91a0aaa0d3c80e9e97b13f173aee00573d77c2e3cb54895c481ea58"
+  },
+  {
+    "name": "Illinois IL-700-T",
+    "url": "https://tax.illinois.gov/forms/withholding/currentyear/il-700-t-withholding-guide-tables.html",
+    "sha256": "48282ded003eeecbc4655f520c4d5216fb8c4b80d79a782b9936e849d71ad8f6"
+  },
+  {
+    "name": "Indiana Departmental Notice 1",
+    "url": "https://www.in.gov/dor/files/dn01.pdf",
+    "sha256": "5eb64923aaa1b0f21c105dd64ab318fef290b232864109cd571d7bb9375b5315"
+  },
+  {
+    "name": "Iowa withholding formula",
+    "url": "https://revenue.iowa.gov/media/53/download?inline=",
+    "sha256": "690911fa64266dffe9b21eac207220c18762dd4d02a4ca4807eb8ff02c8ca0e2"
+  },
+  {
+    "name": "Kentucky withholding formula",
+    "url": "https://revenue.ky.gov/Forms/2026%20Withholding%20Formula.pdf",
+    "sha256": "3b15072154cecaa8e65d00783d17171a93f099146f95250ae7b0b2ba0f71bf92"
+  },
+  {
+    "name": "Massachusetts Circular M",
+    "url": "https://www.mass.gov/doc/massachusetts-circular-m-income-tax-withholding-tables-at-50-effective-january-1-2026/download",
+    "sha256": "d3f12716311bb9977c9597de25c89a79523d50a5bdc293ab7e68368a453f79a8"
+  },
+  {
+    "name": "Michigan tax withholding guide",
+    "url": "https://www.michigan.gov/taxes/-/media/Project/Websites/taxes/Forms/SUW/TY2026/446_Withholding-Guide_2026.pdf?hash=98717BB81CE805B6DFC61007B1AB6F06&rev=8aefbd04ab6c42f08095252120a08820",
+    "sha256": "5cfe50e6842338649de7f97027f39659d830bb87e64e0c5834cf8e61b3a91b04"
+  },
+  {
+    "name": "Missouri withholding formula",
+    "url": "https://dor.mo.gov/forms/Withholding%20Formula_2026.pdf",
+    "sha256": "943ce02894aefe7bdc2bf4cf08fe6428266607ee95a5f1816a1fbffa103b0777"
+  },
+  {
+    "name": "New York State exact withholding method",
+    "url": "https://www.tax.ny.gov/pdf/publications/withholding/nys50_t_nys.pdf",
+    "sha256": "e1c2b3440572a10019efe8d8e4d727474c55afb37dd5d18a6a73b94463baf3e8"
+  },
+  {
+    "name": "New York City exact withholding method",
+    "url": "https://www.tax.ny.gov/pdf/publications/withholding/nys50_t_nyc.pdf",
+    "sha256": "c380ffaf226332451b4f1609cdf0e0e10dfbf9b976d3961e3e23b09da92a2f4c"
+  },
+  {
+    "name": "North Carolina NC-30",
+    "url": "https://www.ncdor.gov/income-tax-withholding-tables-and-instructions-employers/open",
+    "sha256": "56a00f942c48c51019c3b78d72da1f1cc04969890678c107fe9d0386c5d655be"
+  },
+  {
+    "name": "Pennsylvania employer withholding",
+    "url": "https://www.pa.gov/agencies/revenue/resources/tax-types-and-information/employer-withholding",
+    "sha256": "db45d2151660a935aa252a8e015abb726c7cf3f7063debff03bb3a2b99ce376c"
+  },
+  {
+    "name": "Utah Publication 14",
+    "url": "https://files.tax.utah.gov/tax/forms/pubs/pub-14.pdf",
+    "sha256": "a7662517232b93b21774666e703123d398916a0a1dd1f1791eccca10f4a8d56f"
+  },
+  {
+    "name": "Virginia employer withholding instructions",
+    "url": "https://www.tax.virginia.gov/sites/default/files/vatax-pdf/employer-withholding-instructions.pdf",
+    "sha256": "268d74df7828646a932df9df4344232aadd5d9dcdb013e4c67ddd73ed84c44aa"
+  },
+  {
+    "name": "Louisville Metro Form W-1 instructions",
+    "url": "https://louisvilleky.gov/government/revenue-commission/w-1-tax-form-instructions",
+    "sha256": "819fd765764cd8137765150ef8189755c7b117f2fc251bed3adb68c2976985b6"
+  },
+  {
+    "name": "Lexington-Fayette occupational tax",
+    "url": "https://www.lexingtonky.gov/working/business-licensing-taxes/occupational-license-fee-rates-current-forms",
+    "sha256": "ff5d983dbcc94c5d549b04a87befeecd6b5c54386784d3ac5bfa9f23c265c0b4"
+  },
+  {
+    "name": "Elizabethtown occupational tax",
+    "url": "https://www.elizabethtownky.org/government/departments/finance/business_licenses.php",
+    "sha256": "0f7485cfcb0b2b8d48c44d1d3e6c450b942773e556a0e3137a8e85c017955063"
+  },
+  {
+    "name": "Bardstown occupational tax",
+    "url": "https://www.cityofbardstown.org/document_center/Licensing%20and%20Permits/Occupational%20License%20Fee%20Form.pdf",
+    "sha256": "44256a3077ff17e821d2ecaf1f2f430f11a2492520c685ee04be4ece0b461258"
+  }
+]

@@ -1,0 +1,17 @@
+name: Payroll tax source check
+
+on:
+  schedule:
+    - cron: '17 14 * * 1,4'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 scripts/check-payroll-tax-sources.py
