@@ -462,7 +462,7 @@ const payrollTaxPreview = (() => {
   function statementLoadTable(loads) {
     const table = element('table','','payroll-statement-loads');
     const head = table.createTHead().insertRow();
-    for (const caption of ['PRO','Origin','Destination','Load pay']) {
+    for (const caption of ['PRO','Delivered','Origin','Destination','Load pay']) {
       const cell = element('th',caption);
       cell.scope = 'col';
       head.append(cell);
@@ -470,7 +470,7 @@ const payrollTaxPreview = (() => {
     const body = table.createTBody();
     for (const load of loads) {
       const row = body.insertRow();
-      for (const amount of [load.pro,load.origin,load.destination,
+      for (const amount of [load.pro,load.delivered || '—',load.origin,load.destination,
         hasAmount(load.pay) ? currency.format(load.pay) : '—']) row.insertCell().textContent = amount;
       if (load.hasBol === false) {
         row.dataset.missingBol = 'true';
@@ -495,6 +495,7 @@ const payrollTaxPreview = (() => {
       const label = paid ? 'Paid settlement' : details.draft ? 'Draft settlement' : 'Settlement estimate';
       section.append(element('p','RigTracker Pro · ' + label + ' · Page ' + page + ' of ' + pageCount,'payroll-statement-kicker'),element('h2',heading),
         element('p',[name,date].join(' · '),'payroll-statement-identity'));
+      if (details.payPeriod) section.append(element('p','Pay period ' + details.payPeriod,'payroll-statement-identity'));
       return section;
     }
     const pay = sheet(1,'Pay Information');
@@ -568,13 +569,13 @@ const payrollTaxPreview = (() => {
       const history = await checkHistory(context,date);
       if (!container.isConnected || context.user !== currentUser) return;
       if (history.paid_on) {
-        const statement = statementPages(context.name,history.paid_on,{...history.statement,loads:context.loads ?? history.statement.loads},
+        const statement = statementPages(context.name,history.paid_on,{...history.statement,payPeriod:context.payPeriod,loads:context.loads ?? history.statement.loads},
           history.amounts,history.through,history.ui_state,true);
         container.replaceChildren(statement,button('Print / Save as PDF',() => printStatement(statement)));
         return;
       }
       const draft = statementPages(context.name,date,{
-        draft:true,loads:context.loads,taxTotal:null,lumperTotal:context.lumperReimbursement
+        draft:true,loads:context.loads,taxTotal:null,lumperTotal:context.lumperReimbursement,payPeriod:context.payPeriod
       },{
         gross:context.gross == null ? null : Number(context.gross),deductions:null,
         federalWages:null,socialSecurityYtd:null,medicareYtd:null
@@ -950,7 +951,7 @@ const payrollTaxPreview = (() => {
       payDateInput.value = record.paid_on;
       payDateInput.disabled = context.kind === 'settlement';
       historyNote.textContent = 'Paid check recorded on ' + record.paid_on + '.';
-      const statement = statementPages(context.name,record.paid_on,{...record.statement,loads:context.loads ?? record.statement.loads},
+      const statement = statementPages(context.name,record.paid_on,{...record.statement,payPeriod:context.payPeriod,loads:context.loads ?? record.statement.loads},
         record.amounts,record.through,record.ui_state,true);
       result.replaceChildren(statement,button('Print / Save as PDF',() => printStatement(statement)));
     }
@@ -1067,7 +1068,7 @@ const payrollTaxPreview = (() => {
         };
         const projected = Object.fromEntries(historyFields.map(([key]) => [key,
           hasAmount(prior[key]) && hasAmount(current[key]) ? money(prior[key] + current[key]) : null]));
-        const report = statementPages(context.name,date,{...statement,loads:context.loads},current,projected,state,false);
+        const report = statementPages(context.name,date,{...statement,payPeriod:context.payPeriod,loads:context.loads},current,projected,state,false);
         const statementPreview = element('details','','payroll-tax-group');
         statementPreview.append(element('summary','Statement preview'),report,
           button('Print / Save as PDF',() => printStatement(report)));

@@ -25,6 +25,7 @@ const companyDriverTools = (() => {
   let payrollRequest;
   let settlementView;
   let activeStatement;
+  let payPeriodRead;
   let settlementPreviewRequest;
   let savedSettlementsRequest;
   let ownDocumentsRequest;
@@ -689,7 +690,9 @@ const companyDriverTools = (() => {
     const form = byId('companyDriverPayForm');
     replacementKey = record.storage_key;
     pendingUpload = null;
+    payPeriodRead = null;
     form.reset();
+    setPayFilePeriod();
     for (const name of ['period_start', 'period_end']) form.elements.namedItem(name).value = record[name];
     byId('newPaySettlementNumber').value = record.settlement_number || record.title;
     byId('companyPayDraftField').classList.add('hidden');
@@ -709,11 +712,40 @@ const companyDriverTools = (() => {
     paintPayNumber();
   }
 
+  function setPayFilePeriod(period) {
+    const from = byId('newPayStart');
+    const through = byId('newPayEnd');
+    const fixed = Boolean(period?.period_start && period?.period_end);
+    from.readOnly = through.readOnly = fixed;
+    if (fixed) {
+      from.value = period.period_start;
+      through.value = period.period_end;
+    }
+  }
+
   function paintPayNumber() {
     if (replacementKey) return;
     const drafts = byId('companyPayDraft');
     byId('companyPayDraftField').classList.toggle('hidden', drafts.options.length <= 1);
     byId('newPaySettlementNumber').value = drafts.value ? drafts.selectedOptions[0].textContent : '';
+    setPayFilePeriod();
+    const selection = view;
+    const id = drafts.value;
+    if (!selection || !id) {
+      payPeriodRead = null;
+      return;
+    }
+    const read = {};
+    payPeriodRead = read;
+    void savedSettlements(selection.fleet,id).then(([record]) => {
+      if (payPeriodRead===read && view===selection && currentUser===selection.user && drafts.value===id) {
+        setPayFilePeriod(record);
+      }
+    }).catch(() => {
+      if (payPeriodRead===read && view===selection) showToast('Could not load the statement’s saved pay period.');
+    }).finally(() => {
+      if (payPeriodRead===read) payPeriodRead = null;
+    });
   }
 
   byId('companyPayDraft').addEventListener('change', paintPayNumber);
@@ -972,6 +1004,7 @@ const companyDriverTools = (() => {
     const control = form.querySelector('button[type="submit"]');
     const selection = view;
     if (!selection || control.disabled) return;
+    if (payPeriodRead) { showToast('The statement’s pay period is loading.'); return; }
     const file = form.elements.namedItem('file').files[0];
     const { settlement_id, period_start, period_end } = Object.fromEntries(new FormData(form));
     const replacing = replacementKey;
@@ -1077,13 +1110,43 @@ const companyDriverTools = (() => {
       : 'Higher-of pay scale is incomplete';
     return 'Pay scale not set';
   }
+  const settlementDateFormat = new Intl.DateTimeFormat('en-US',{
+    weekday:'short',month:'short',day:'numeric',timeZone:'UTC'
+  });
+
+  function settlementDeliveryLabel(date) {
+    return date ? settlementDateFormat.format(new Date(date + 'T00:00:00Z')) : 'Date unavailable';
+  }
+
+  function setDefaultStatementPeriod() {
+    const sunday = new Date(todayForZone(preferredZone) + 'T00:00:00Z');
+    sunday.setUTCDate(sunday.getUTCDate() - (sunday.getUTCDay() || 7));
+    const monday = new Date(sunday);
+    monday.setUTCDate(monday.getUTCDate()-6);
+    byId('companyStatementStart').value = monday.toISOString().slice(0,10);
+    byId('companyStatementEnd').value = sunday.toISOString().slice(0,10);
+  }
+
+  function statementPeriod() {
+    const starts_on = byId('companyStatementStart').value;
+    const ends_on = byId('companyStatementEnd').value;
+    return starts_on && ends_on && starts_on<=ends_on ? {starts_on,ends_on} : null;
+  }
+
+  function syncStatementPeriodControls() {
+    const locked = Boolean(settlementView?.saving || (activeStatement?.editable && activeStatement.periodStart));
+    byId('companyStatementStart').disabled = byId('companyStatementEnd').disabled = locked;
+  }
+
   function checkedSettlementIds() {
     return [...byId('companyPayrollLoadSettlements').querySelectorAll('[data-settlement-load]:checked:not(:disabled)')]
       .map(input => input.value);
   }
 
   function updateSettlementButton() {
-    byId('companyPayrollCreateSettlement').disabled = Boolean(settlementView?.saving) || !checkedSettlementIds().length;
+    byId('companyPayrollCreateSettlement').disabled = Boolean(settlementView?.saving) ||
+      !statementPeriod() || !checkedSettlementIds().length;
+    syncStatementPeriodControls();
   }
 
   function payrollRecordsActive(user, fleet) {
@@ -1154,6 +1217,7 @@ const companyDriverTools = (() => {
       pro:(line.is_return ? 'B-' : 'A-') + line.pro_number,
       origin:settlementStopPlace(line.pickup),
       destination:settlementStopPlace(line.receiver),
+      delivered:settlementDeliveryLabel(line.delivered_on),
       pay:line.base_pay_entered && line.total_pay != null ? Number(line.total_pay) : null,
       hasBol:line.has_signed_bol,
       otherPay:[['Stop pay',line.stop_pay],['Empty-mile pay',line.empty_mile_pay],['Additional pay',line.additional_pay]]
@@ -1165,7 +1229,8 @@ const companyDriverTools = (() => {
       const row = element('div', '', 'settlement-preview-line');
       const miles = [line.loaded_miles != null ? Number(line.loaded_miles).toLocaleString() + ' loaded mi' : '',
         line.empty_miles != null ? Number(line.empty_miles).toLocaleString() + ' empty mi' : ''].filter(Boolean).join(' · ');
-      row.append(element('strong', label), settlementRoute(statementLoads[index]),element('span', miles || 'Miles not recorded'),
+      row.append(element('strong', label), element('span',statementLoads[index].delivered,'muted'),
+        settlementRoute(statementLoads[index]),element('span', miles || 'Miles not recorded'),
         element('span', 'Pay scale: ' + payScaleLabel(line.pay_scale)));
       if (line.has_signed_bol === false) markMissingBol(row);
       if (line.base_pay_entered) row.append(element('span', 'Base / saved pay: ' + settlementCurrency.format(Number(line.base_pay))));
@@ -1176,9 +1241,11 @@ const companyDriverTools = (() => {
       return row;
     });
     const missingBase = lines.some(line => !line.base_pay_entered);
+    const payPeriod = settlement.period_start && settlement.period_end
+      ? settlement.period_start + ' to ' + settlement.period_end : '';
     const taxContext = settlement.id && canManageTax() ? {
       mode:'preview',kind:'settlement',reference:settlement.id,fleet:payroll?.fleet_id,user:currentUser,
-      name:[settlement.driver,settlement.settlement_number].filter(Boolean).join(' · '),
+      name:[settlement.driver,settlement.settlement_number].filter(Boolean).join(' · '),payPeriod,
       gross:missingBase ? null : settlement.total_pay,loads:statementLoads,loadCount:settlement.load_count,
       lumperReimbursement:Math.round(statementLoads.reduce((sum,line) => sum + line.lumperReimbursement,0)*100)/100
     } : null;
@@ -1195,11 +1262,18 @@ const companyDriverTools = (() => {
     preview.replaceChildren(
       element('h3', 'Settlement ' + settlement.settlement_number + ' · ' + status),
       element('p', [settlement.driver, lines.length + ' completed load' + (lines.length === 1 ? '' : 's')].filter(Boolean).join(' · ')),
+      ...(payPeriod ? [element('p','Pay period ' + payPeriod,'muted')] : []),
       breakdown,
       element('strong', 'Known pay items: ' + settlementCurrency.format(Number(settlement.total_pay)), 'settlement-preview-total'),
       ...(missingBase ? [element('p', 'Confirm driver pay before issuing this statement. Hourly pay can be entered using hours and rate.', 'muted')] : []),
       ...(taxContext ? [button('Estimate Payroll Taxes',() => payrollTaxPreview.open(taxContext)),yearToDate] : []),
-      button(taxContext ? 'Print Load Details' : 'Print / Save as PDF', () => window.print())
+      button(taxContext ? 'Print Load Details' : 'Print / Save as PDF', () => {
+        if (!breakdown.open) {
+          breakdown.open = true;
+          window.addEventListener('afterprint',() => { breakdown.open = false; },{once:true});
+        }
+        window.print();
+      })
     );
     if (taxContext) void payrollTaxPreview.showSettlementYtd(yearToDate,taxContext);
     preview.classList.remove('hidden');
@@ -1221,13 +1295,22 @@ const companyDriverTools = (() => {
       const [record] = await savedSettlements(fleet, id);
       if (!active()) return;
       if (!record) throw new Error('This saved settlement is unavailable.');
-      activeStatement = {id:record.id,profileId:record.driver_profile_id,editable:!record.sent_for_review && !record.paid};
+      activeStatement = {
+        id:record.id,profileId:record.driver_profile_id,editable:!record.sent_for_review && !record.paid,
+        periodStart:record.period_start
+      };
+      if (record.period_start && record.period_end) {
+        byId('companyStatementStart').value = record.period_start;
+        byId('companyStatementEnd').value = record.period_end;
+      }
       clearStatementLoadSelection();
       const picker = byId('companyPayrollDriver');
       if (record.driver_profile_id && picker.value !== record.driver_profile_id &&
         [...picker.options].some(option => option.value === record.driver_profile_id)) {
         picker.value = record.driver_profile_id;
         void loadSettlementLoads(fleet,picker.value,true);
+      } else if (settlementView?.loads) {
+        paintSettlementLoads(settlementView,settlementView.loads);
       }
       showSettlementPreview(record,record.lines,record.paid ? 'Paid' : record.sent_for_review ? 'Sent for review' : 'Draft saved');
     } catch (error) {
@@ -1259,7 +1342,8 @@ const companyDriverTools = (() => {
     const selection = settlementView;
     if (!selection || selection.saving || !activeSettlementView(selection)) return;
     const ids = checkedSettlementIds();
-    if (!ids.length) return;
+    const period = statementPeriod();
+    if (!ids.length || !period) return;
 
     const {fleet,profileId} = selection;
     const status = byId('companySettlementLoadStatus');
@@ -1269,9 +1353,9 @@ const companyDriverTools = (() => {
     updateSettlementButton();
     try {
       const append = activeStatement?.editable && activeStatement.profileId === profileId;
-      const {data:created,error} = await supabaseClient.rpc('add_company_statement_loads',{
+      const {data:created,error} = await supabaseClient.rpc('add_company_statement_loads_for_period',{
         target_fleet:fleet,target_profile:profileId,requested_load_ids:ids,
-        target_statement:append ? activeStatement.id : null
+        target_statement:append ? activeStatement.id : null,...period
       });
       if (error) throw error;
       if (!activeSettlementView(selection)) return;
@@ -1389,13 +1473,17 @@ const companyDriverTools = (() => {
   }
 
   function paintSettlementLoads(selection,loads) {
-    const signature = JSON.stringify(loads);
+    const period = statementPeriod();
+    const signature = JSON.stringify([period,loads]);
     if (selection.signature === signature) return;
     const list = byId('companyPayrollLoadSettlements');
     const checked = new Set(checkedSettlementIds());
     selection.loads = loads;
     selection.signature = signature;
-    const available = loads.filter(load => !load.created_settlement);
+    const available = period
+      ? loads.filter(load => !load.created_settlement && load.delivered_on &&
+          load.delivered_on>=period.starts_on && load.delivered_on<=period.ends_on)
+      : [];
     list.replaceChildren(...(available.length ? available.map(load => {
       const row = element('article','','dispatch-load-row company-pay-load-row');
       const pro = (load.is_return ? 'B-' : 'A-') + load.pro_number;
@@ -1410,15 +1498,19 @@ const companyDriverTools = (() => {
       checkbox.type = 'checkbox';
       checkbox.value = load.load_id;
       checkbox.dataset.settlementLoad = 'true';
-      checkbox.setAttribute('aria-label','Select ' + pro + (warning ? ', ' + warning : ''));
+      const delivered = settlementDeliveryLabel(load.delivered_on);
+      checkbox.setAttribute('aria-label','Select ' + pro + ', delivered ' + delivered + (warning ? ', ' + warning : ''));
       checkbox.checked = checked.has(load.load_id);
       checkbox.addEventListener('change',updateSettlementButton);
-      choose.append(checkbox,element('strong',pro));
+      const identity = element('span','','statement-queue-identity');
+      identity.append(element('strong',pro),element('small',delivered,'muted'));
+      choose.append(checkbox,identity);
       const review = button('Review',() => openBolReview(selection,load));
       review.setAttribute('aria-label','Review BOL for ' + pro + (warning ? ', ' + warning : ''));
       row.append(choose,review);
       return row;
-    }) : [element('p','No loads are ready for settlement for this driver.','muted')]));
+    }) : [element('p',period ? 'No loads are ready for settlement in this date range.'
+      : 'Enter a start date and an end date in order.','muted')]));
     updateSettlementButton();
   }
 
@@ -1436,6 +1528,14 @@ const companyDriverTools = (() => {
       resetStatementPreview();
       void loadSettlementLoads(payroll?.fleet_id,picker.value);
     };
+    for (const name of ['companyStatementStart','companyStatementEnd']) {
+      byId(name).onchange = () => {
+        clearStatementLoadSelection();
+        if (settlementView?.loads && activeSettlementView(settlementView)) {
+          paintSettlementLoads(settlementView,settlementView.loads);
+        }
+      };
+    }
     byId('companyPayrollNewStatement').onclick = resetStatementPreview;
     byId('companyPayrollCreateSettlement').onclick = createSettlementPreview;
     byId('companyPayrollOpenDriver').onclick = () => {
@@ -1456,7 +1556,6 @@ const companyDriverTools = (() => {
         return row;
       }) : [element('p', 'No settlements are awaiting review or submission.', 'muted')]));
     }
-    void loadSettlementLoads(payroll?.fleet_id, picker.value);
   }
 
   function fuelSettingsFleet() {
@@ -1568,6 +1667,7 @@ const companyDriverTools = (() => {
   function openPayroll(title = 'Payroll') {
     const page = document.querySelector('.page.active');
     if (!currentUser) return;
+    if (!byId('companyStatementStart').value && !byId('companyStatementEnd').value) setDefaultStatementPeriod();
     if (page?.id !== 'companyPayrollPage') resetStatementPreview();
     if (page && !['companyPayrollPage','companyDriverAdminPage'].includes(page.id)) payrollOrigin = page.id;
     byId('companyPayrollTitle').textContent = title;
@@ -1619,6 +1719,7 @@ const companyDriverTools = (() => {
     byId('companyPayrollSettlementPreview').classList.add('hidden');
     activeStatement = null;
     settlementView = null;
+    for (const name of ['companyStatementStart','companyStatementEnd']) byId(name).value = '';
     resetStatementPreview();
     byId('companyPayrollCreateSettlement').disabled = true;
     payrollQueueSignature = null;
