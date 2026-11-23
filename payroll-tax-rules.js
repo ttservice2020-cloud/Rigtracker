@@ -14,7 +14,7 @@ const payrollTaxRules = (() => {
     NY: 'https://www.tax.ny.gov/pdf/publications/withholding/nys50_t_nys.pdf',
     nyc: 'https://www.tax.ny.gov/pdf/publications/withholding/nys50_t_nyc.pdf',
     VA: 'https://www.tax.virginia.gov/sites/default/files/vatax-pdf/employer-withholding-instructions.pdf',
-    NH: 'https://www.revenue.nh.gov/taxes-glance/interest-and-dividends-tax',
+    NH: states.NH[1],
     CO: 'https://tax.colorado.gov/sites/tax/files/documents/DR_1098_Colorado_Withholding_Worksheet_for_Employees.pdf',
     MI: 'https://www.michigan.gov/taxes/business-taxes/withholding/calendar-year-tax-information',
     MO: 'https://dor.mo.gov/forms/Withholding%20Formula_2026.pdf',

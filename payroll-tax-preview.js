@@ -233,7 +233,7 @@ const payrollTaxPreview = (() => {
       inputs.localExtra.value = reset ? '0' : settings.localExtra;
       stateNotice.textContent = '';
       if (code && !payrollTaxRules.covers(code)) {
-        const link = element('a','Open the official state tax agency');
+        const link = element('a','Open official withholding guidance');
         link.href = payrollTaxRules.states[code][1];
         link.target = '_blank';
         link.rel = 'noopener';
