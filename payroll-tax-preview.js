@@ -418,6 +418,168 @@ const payrollTaxPreview = (() => {
     }).flat();
   }
 
+  function estimateSection(label,rows) {
+    const list = element('dl','','payroll-tax-results');
+    list.append(...estimateRows(rows));
+    return [element('h3',label),list];
+  }
+
+  function estimateEntries(label,addLabel,idPrefix,createEntry,onChange) {
+    const details = element('details','','payroll-tax-group');
+    const list = element('div','','payroll-tax-local-list');
+    const entries = new Map();
+    let nextId = 0;
+    const add = button('Add ' + addLabel,() => {
+      const entry = createEntry(idPrefix + nextId++);
+      const row = element('div','','payroll-tax-local-item');
+      const remove = button('Remove',() => {
+        entries.delete(row);
+        row.remove();
+        add.focus();
+        onChange();
+      });
+      remove.setAttribute('aria-label','Remove ' + addLabel.toLowerCase());
+      entries.set(row,entry.read);
+      row.append(entry.content,remove);
+      list.append(row);
+      row.querySelector('select,input').focus();
+      onChange();
+    });
+    details.addEventListener('invalid',() => { details.open = true; },true);
+    details.append(element('summary',label),list,add);
+    return { details, read:() => [...entries.values()].map(read => read()) };
+  }
+
+  function estimateAmount(id,wagesLabel) {
+    const method = field(id + 'Method','Calculation method',{
+      value:'fixed',choices:[['fixed','Dollar amount'],['rate','Percentage']]
+    });
+    const fixed = field(id + 'Fixed','Amount for this check ($)');
+    const rate = field(id + 'Rate','Rate (%)',{max:100,step:'0.0001'});
+    const wages = field(id + 'Wages',wagesLabel);
+    const methodInput = method.querySelector('select');
+    const value = field => field.querySelector('input').valueAsNumber;
+    function sync() {
+      const percent = methodInput.value === 'rate';
+      visible(fixed,!percent);
+      visible(rate,percent);
+      visible(wages,percent);
+    }
+    methodInput.addEventListener('change',sync);
+    sync();
+    return {fields:[method,fixed,rate,wages], read:() => methodInput.value === 'rate'
+      ? payrollTaxRules.percentOfWages(value(wages),value(rate)) : value(fixed)};
+  }
+
+  function otherTaxFields(onChange) {
+    const choices = [
+      'City tax','County tax','School district tax','State disability insurance',
+      'Paid family or medical leave','Employee unemployment insurance','Transit tax','Other tax'
+    ].map(name => [name,name]);
+    choices.unshift(['','Choose a tax']);
+    const entries = estimateEntries('Other taxes (optional)','Tax','otherTax',id => {
+      const category = field(id + 'Category','Tax type',{choices});
+      const name = field(id + 'Name','Name or jurisdiction (optional)',{type:'text',required:false});
+      const amount = estimateAmount(id,'Taxable wages after any cap ($)');
+      const categoryInput = category.querySelector('select');
+      const nameInput = name.querySelector('input');
+      categoryInput.addEventListener('change',() => {
+        nameInput.required = categoryInput.value === 'Other tax';
+        name.querySelector('label').textContent = nameInput.required ? 'Tax name' : 'Name or jurisdiction (optional)';
+      });
+      return {content:grid(category,name,...amount.fields),read:() => {
+        const description = nameInput.value.trim();
+        if (nameInput.required && !description) throw new Error('Enter a name for the other tax.');
+        return {name:description || categoryInput.value,amount:amount.read()};
+      }};
+    },onChange);
+    entries.details.querySelector('summary').after(
+      field('reviewedLocal','Local withholding (if marked Needs review)',{required:false}));
+    return entries;
+  }
+
+  function payrollDeductionFields(onChange) {
+    const bases = [
+      ['Federal income tax',['federalWages']], ['Social Security and Medicare',['socialSecurityWages','medicareWages']],
+      ['State income tax',['stateWages']], ['Local income tax',['localWages']],
+      ['Federal unemployment',['futaWages']], ['State unemployment',['sutaWages']]
+    ];
+    return estimateEntries('Payroll deductions (optional)','Deduction','payDeduction',id => {
+      const name = field(id + 'Name','Deduction name',{type:'text'});
+      const amount = estimateAmount(id,'Wages for this percentage ($)');
+      const preTax = field(id + 'PreTax','Pre-tax deduction',{type:'checkbox'});
+      const toggle = preTax.querySelector('input');
+      const choices = bases.map(([label],index) => field(id + 'Base' + index,label,{type:'checkbox'}));
+      const eligible = fieldset('Wage bases reduced by this deduction',grid(...choices));
+      const refresh = () => {
+        eligible.hidden = !toggle.checked;
+        eligible.disabled = !toggle.checked;
+      };
+      toggle.addEventListener('change',refresh);
+      refresh();
+      return {content:grid(name,...amount.fields,preTax,eligible),read:() => {
+        const description = name.querySelector('input').value.trim();
+        if (!description) throw new Error('Enter a name for each payroll deduction.');
+        const reduces = toggle.checked ? bases.flatMap(([,keys],index) => choices[index].querySelector('input').checked ? keys : []) : [];
+        if (toggle.checked && !reduces.length) throw new Error('Choose the wage bases reduced by ' + description + '.');
+        return {name:description,amount:amount.read(),reduces};
+      }};
+    },onChange);
+  }
+
+  function payItemFields(onChange) {
+    const choices = [['','Choose a pay type'],['bonus','Bonus'],['commission','Commission'],
+      ['overtimeRegular','Overtime pay (regular withholding)'],['overtime','Overtime pay (supplemental withholding)'],
+      ['taxableReimbursement','Taxable reimbursement'],['accountableReimbursement','Qualified accountable-plan reimbursement'],
+      ['otherRegular','Other regular taxable pay'],['otherSupplemental','Other supplemental pay']];
+    const setup = element('div');
+    const method = field('supplementalMethod','Federal withholding on supplemental pay',{
+      value:'aggregate',choices:[['aggregate','Regular withholding tables'],['flat','Federal supplemental rates (22% / 37%)'],
+        ['review','Enter verified federal withholding']]
+    });
+    const separate = field('supplementalSeparate','Supplemental pay issued on a separate check',{type:'checkbox'});
+    const confirmed = field('supplementalConfirmed','Federal income tax was withheld from regular wages this year or last year',{type:'checkbox'});
+    const ytd = field('supplementalYtd','YTD federal taxable supplemental pay before this check ($)');
+    const taxable = field('supplementalTaxable','Federal taxable supplemental pay on this check (optional)',{required:false});
+    const priorWages = field('supplementalPriorWages','Previously paid federal taxable wages used in this calculation ($)',{required:false});
+    const priorWithheld = field('supplementalPriorWithheld','Federal income tax already withheld on those wages ($)',{required:false});
+    const methodInput = method.querySelector('select');
+    const separateInput = separate.querySelector('input');
+    function sync() {
+      setup.hidden = !entries.read().some(item => payrollTaxDeductions.isSupplemental(item.type));
+      const manual = methodInput.value === 'review';
+      visible(method,!setup.hidden);
+      visible(separate,!setup.hidden);
+      visible(ytd,!setup.hidden && !manual);
+      visible(taxable,!setup.hidden && !manual);
+      visible(confirmed,!setup.hidden && methodInput.value === 'flat');
+      const prior = !setup.hidden && separateInput.checked && methodInput.value === 'aggregate';
+      visible(priorWages,prior);
+      visible(priorWithheld,prior);
+    }
+    const entries = estimateEntries('Pay items (optional)','Pay Item','payItem',id => {
+      const type = field(id + 'Type','Pay type',{choices});
+      const amount = field(id + 'Amount','Pay amount ($)');
+      const select = type.querySelector('select');
+      select.addEventListener('change',sync);
+      return {content:grid(type,amount),read:() => ({type:select.value,amount:amount.querySelector('input').valueAsNumber})};
+    },() => {
+      sync();
+      onChange();
+    });
+    methodInput.addEventListener('change',sync);
+    separateInput.addEventListener('change',sync);
+    setup.append(grid(method,separate,ytd,taxable,confirmed,priorWages,priorWithheld));
+    entries.details.append(setup);
+    sync();
+    return {...entries, supplemental:pay => pay.supplementalGross ? {
+      gross:pay.supplementalGross,taxableGross:pay.taxableGross,method:methodInput.value,separate:separateInput.checked,
+      ytd:ytd.querySelector('input').valueAsNumber,taxable:taxable.querySelector('input').valueAsNumber,
+      priorWages:priorWages.querySelector('input').valueAsNumber,priorWithheld:priorWithheld.querySelector('input').valueAsNumber,
+      regularWithholding:confirmed.querySelector('input').checked
+    } : null};
+  }
+
   function unemploymentFields(state,year) {
     const details = element('details','','payroll-tax-group');
     const selector = field('sutaState','State where unemployment wages are reported',{
@@ -440,11 +602,11 @@ const payrollTaxPreview = (() => {
     syncBase();
     details.append(element('summary','Employer unemployment (optional)'),
       element('p','Enter confirmed employer rates and year-to-date covered wages. Amounts stay outside employee deductions.','muted'),
-      grid(field('futaWages','FUTA covered wages this check (defaults to gross)',{required:false}),
+      grid(field('futaWages','FUTA covered wages this check (optional override)',{required:false}),
         field('futaYtd','YTD FUTA covered wages before this check',{required:false}),
         field('futaRate','Effective FUTA rate (%)',{step:'0.0001',max:6,required:false})),
       grid(selector,wageBase),note,
-      grid(field('sutaWages','State UI covered wages this check (defaults to gross)',{required:false}),
+      grid(field('sutaWages','State UI covered wages this check (optional override)',{required:false}),
         field('sutaYtd','YTD state UI covered wages before this check',{required:false}),
         field('sutaRate','Assigned state UI rate (%)',{step:'0.0001',max:100,required:false})));
     return details;
@@ -476,7 +638,7 @@ const payrollTaxPreview = (() => {
     return details;
   }
 
-  function estimateUnemployment(form,gross,year) {
+  function estimateUnemployment(form,wageBases,year) {
     const value = key => form.elements[key].valueAsNumber;
     const state = form.elements.sutaState.value;
     const deductions = [];
@@ -492,7 +654,8 @@ const payrollTaxPreview = (() => {
       if ([wages,ytd,rate,override].every(Number.isNaN)) continue;
       const base = Number.isFinite(override) ? override : publishedBase;
       if (!Number.isFinite(base)) throw new Error('Choose the confirmed unemployment wage base for this pay date and employer account.');
-      deductions.push({name,amount:payrollTaxDeductions.unemployment(Number.isNaN(wages) ? gross : wages,ytd,base,rate),source});
+      const covered = Number.isNaN(wages) ? wageBases[prefix + 'Wages'] : wages;
+      deductions.push({name,amount:payrollTaxDeductions.unemployment(covered,ytd,base,rate),source});
     }
     return deductions;
   }
@@ -535,14 +698,14 @@ const payrollTaxPreview = (() => {
     }
 
     const form = element('form');
-    const amount = field('grossPay','Gross cash pay',{ value:context.gross });
+    const amount = field('grossPay','Regular gross pay',{ value:context.gross });
     const wageDetails = element('details', '', 'payroll-tax-group');
     const wages = wageBases.map(([key,label]) => field(key,label + ' (optional override)', { required:false }));
     const savedLocalTaxes = saved.settings.localTaxes || [];
     const localWages = savedLocalTaxes.flatMap((tax,index) => tax.method === 'rate'
       ? [field('localTaxWages' + index,tax.name + ' taxable wages (optional)',{ required:false })] : []);
     wageDetails.append(element('summary','Adjust taxable wages by jurisdiction'),
-      element('p','Wage bases default to gross cash pay. Each saved local rate uses local income tax wages unless its own wage amount is entered.','muted'),
+      element('p','Enter final taxable wages after any pre-tax deductions to override the calculated amounts.','muted'),
       grid(...wages,...localWages));
     const periodStart = ['UT','IN'].includes(saved.settings.state) ? field('periodStartsOn','Pay period starts on',{
       type:'date',required:false
@@ -551,28 +714,33 @@ const payrollTaxPreview = (() => {
       'Massachusetts eligible payroll contributions this check (after $2,000 annual limit)',{
         max:2000,required:false
       }) : null;
-    const reviewedTaxes = element('details', '', 'payroll-tax-group');
-    reviewedTaxes.append(element('summary','Enter reviewed state and local amounts'),
-      element('p','Use amounts verified by payroll for the pay date. A reviewed amount replaces a row that needs review. Enter 0 only when payroll has confirmed that none applies.','muted'),
-      grid(field('reviewedState','State withholding (if state needs review)',{required:false}),
-        field('reviewedLocal','Local withholding (if city or county needs review)',{required:false}),
-        field('additionalLocal','Additional city, county or school district withholding',{required:false}),
-        field('localDescription','Additional local jurisdiction (optional)',{type:'text',required:false})));
+    const reviewedIncome = element('details','','payroll-tax-group');
+    reviewedIncome.append(element('summary','Enter reviewed income tax'),
+      grid(field('reviewedFederal','Federal withholding (if marked Needs review)',{required:false}),
+        field('reviewedState','State withholding (if marked Needs review)',{required:false})));
     const result = element('section');
     result.setAttribute('aria-live','polite');
     const calculate = button('Calculate Estimate',null,'primary-btn');
     calculate.type = 'submit';
-    const offset = field('cashAdjustment','Other reviewed employee deductions (optional)',{ required:false });
+    function clearResult() {
+      result.replaceChildren();
+      message('');
+    }
+    const payItems = payItemFields(clearResult);
+    const payrollDeductions = payrollDeductionFields(clearResult);
+    const otherTaxes = otherTaxFields(clearResult);
     const year = Number(date.slice(0,4));
-    form.append(element('p','Estimate for regular W-2 wages. Enter only confirmed deductions and applicable wages.', 'muted'),
+    form.append(element('p','Estimate for W-2 pay. Enter only confirmed deductions and taxable wages.', 'muted'),
+      ...(context.kind === 'settlement' && context.gross != null ? [element('p',
+        'The settlement total is prefilled. If you itemize pay below, enter just the regular portion in Regular gross pay.','muted')] : []),
       grid(amount,...(periodStart ? [periodStart] : []),...(massachusettsDeduction ? [massachusettsDeduction] : []),field('socialSecurityYtd','YTD Social Security wages before this check'),
-        field('medicareYtd','YTD Medicare wages before this check')),wageDetails,
-      reviewedTaxes,offset,garnishmentFields(),unemploymentFields(saved.settings.state,year),calculate,result);
+        field('medicareYtd','YTD Medicare wages before this check')),
+      payItems.details,payrollDeductions.details,wageDetails,reviewedIncome,otherTaxes.details,
+      garnishmentFields(),unemploymentFields(saved.settings.state,year),calculate,result);
     body.append(form);
     form.addEventListener('input',() => {
       context.gross = form.elements.grossPay.value;
-      result.replaceChildren();
-      message('');
+      clearResult();
     });
     form.addEventListener('submit',event => {
       event.preventDefault();
@@ -582,39 +750,41 @@ const payrollTaxPreview = (() => {
         return;
       }
       const value = key => form.elements[key].valueAsNumber;
-      const grossPay = value('grossPay');
-      const input = { date, periodStartsOn:form.elements.periodStartsOn?.value, maContributions:form.elements.maContributions?.valueAsNumber, grossPay, socialSecurityYtd:value('socialSecurityYtd'), medicareYtd:value('medicareYtd') };
-      for (const [key] of wageBases) input[key] = Number.isFinite(value(key)) ? value(key) : grossPay;
-      input.localTaxWages = savedLocalTaxes.map((tax,index) => tax.method === 'rate' ? value('localTaxWages' + index) : undefined);
       try {
+        const earnings = payItems.read();
+        const deductions = payrollDeductions.read();
+        const pay = payrollTaxDeductions.payAmounts(value('grossPay'),earnings,deductions);
+        const {grossPay} = pay;
+        const input = {date,grossPay,periodStartsOn:form.elements.periodStartsOn?.value,
+          maContributions:form.elements.maContributions?.valueAsNumber,
+          socialSecurityYtd:value('socialSecurityYtd'),medicareYtd:value('medicareYtd'),
+          supplemental:payItems.supplemental(pay),reimbursementOnly:grossPay > 0 && pay.taxableGross === 0};
+        for (const [key] of wageBases) input[key] = Number.isFinite(value(key)) ? value(key) : pay.wageBases[key];
+        input.localTaxWages = savedLocalTaxes.map((tax,index) => tax.method === 'rate' ? value('localTaxWages' + index) : undefined);
         const { employee, employer } = payrollTaxRules.calculate(saved.settings,input);
-        for (const [type,key] of [['state','reviewedState'],['local','reviewedLocal']]) {
+        for (const [type,key] of [['federal','reviewedFederal'],['state','reviewedState'],['local','reviewedLocal']]) {
           if (Number.isNaN(value(key))) continue;
           const row = employee.find(row => row.type === type);
-          if (!row || row.amount !== null) throw new Error('Use a reviewed state or local amount only for a row marked Needs review.');
+          if (!row || row.amount !== null) throw new Error('Use a reviewed amount only for a tax marked Needs review.');
           row.name += ' (entered by payroll)';
           row.amount = value(key);
         }
-        if (Number.isFinite(value('additionalLocal'))) {
-          const name = form.elements.localDescription.value.trim() || 'Additional local withholding';
-          employee.push({ name:name + ' (entered by payroll)',amount:value('additionalLocal') });
-        }
-        employer.push(...estimateUnemployment(form,grossPay,year));
-        if (Number.isFinite(value('cashAdjustment'))) {
-          employee.push({name:'Other reviewed employee deductions',amount:value('cashAdjustment')});
-        }
+        employee.push(...otherTaxes.read(),...deductions);
+        employer.push(...estimateUnemployment(form,pay.wageBases,year));
         const garnishment = estimateGarnishment(form,saved.settings.periods);
         if (garnishment) employee.push(garnishment);
         const subtotal = employee.reduce((sum, row) => sum + (row.amount ?? 0),0);
         const complete = employee.every(row => row.amount !== null);
-        const employeeList = element('dl','', 'payroll-tax-results');
-        employeeList.append(...estimateRows(employee));
-        const employerList = element('dl','', 'payroll-tax-results');
-        employerList.append(...estimateRows(employer));
-        result.replaceChildren(element('h3','Employee deductions'),employeeList,
+        const isMainTax = row => ['federal','fica','state'].includes(row.type);
+        const additional = employee.filter(row => !isMainTax(row) &&
+          !(row.type === 'local' && saved.settings.locality === 'none' && row.amount === 0));
+        result.replaceChildren(
+          ...(earnings.length ? [element('p','Gross cash pay ' + currency.format(grossPay))] : []),
+          ...estimateSection('Main taxes',employee.filter(isMainTax)),
+          ...(additional.length ? estimateSection('Other taxes and deductions',additional) : []),
           complete ? element('strong','Estimated take-home from entered amounts ' + currency.format(grossPay - subtotal))
             : element('p','Take-home estimate is unavailable until the rows marked Needs review are resolved.','muted'),
-          element('h3','Employer taxes'),employerList);
+          ...estimateSection('Employer taxes',employer));
         message('');
       } catch (error) {
         result.replaceChildren();

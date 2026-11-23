@@ -17,6 +17,34 @@ const payrollTaxDeductions = (() => {
     OK:25000, OR:56700, PA:10000, RI:[30800,32300], SC:14000, SD:15000,
     TN:7000, TX:9000, UT:50700, VA:8000, VT:15400, WA:78200, WI:14000, WV:9500, WY:33800
   };
+  const wageFields = ['federalWages','stateWages','localWages','socialSecurityWages','medicareWages','futaWages','sutaWages'];
+  const supplementalTypes = new Set(['bonus','commission','overtime','taxableReimbursement','otherSupplemental']);
+
+  function isSupplemental(type) {
+    return supplementalTypes.has(type);
+  }
+
+  function payAmounts(regularPay,payItems,deductions) {
+    const cents = amount => Math.round(amount * 100);
+    let gross = cents(regularPay);
+    let taxable = gross;
+    let supplemental = 0;
+    for (const {type,amount} of payItems) {
+      const item = cents(amount);
+      gross += item;
+      if (type !== 'accountableReimbursement') taxable += item;
+      if (isSupplemental(type)) supplemental += item;
+    }
+    const wageBases = Object.fromEntries(wageFields.map(key => [key,taxable]));
+    for (const {amount,reduces} of deductions) {
+      for (const key of reduces) wageBases[key] -= cents(amount);
+    }
+    if (Object.values(wageBases).some(amount => amount < 0)) {
+      throw new Error('Pre-tax deductions exceed the eligible wages for this check.');
+    }
+    for (const key of wageFields) wageBases[key] /= 100;
+    return {grossPay:gross / 100,taxableGross:taxable / 100,supplementalGross:supplemental / 100,wageBases};
+  }
 
   function stateWageBase(state,year) {
     return year === 2026 ? stateWageBases[state] : undefined;
@@ -41,7 +69,7 @@ const payrollTaxDeductions = (() => {
     return Math.floor(limit * 100 + 0.0000001) / 100;
   }
 
-  return { sources, stateWageBase, unemployment, federalGarnishmentLimit };
+  return { sources, stateWageBase, unemployment, federalGarnishmentLimit, isSupplemental, payAmounts };
 })();
 
 if (typeof module !== 'undefined') module.exports = payrollTaxDeductions;

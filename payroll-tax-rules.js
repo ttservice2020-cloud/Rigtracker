@@ -150,6 +150,10 @@ const payrollTaxRules = (() => {
     return Math.round((value + Number.EPSILON) * 100) / 100;
   }
 
+  function percentOfWages(wages,rate) {
+    return round(wages * rate / 100);
+  }
+
   function federalIncome(date, profile, wages, count) {
     if (!date.startsWith('2026-') || profile.federalForm === 'special') return null;
     if (profile.federalForm === 'exempt') {
@@ -166,6 +170,41 @@ const payrollTaxRules = (() => {
     const index = brackets.findLastIndex(([floor]) => annual >= floor);
     const tentative = index < 0 ? 0 : brackets[index][1] + (annual - brackets[index][0]) * federalRates[index];
     return round(Math.max(0, (tentative - (legacy ? 0 : profile.credits)) / count) + profile.federalExtra);
+  }
+
+  function federalSupplementalIncome(date,profile,wages,setup) {
+    if (!date.startsWith('2026-') || setup.method === 'review') return null;
+    const { gross, ytd, priorWages, priorWithheld, separate } = setup;
+    if (!Number.isFinite(ytd) || ytd < 0) throw new Error('Enter year-to-date federal taxable supplemental pay, or 0.');
+    const wagesChanged = wages !== setup.taxableGross;
+    const needsSplit = wagesChanged && (setup.method === 'flat' || ytd + gross > 1000000);
+    if (needsSplit && !Number.isFinite(setup.taxable)) {
+      throw new Error('Enter the federal taxable portion of the supplemental pay after deductions.');
+    }
+    const supplemental = Number.isFinite(setup.taxable) ? setup.taxable : Math.min(gross,wages);
+    if (supplemental > wages || supplemental > gross) {
+      throw new Error('Federal taxable supplemental pay cannot exceed supplemental pay or total federal taxable wages.');
+    }
+    const aboveLimit = Math.max(0,supplemental - Math.max(0,1000000 - ytd));
+    const belowLimit = round(supplemental - aboveLimit);
+    const regular = round(wages - supplemental);
+    const topTax = percentOfWages(aboveLimit,37);
+    if (setup.method === 'flat') {
+      if (belowLimit > 0 && !setup.regularWithholding) {
+        throw new Error('Confirm federal income tax was withheld from regular wages this year or last year to use the 22% rate.');
+      }
+      const regularTax = regular ? federalIncome(date,profile,regular,profile.periods) : 0;
+      return regularTax === null ? null : round(regularTax + percentOfWages(belowLimit,22) + topTax);
+    }
+    const needsPrior = separate && belowLimit > 0;
+    if (needsPrior && ![priorWages,priorWithheld].every(value => Number.isFinite(value) && value >= 0)) {
+      throw new Error('Enter the previously paid taxable wages and withholding used for the separate check.');
+    }
+    const aggregate = round(regular + belowLimit + (needsPrior ? priorWages : 0));
+    const combinedTax = aggregate ? federalIncome(date,profile,aggregate,profile.periods) : 0;
+    if (combinedTax === null) return null;
+    const priorTax = needsPrior ? priorWithheld : 0;
+    return round(Math.max(0,combinedTax - priorTax) + topTax);
   }
 
   function fica(date, input) {
@@ -223,6 +262,7 @@ const payrollTaxRules = (() => {
     const { periodStartsOn, maContributions } = input;
     if (!date.startsWith('2026-') || !covers(state) || stateTreatment === 'review') return null;
     if (noStateIncomeTax.has(state)) return 0;
+    if (input.supplemental?.separate) return null;
     if (state === 'UT' && !periodStartsOn && date >= '2026-06-01') return null;
     if (stateTreatment === 'exempt') return profile.stateExemptYear === 2026 ? 0 : null;
     let amount;
@@ -351,24 +391,29 @@ const payrollTaxRules = (() => {
       throw new Error('Enter each wage amount and both year-to-date totals. Enter 0 where applicable.');
     }
     const local = localIncome(date, profile, localWages, profile.periods, periodStartsOn);
+    if (input.supplemental?.separate && !['none','configured'].includes(profile.locality)) local.amount = null;
     const savedLocalTaxes = (profile.localTaxes || []).map((tax,index) => {
       const specificWages = input.localTaxWages?.[index];
       const wages = Number.isFinite(specificWages) ? specificWages : localWages;
-      return { name:tax.name, amount:round(tax.method === 'fixed' ? tax.value : wages * tax.value / 100),
+      return { name:tax.name, amount:tax.method === 'fixed' ? round(tax.value) : percentOfWages(wages,tax.value),
         source:typeof tax.source === 'string' && tax.source.startsWith('https://') ? tax.source : undefined };
     });
     const [socialSecurity, medicare, additionalMedicare] = fica(date, input);
-    const federalAmount = federalIncome(date,profile,federalWages,profile.periods);
+    const federalAmount = input.reimbursementOnly && federalWages === 0 ? 0 : input.supplemental
+      ? federalSupplementalIncome(date,profile,federalWages,input.supplemental)
+      : federalIncome(date,profile,federalWages,profile.periods);
+    const stateAmount = input.reimbursementOnly && stateWages === 0 ? 0
+      : stateIncome(date,profile,stateWages,profile.periods,input,federalAmount);
     const employee = [
-      { name:'Federal income tax', amount:federalAmount, source:sources.federal },
-      { type:'state', name:states[profile.state][0] + ' income tax', amount:stateIncome(date,profile,stateWages,profile.periods,input,federalAmount),
+      { type:'federal', name:'Federal income tax', amount:federalAmount, source:input.supplemental ? sources.fica : sources.federal },
+      { type:'state', name:states[profile.state][0] + ' income tax', amount:stateAmount,
         source:sources[profile.state] || (noStateIncomeTax.has(profile.state) ? sources.noState : states[profile.state][1]) },
       ...(savedLocalTaxes.length && profile.locality === 'configured' ? [] :
         [{ type:'local', name:local.name || 'City / county income tax', amount:local.amount, source:local.source }]),
       ...savedLocalTaxes,
-      { name:'Social Security', amount:socialSecurity, source:sources.fica },
-      { name:'Medicare', amount:medicare, source:sources.fica },
-      { name:'Additional Medicare', amount:additionalMedicare, source:sources.fica }
+      { type:'fica', name:'Social Security (FICA)', amount:socialSecurity, source:sources.fica },
+      { type:'fica', name:'Medicare (FICA)', amount:medicare, source:sources.fica },
+      { type:'fica', name:'Additional Medicare', amount:additionalMedicare, source:sources.fica }
     ];
     if (employee.some(row => row.amount !== null && (!Number.isFinite(row.amount) || row.amount < 0))) {
       throw new Error('Review the withholding elections and save the employee’s tax profile again.');
@@ -379,7 +424,7 @@ const payrollTaxRules = (() => {
     ] };
   }
 
-  return { states, indianaCounties, kentuckyLocalities, ohioDistricts, sources, covers, periods, baseFields, calculate,
+  return { states, indianaCounties, kentuckyLocalities, ohioDistricts, sources, covers, periods, baseFields, calculate, percentOfWages,
     hasStateElections:stateFormulas.hasElections, marylandLocalities:stateFormulas.marylandLocalities };
 })();
 

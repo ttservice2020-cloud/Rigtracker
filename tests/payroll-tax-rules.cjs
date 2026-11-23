@@ -1,9 +1,9 @@
 const assert = require('node:assert/strict');
 const {
-  calculate, covers, states, indianaCounties, kentuckyLocalities, baseFields, marylandLocalities, ohioDistricts
+  calculate, covers, states, indianaCounties, kentuckyLocalities, baseFields, marylandLocalities, ohioDistricts, percentOfWages
 } = require('../payroll-tax-rules.js');
 const stateFormulas = require('../payroll-tax-state-formulas.js');
-const { stateWageBase, unemployment, federalGarnishmentLimit } = require('../payroll-tax-deductions.js');
+const { stateWageBase, unemployment, federalGarnishmentLimit, payAmounts } = require('../payroll-tax-deductions.js');
 const profile = {
   state:'KY', periods:52, federalForm:'current', filingStatus:'single', multipleJobs:false, legacyAllowances:0,
   credits:0, otherIncome:0, deductions:0, federalExtra:0, federalExemptYear:2026, stateTreatment:'regular',
@@ -164,4 +164,33 @@ assert.equal(federalGarnishmentLimit(52,370,'ordinary'),92.50);
 assert.equal(federalGarnishmentLimit(12,1000,'ordinary'),57.50);
 assert.equal(federalGarnishmentLimit(52,800,'support',true,false),400);
 assert.equal(federalGarnishmentLimit(52,800,'support',false,true),520);
-console.log('Payroll calculations passed nationwide regular wages, agency examples, local rates, effective dates, unemployment, and federal deduction limits.');
+assert.equal(percentOfWages(875.50,1.3),11.38);
+
+const payItems = [{type:'bonus',amount:200},{type:'accountableReimbursement',amount:80}];
+const pay = payAmounts(1000,payItems,[{amount:100,reduces:['federalWages']}]);
+assert.equal(pay.grossPay,1280);
+assert.equal(pay.taxableGross,1200);
+assert.equal(pay.supplementalGross,200);
+assert.equal(pay.wageBases.federalWages,1100);
+assert.equal(pay.wageBases.socialSecurityWages,1200);
+assert.equal(pay.wageBases.futaWages,1200);
+assert.equal(payAmounts(1000,[{type:'overtimeRegular',amount:100},{type:'taxableReimbursement',amount:75}],
+  [{amount:40,reduces:['socialSecurityWages','medicareWages','sutaWages']}]).wageBases.medicareWages,1135);
+assert.equal(payAmounts(1000,payItems,[{amount:100,reduces:[]}]).wageBases.federalWages,1200);
+assert.throws(() => payAmounts(0,[],[{amount:100,reduces:['federalWages']}]),/exceed/);
+
+const supplemental = {gross:200,taxableGross:1200,ytd:0,method:'aggregate',separate:false,regularWithholding:false};
+assert.deepEqual(deductions(1280,{}, {...pay.wageBases,supplemental}),[90.08,39.74,0,74.40,17.40,0]);
+assert.throws(() => deductions(1280,{}, {...pay.wageBases,supplemental:{...supplemental,method:'flat',regularWithholding:true}}),/taxable portion/);
+assert.throws(() => deductions(1200,{}, {supplemental:{...supplemental,method:'flat'}}),/Confirm federal/);
+assert.equal(deductions(1280,{}, {...pay.wageBases,
+  supplemental:{...supplemental,method:'flat',regularWithholding:true,taxable:200}})[0],110.08);
+const separate = {gross:500,taxableGross:500,ytd:0,method:'aggregate',separate:true,priorWages:1000,priorWithheld:78.08};
+assert.deepEqual(deductions(500,{locality:'lexington'},{supplemental:separate}).slice(0,3),[82.11,null,null]);
+assert.throws(() => deductions(500,{}, {supplemental:{...separate,priorWages:NaN}}),/previously paid/);
+const crossesCap = {gross:1000,taxableGross:1000,ytd:999900,method:'flat',separate:true,regularWithholding:true};
+assert.equal(deductions(1000,{}, {supplemental:crossesCap})[0],355);
+assert.equal(deductions(1000,{federalForm:'exempt'}, {supplemental:{...crossesCap,ytd:1000000,regularWithholding:false}})[0],370);
+assert.deepEqual(deductions(80,{federalExtra:10,stateExtra:20},{reimbursementOnly:true,
+  federalWages:0,stateWages:0,localWages:0,socialSecurityWages:0,medicareWages:0}),[0,0,0,0,0,0]);
+console.log('Payroll calculations passed regular and supplemental pay, reimbursements, pre-tax deductions, local rates, and federal caps.');
