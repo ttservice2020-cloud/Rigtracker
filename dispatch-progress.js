@@ -287,6 +287,64 @@ const dispatchProgress = (() => {
       toggle('dispatchContractRunsEmpty', !rows.length);
     }
 
+    function editLumper(load,stop) {
+      if (!canEdit(load.id)) return;
+      const dialog = byId('dispatchLumperDialog');
+      const form = byId('dispatchLumperForm');
+      const amount = byId('dispatchLumperAmount');
+      const payer = byId('dispatchLumperPayer');
+      const reimbursement = byId('dispatchLumperReimbursement');
+      const payee = byId('dispatchLumperPayee');
+      const status = byId('dispatchLumperStatus');
+      const save = byId('dispatchLumperSave');
+      const report = stop.progress?.driverReport || {};
+      const drivers = loadDriverContacts(load);
+      byId('dispatchLumperStop').textContent = [proLabel(load),stop.company || progressLabel(stop)].join(' · ');
+      amount.value = report.lumperFee ?? 0;
+      payer.value = report.lumperPayer || '';
+      reimbursement.checked = report.lumperReimburse === true;
+      payee.replaceChildren(new Option('Select driver',''),...drivers.map(driver => new Option(driver.name,driver.id)));
+      payee.value = report.lumperDriverId || (drivers.length === 1 ? drivers[0].id : '');
+      status.textContent = '';
+      save.disabled = false;
+      function sync() {
+        const hasFee = amount.valueAsNumber>0;
+        payer.disabled = !hasFee;
+        payer.required = hasFee;
+        const paidByDriver = hasFee && payer.value === 'driver';
+        byId('dispatchLumperReimbursementField').classList.toggle('hidden',!paidByDriver);
+        reimbursement.disabled = !paidByDriver;
+        const hasPayee = paidByDriver && reimbursement.checked;
+        byId('dispatchLumperPayeeField').classList.toggle('hidden',!hasPayee);
+        payee.disabled = !hasPayee;
+        payee.required = hasPayee;
+      }
+      form.oninput = form.onchange = sync;
+      form.onsubmit = async event => {
+        event.preventDefault();
+        if (save.disabled || !canEdit(load.id)) return;
+        save.disabled = true;
+        status.textContent = 'Saving lumper fee…';
+        try {
+          const {error} = await supabaseClient.rpc('set_dispatch_stop_lumper',{
+            target_load:load.id,target_stop:stop.key,fee:amount.valueAsNumber,
+            paid_by:payer.disabled ? null : payer.value,
+            reimburse_driver:!reimbursement.disabled && reimbursement.checked,
+            payee:payee.disabled ? null : payee.value,
+            expected_updated_at:load.updated_at
+          });
+          if (error) throw error;
+          dialog.close();
+          showToast('Lumper fee saved.');
+          await fleetDispatchApp.reload();
+        } catch (error) {
+          if (dialog.open) status.textContent = error.message || 'Could not save the lumper fee.';
+        } finally { save.disabled = false; }
+      };
+      sync();
+      if (!dialog.open) dialog.showModal();
+    }
+
     function paint() {
       const load = active();
       if (!load) {
@@ -466,7 +524,13 @@ const dispatchProgress = (() => {
         const documents = driverLoadWorkflow.paperworkButtons(report, pickup ? 'signed pickup BOL' : 'signed delivery BOL', button, context);
         docs.append(...documents);
         if (pickup && !documents.length) docs.append(element('p', 'Pickup BOL: Not uploaded · ' + context, 'dispatch-document-missing'));
-        docs.append(element('p', driverLoadWorkflow.lumperCharge(report) + ' · ' + context, 'muted'));
+        docs.append(element('p',driverLoadWorkflow.lumperCharge(report) + ' · ' + context,'muted'));
+        if (current || load.status === 'completed') {
+          const editFee = button('Edit Lumper Fee',() => editLumper(load,stop));
+          editFee.setAttribute('aria-label','Edit lumper fee for ' + context);
+          editFee.disabled = readOnly || Boolean(request);
+          docs.append(editFee);
+        }
       }
       history(load);
     }
@@ -607,7 +671,7 @@ const dispatchProgress = (() => {
       void record('arrive', selectedStop.key, new Date(instant).toISOString());
     });
 
-    return { show, close, paint, id: () => activeId, reset: () => { request = null; close(); } };
+    return { show, close, paint, id: () => activeId, reset: () => { request = null; byId('dispatchLumperDialog').close(); close(); } };
   }
 
   return { bind, summarize, appointment, clockText, time, recordedTime, localDateTime, relayDriverId };

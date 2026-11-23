@@ -1077,32 +1077,6 @@ const companyDriverTools = (() => {
       : 'Higher-of pay scale is incomplete';
     return 'Pay scale not set';
   }
-  function settlementLoadPay(load) {
-    const money = value => value !== null && value !== '' && value !== undefined && Number.isFinite(Number(value));
-    const rawTotal = load.pay_entry?.totalPay;
-    const rawBase = load.pay_entry?.amount ?? load.manual_pay;
-    const additional = Number(load.pay_entry?.additionalPay ?? load.additional_pay ?? 0) || 0;
-    const scale = load.pay_scale || {};
-    const emptyMiles = money(load.empty_miles) ? Number(load.empty_miles) : 0;
-    const empty = money(load.pay_entry?.emptyPay) ? Number(load.pay_entry.emptyPay)
-      : money(scale.empty_mile_rate) && money(load.empty_miles) ? emptyMiles * Number(scale.empty_mile_rate) : 0;
-    const stop = Number(load.stop_pay ?? 0) || 0;
-    let calculatedBase = null;
-    const loadedMiles = Number(load.loaded_miles);
-    const gross = Number(load.gross);
-    const rate = Number(scale.mile_rate);
-    const percentage = Number(scale.split_percent);
-    const perMile = money(load.loaded_miles) && money(scale.mile_rate) ? loadedMiles * rate : null;
-    const percent = money(load.gross) && money(scale.split_percent) ? gross * percentage / 100 : null;
-    if (scale.method === 'per_mile') calculatedBase = perMile;
-    else if (scale.method === 'load_percent') calculatedBase = percent;
-    else if (scale.method === 'higher_of' && perMile !== null && percent !== null) calculatedBase = Math.max(perMile, percent);
-    const baseKnown = money(rawTotal) || money(rawBase) || calculatedBase !== null;
-    const base = money(rawTotal) ? Number(rawTotal)
-      : money(rawBase) ? Number(rawBase) + empty + additional
-      : calculatedBase !== null ? calculatedBase + empty + additional : additional;
-    return { baseKnown, base, empty, additional, stop, total: base + stop };
-  }
   function checkedSettlementIds() {
     return [...byId('companyPayrollLoadSettlements').querySelectorAll('[data-settlement-load]:checked:not(:disabled)')]
       .map(input => input.value);
@@ -1181,7 +1155,10 @@ const companyDriverTools = (() => {
       origin:settlementStopPlace(line.pickup),
       destination:settlementStopPlace(line.receiver),
       pay:line.base_pay_entered && line.total_pay != null ? Number(line.total_pay) : null,
-      hasBol:line.has_signed_bol
+      hasBol:line.has_signed_bol,
+      otherPay:[['Stop pay',line.stop_pay],['Empty-mile pay',line.empty_mile_pay],['Additional pay',line.additional_pay]]
+        .filter(([,amount]) => Number(amount)>0).map(([name,amount]) => ({name,amount:Number(amount)})),
+      lumperReimbursement:Number(line.lumper_reimbursement) || 0
     }));
     const rows = lines.map((line,index) => {
       const label = (line.is_return ? 'B-' : 'A-') + line.pro_number;
@@ -1202,7 +1179,8 @@ const companyDriverTools = (() => {
     const taxContext = settlement.id && canManageTax() ? {
       mode:'preview',kind:'settlement',reference:settlement.id,fleet:payroll?.fleet_id,user:currentUser,
       name:[settlement.driver,settlement.settlement_number].filter(Boolean).join(' · '),
-      gross:missingBase ? null : settlement.total_pay,loads:statementLoads,loadCount:settlement.load_count
+      gross:missingBase ? null : settlement.total_pay,loads:statementLoads,loadCount:settlement.load_count,
+      lumperReimbursement:Math.round(statementLoads.reduce((sum,line) => sum + line.lumperReimbursement,0)*100)/100
     } : null;
     const yearToDate = element('div','','settlement-year-to-date');
     if (taxContext) {
@@ -1366,76 +1344,84 @@ const companyDriverTools = (() => {
     }
   }
 
-  function paintSettlementLoads(selection, loads) {
+  function openBolReview(selection,load) {
+    const dialog = byId('payrollBolReviewDialog');
+    const note = byId('payrollBolReviewNote');
+    const status = byId('payrollBolReviewStatus');
+    const flag = byId('payrollBolFlag');
+    const approve = byId('payrollBolApprove');
+    const pro = (load.is_return ? 'B-' : 'A-') + load.pro_number;
+    byId('payrollBolReviewTitle').textContent = 'Review BOL · ' + pro;
+    note.value = load.bol_review?.note || '';
+    status.textContent = load.has_signed_bol === false ? 'Signed BOL missing.'
+      : load.bol_review?.status === 'flagged' ? 'Flagged for correction.'
+        : load.bol_review?.status === 'reviewed' ? 'Reviewed.' : '';
+    approve.disabled = load.has_signed_bol === false;
+    flag.disabled = false;
+    const files = byId('payrollBolReviewFiles');
+    files.replaceChildren(settlementRoute({origin:settlementStopPlace(load.pickup),destination:settlementStopPlace(load.receiver)}));
+    for (const report of [...(load.pickup_reports || []),...(load.receiver_reports || [])]) {
+      const label = report.kind === 'pickup' ? 'Pickup BOL' : 'Delivery paperwork';
+      files.append(...driverLoadWorkflow.paperworkButtons(report.report,label,button,report.stop?.company));
+      if (Number(report.report?.lumperFee)>0) files.append(element('p',driverLoadWorkflow.lumperCharge(report.report),'muted'));
+    }
+    async function save(review_status) {
+      flag.disabled = approve.disabled = true;
+      status.textContent = 'Saving review…';
+      try {
+        const {error} = await supabaseClient.rpc('review_load_bol_for_pay',{
+          target_load:load.load_id,review_status,review_note:review_status === 'flagged' ? note.value : ''
+        });
+        if (error) throw error;
+        if (!activeSettlementView(selection)) return;
+        dialog.close();
+        await loadSettlementLoads(selection.fleet,selection.profileId,true);
+      } catch (error) {
+        if (dialog.open) status.textContent = error.message || 'Could not save the review.';
+      } finally {
+        flag.disabled = false;
+        approve.disabled = load.has_signed_bol === false;
+      }
+    }
+    flag.onclick = () => void save('flagged');
+    approve.onclick = () => void save('reviewed');
+    if (!dialog.open) dialog.showModal();
+  }
+
+  function paintSettlementLoads(selection,loads) {
     const signature = JSON.stringify(loads);
     if (selection.signature === signature) return;
     const list = byId('companyPayrollLoadSettlements');
     const checked = new Set(checkedSettlementIds());
-    const expanded = new Set([...list.querySelectorAll('.settlement-load-details[open]')]
-      .map(details => details.closest('article').querySelector('[data-settlement-load]').value));
     selection.loads = loads;
     selection.signature = signature;
-    const currency = new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' });
     const available = loads.filter(load => !load.created_settlement);
     list.replaceChildren(...(available.length ? available.map(load => {
-      const row = element('article', '', 'dispatch-load-row company-pay-load-row');
-      const summary = element('div');
-      const label = (load.is_return ? 'B-' : 'A-') + load.pro_number;
-      summary.append(element('strong', label + (load.route_number ? ' · Route ' + load.route_number : '')),
-        settlementRoute({origin:settlementStopPlace(load.pickup),destination:settlementStopPlace(load.receiver)}));
-      if (load.has_signed_bol === false) markMissingBol(summary);
-      const completedAt = load.completed_at || load.updated_at;
-      if (completedAt) summary.append(element('p', 'Completed ' + clockFormat.format(new Date(completedAt)), 'muted'));
-      const miles = [load.loaded_miles != null ? Number(load.loaded_miles).toLocaleString() + ' loaded mi' : '',
-        load.empty_miles != null ? Number(load.empty_miles).toLocaleString() + ' empty mi' : ''].filter(Boolean).join(' · ');
-      summary.append(element('p', 'Miles: ' + (miles || 'Not recorded')));
-      summary.append(element('p', 'Profile pay scale: ' + payScaleLabel(load.pay_scale)));
-      const pay = settlementLoadPay(load);
-      if (pay.baseKnown) summary.append(element('p', 'Base / saved pay: ' + currency.format(pay.base - pay.additional - pay.empty)));
-      else summary.append(element('p', 'Base pay not entered', 'muted'));
-      if (pay.stop) summary.append(element('p', 'Stop pay: ' + currency.format(pay.stop)));
-      if (pay.additional) summary.append(element('p', 'Additional pay: ' + currency.format(pay.additional)));
-      const choose = element('label', '', 'settlement-load-include');
+      const row = element('article','','dispatch-load-row company-pay-load-row');
+      const pro = (load.is_return ? 'B-' : 'A-') + load.pro_number;
+      const warning = load.has_signed_bol === false ? 'Signed BOL missing'
+        : load.bol_review?.status === 'flagged' ? 'BOL flagged for correction' : '';
+      if (warning) {
+        row.dataset.bolStatus = load.has_signed_bol === false ? 'missing' : 'flagged';
+        row.title = warning;
+      }
+      const choose = element('label','','settlement-load-include');
       const checkbox = document.createElement('input');
       checkbox.type = 'checkbox';
       checkbox.value = load.load_id;
       checkbox.dataset.settlementLoad = 'true';
+      checkbox.setAttribute('aria-label','Select ' + pro + (warning ? ', ' + warning : ''));
       checkbox.checked = checked.has(load.load_id);
       checkbox.addEventListener('change',updateSettlementButton);
-      choose.append(checkbox,element('span','Select ' + label));
-      const freight = load.freight || {};
-      const more = element('details', '', 'settlement-load-details');
-      more.open = expanded.has(load.load_id);
-      more.append(element('summary', 'View load details'));
-      const facts = element('dl', '', 'settlement-load-facts');
-      const fact = (label, value) => { if (value !== null && value !== undefined && String(value).trim()) {
-        const pair = element('div'); pair.append(element('dt', label), element('dd', String(value))); facts.append(pair);
-      }};
-      fact('Truck number', freight.truckNumber); fact('Trailer number', freight.trailerNumber);
-      fact('Commodity', freight.commodity === 'Other' ? freight.commodityOther : freight.commodity);
-      fact('Weight', freight.weightLbs ? Number(freight.weightLbs).toLocaleString() + ' lb' : '');
-      fact('Pieces', freight.pieces); fact('Equipment', freight.equipmentType === 'Other' ? freight.equipmentTypeOther : freight.equipmentType);
-      fact('Trailer drop', freight.trailerDrop === 'yes' ? freight.trailerDropNotes || 'Yes' : 'No');
-      fact('Broker', freight.brokerName); fact('Broker contact', [freight.brokerPhone, freight.brokerEmail].filter(Boolean).join(' · '));
-      fact('Shipper', load.pickup?.company); fact('Receiver', load.receiver?.company);
-      fact('Shipper contact', driverLoadWorkflow.stopContact(load.pickup));
-      fact('Receiver contact', driverLoadWorkflow.stopContact(load.receiver));
-      fact('Route / shipping number', [freight.routeNumber, freight.brokerLoadNumber].filter(Boolean).join(' · '));
-      fact('Pickup number', freight.pickupNumber); fact('Loaded miles', load.loaded_miles != null ? Number(load.loaded_miles).toLocaleString() + ' mi' : '');
-      fact('Stop pay', currency.format(Number(load.stop_pay || 0)));
-      fact('Additional pay', currency.format(Number(load.additional_pay || 0)));
-      more.append(facts);
-      for (const report of [...(load.pickup_reports || []), ...(load.receiver_reports || [])].filter(Boolean)) {
-        const label = report.kind === 'pickup' ? 'signed pickup BOL' : 'signed delivery BOL';
-        more.append(...driverLoadWorkflow.paperworkButtons(report.report, label, button));
-        more.append(element('p', driverLoadWorkflow.lumperCharge(report.report), 'muted'));
-      }
-      if (freight.rateConfirmation?.path) more.append(button('View Rate Confirmation', () => openRateConfirmation(freight.rateConfirmation.path)));
-      row.append(summary,more,choose);
+      choose.append(checkbox,element('strong',pro));
+      const review = button('Review',() => openBolReview(selection,load));
+      review.setAttribute('aria-label','Review BOL for ' + pro + (warning ? ', ' + warning : ''));
+      row.append(choose,review);
       return row;
-    }) : [element('p', 'No loads are ready for settlement for this driver.', 'muted')]));
+    }) : [element('p','No loads are ready for settlement for this driver.','muted')]));
     updateSettlementButton();
   }
+
   function paintPayroll(queue) {
     const picker = byId('companyPayrollDriver');
     const selected = picker.value;
@@ -1616,6 +1602,7 @@ const companyDriverTools = (() => {
   }
 
   function reset() {
+    byId('payrollBolReviewDialog').close();
     view = null; payroll = null; payrollOrigin = null; payrollRequest = null;
     fuelRequest = null; payrollSection = null;
     fuelForm.reset();

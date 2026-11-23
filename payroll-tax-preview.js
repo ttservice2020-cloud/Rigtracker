@@ -509,6 +509,17 @@ const payrollTaxPreview = (() => {
     if (loads.length) {
       pay.append(element('h3','Loads in this statement'),statementLoadTable(loads.slice(0,firstPageLimit)));
     }
+    const additionalLoadPay = new Map();
+    for (const load of loads) {
+      for (const item of load.otherPay || []) {
+        additionalLoadPay.set(item.name,money((additionalLoadPay.get(item.name) || 0) + item.amount));
+      }
+    }
+    if (additionalLoadPay.size) pay.append(...estimateSection('Included in load pay',
+      [...additionalLoadPay].map(([name,amount]) => ({name,amount}))));
+    if (details.draft && details.lumperTotal>0) pay.append(...estimateSection('Reimbursement to review',[
+      {name:'Driver-paid lumper fee',amount:details.lumperTotal}
+    ]));
     pay.append(...estimateSection('Earnings and reimbursements',[
       ...(details.earnings || []),{name:'Gross pay',amount:amounts.gross}
     ]),...estimateSection('Deductions',[
@@ -563,7 +574,7 @@ const payrollTaxPreview = (() => {
         return;
       }
       const draft = statementPages(context.name,date,{
-        draft:true,loads:context.loads,taxTotal:null
+        draft:true,loads:context.loads,taxTotal:null,lumperTotal:context.lumperReimbursement
       },{
         gross:context.gross == null ? null : Number(context.gross),deductions:null,
         federalWages:null,socialSecurityYtd:null,medicareYtd:null
@@ -679,7 +690,7 @@ const payrollTaxPreview = (() => {
     },onChange);
   }
 
-  function payItemFields(onChange) {
+  function payItemFields(onChange,importedSupplemental) {
     const choices = [['','Choose a pay type'],['bonus','Bonus'],['commission','Commission'],
       ['overtimeRegular','Overtime pay (regular withholding)'],['overtime','Overtime pay (supplemental withholding)'],
       ['taxableReimbursement','Taxable reimbursement'],['accountableReimbursement','Qualified accountable-plan reimbursement'],
@@ -698,7 +709,7 @@ const payrollTaxPreview = (() => {
     const methodInput = method.querySelector('select');
     const separateInput = separate.querySelector('input');
     function sync() {
-      setup.hidden = !entries.read().some(item => payrollTaxDeductions.isSupplemental(item.type));
+      setup.hidden = !importedSupplemental() && !entries.read().some(item => payrollTaxDeductions.isSupplemental(item.type));
       const manual = methodInput.value === 'review';
       visible(method,!setup.hidden);
       visible(separate,!setup.hidden);
@@ -725,7 +736,7 @@ const payrollTaxPreview = (() => {
     setup.append(grid(method,separate,ytd,taxable,confirmed,priorWages,priorWithheld));
     entries.details.append(setup);
     sync();
-    return {...entries, supplemental:pay => pay.supplementalGross ? {
+    return {...entries,sync,supplemental:pay => pay.supplementalGross ? {
       gross:pay.supplementalGross,taxableGross:pay.taxableGross,method:methodInput.value,separate:separateInput.checked,
       ytd:ytd.querySelector('input').valueAsNumber,taxable:taxable.querySelector('input').valueAsNumber,
       priorWages:priorWages.querySelector('input').valueAsNumber,priorWithheld:priorWithheld.querySelector('input').valueAsNumber,
@@ -853,6 +864,12 @@ const payrollTaxPreview = (() => {
 
     const form = element('form');
     const amount = field('grossPay','Regular gross pay',{ value:context.gross });
+    const lumperTotal = context.lumperReimbursement || 0;
+    const lumperTreatment = lumperTotal > 0 ? field('lumperTreatment',
+      'Tax treatment for ' + currency.format(lumperTotal) + ' lumper reimbursement',{
+      choices:[['','Choose tax treatment'],['accountableReimbursement','Qualified accountable-plan reimbursement'],
+        ['taxableReimbursement','Taxable reimbursement']]
+    }) : null;
     const hours = field('workedHours','Hours worked (optional)',{required:false,max:1000});
     const rate = field('hourlyRate','Hourly rate (optional)',{required:false});
     const useHours = button('Use Hours × Rate',() => {
@@ -912,7 +929,9 @@ const payrollTaxPreview = (() => {
       result.replaceChildren();
       message('');
     }
-    const payItems = payItemFields(clearResult);
+    const lumperSelect = lumperTreatment?.querySelector('select');
+    const payItems = payItemFields(clearResult,() => lumperSelect?.value === 'taxableReimbursement');
+    lumperSelect?.addEventListener('change',payItems.sync);
     const payrollDeductions = payrollDeductionFields(clearResult);
     const otherTaxes = otherTaxFields(clearResult);
     const year = Number(date.slice(0,4));
@@ -922,7 +941,7 @@ const payrollTaxPreview = (() => {
         : 'Enter verified regular gross pay or use the hours and rate for an hourly driver.','muted')] : []),
       grid(amount,...(periodStart ? [periodStart] : []),...(massachusettsDeduction ? [massachusettsDeduction] : []),field('socialSecurityYtd','YTD Social Security wages before this check'),
         field('medicareYtd','YTD Medicare wages before this check')),
-      checkFields,foundingTotals,payItems.details,payrollDeductions.details,wageDetails,reviewedIncome,otherTaxes.details,
+      checkFields,...(lumperTreatment ? [lumperTreatment] : []),foundingTotals,payItems.details,payrollDeductions.details,wageDetails,reviewedIncome,otherTaxes.details,
       garnishmentFields(),unemploymentFields(saved.settings.state,year),calculate);
     body.append(historyControls,form,result);
 
@@ -996,6 +1015,9 @@ const payrollTaxPreview = (() => {
       const value = key => form.elements[key].valueAsNumber;
       try {
         const earnings = payItems.read();
+        if (lumperTreatment) earnings.push({
+          type:form.elements.lumperTreatment.value,name:'Lumper reimbursement',amount:lumperTotal
+        });
         const deductions = payrollDeductions.read();
         const pay = payrollTaxDeductions.payAmounts(value('grossPay'),earnings,deductions);
         const {grossPay} = pay;
@@ -1023,7 +1045,7 @@ const payrollTaxPreview = (() => {
           : money(taxTotal + deductionsForStatement.reduce((sum,row) => sum + row.amount,0));
         const complete = subtotal !== null;
         const statement = {
-          ...(Number.isInteger(context.loadCount) ? {loadCount:context.loadCount} : {}),
+          ...(Number.isInteger(context.loadCount) ? {loadCount:context.loadCount,lumperTotal} : {}),
           hours:hasAmount(value('workedHours')) ? value('workedHours') : null,
           hourlyRate:hasAmount(value('hourlyRate')) ? value('hourlyRate') : null,
           earnings:[{name:'Regular pay',amount:value('grossPay')},...earnings],

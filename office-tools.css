@@ -55,7 +55,7 @@
 }
 
 #companySettlementLoadQueue .dispatch-load-list{margin-bottom:10px}
-#companySettlementLoadQueue .company-pay-load-row:has([data-missing-bol]){
+#companySettlementLoadQueue .company-pay-load-row[data-bol-status="missing"]{
   border-color:#c65a59;background:rgba(134,35,38,.22)
 }
 .settlement-preview-line[data-missing-bol]{border-left:3px solid #c65a59;padding-left:10px}
@@ -79,7 +79,14 @@
 .statement-work-area,#companySettlementLoadQueue{min-width:0}
 .statement-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
 .statement-heading h2{margin:0}
-#companySettlementLoadQueue .company-pay-load-row{display:grid;grid-template-columns:minmax(0,1fr);gap:8px}
+#companySettlementLoadQueue .company-pay-load-row{
+ display:flex;justify-content:space-between;align-items:center;gap:8px
+}
+#companySettlementLoadQueue .company-pay-load-row[data-bol-status="flagged"]{
+ border-color:#deb357;background:rgba(124,91,27,.22)
+}
+#payrollBolReviewFiles{margin:0 0 14px}
+#payrollBolReviewNote{width:100%;box-sizing:border-box}
 @media(min-width:681px){
  #companyStatementWorkspace .statement-work-area{
   max-height:75vh;overflow:auto;scroll-padding:10px

@@ -425,7 +425,9 @@ const driverLoadWorkflow = (() => {
     const reported = Number.isFinite(amount) && amount > 0;
     const payer = report?.lumperPayer === 'driver' ? 'Driver'
       : report?.lumperPayer === 'fleet' ? 'Fleet' : 'Payer not recorded';
-    return 'Lumper fee: ' + currency.format(reported ? amount : 0) + (reported ? ' · ' + payer : '');
+    return 'Lumper fee: ' + currency.format(reported ? amount : 0) + (reported ? ' · ' + payer +
+      (report.lumperReimburse ? ' · Reimburse driver' : report.lumperPayer === 'driver' && report.lumperReimburse === false
+        ? ' · No reimbursement' : '') : '');
   }
 
   function paperworkFiles(report) {
@@ -604,28 +606,8 @@ const driverLoadWorkflow = (() => {
       input('Pieces', 'pieces', { inputMode:'numeric', maxLength:20 }),
       input('BOL number', 'bol', { maxLength:100 })
     ] : [];
-    const lumper = input('Lumper fee ($)', 'lumperFee', {
-      inputMode:'decimal', maxLength:15, value:'0',
-      pattern:'[0-9]{1,12}(\\.[0-9]{1,2})?|\\.[0-9]{1,2}',
-      title:'Enter a dollar amount with up to two decimal places.'
-    });
-    const amount = lumper.querySelector('input');
-    const payer = node('select');
-    payer.name = 'lumperPayer';
-    payer.setAttribute('aria-label', 'Lumper fee paid by');
-    setOptions(payer, [['driver','Driver'],['fleet','Fleet']], 'Select who paid');
-    const payerField = field('Paid by', payer);
-    function updateLumperPayer() {
-      const reported = amount.validity.valid && Number(amount.value) > 0;
-      payerField.classList.toggle('hidden', !reported);
-      payer.disabled = !reported;
-      payer.required = reported;
-    }
-    amount.addEventListener('input', updateLumperPayer);
-    updateLumperPayer();
     form.append(fields(
       trailer, bobtail, ...pickupFreight,
-      lumper, payerField,
       dropped,
       picked, field('Picked-up trailer status', state)
     ));
@@ -646,7 +628,7 @@ const driverLoadWorkflow = (() => {
       event.preventDefault();
       if (draft.saving || !currentUser || !updateTrailer()) return;
       const user = currentUser;
-      const data = { ...values(form), stop: stop.key, lumperPayer: payer.disabled ? null : payer.value };
+      const data = { ...values(form), stop:stop.key };
       draft.saving = paperwork.disabled = submit.disabled = true;
       const originalLabel = submit.textContent;
       try {
