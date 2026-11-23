@@ -296,7 +296,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 </style>
 <link rel="stylesheet" href="./dispatch.css?v=daily-payroll-1">
 <link rel="stylesheet" href="./driver-app.css?v=profile-records-1">
-<link rel="stylesheet" href="./office-tools.css?v=1">
+<link rel="stylesheet" href="./office-tools.css?v=payroll-tax-1">
 </head>
 <body>
 <header class="brandbar hidden" id="appHeader">
@@ -1434,6 +1434,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
     </section>
     <section class="panel hidden" id="companyDriverAdminTax">
      <h2>Tax Information</h2>
+     <button class="outline hidden" id="companyDriverPayrollTax" type="button">Withholding Elections</button>
      <div data-driver-profile-files="tax"></div>
     </section>
     <section class="panel hidden" id="companyDriverAdminPayStatus">
@@ -1701,6 +1702,14 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
  <p id="driverInstallSteps"></p>
  <form method="dialog"><button class="primary-btn" type="submit">Done</button></form>
 </dialog>
+<dialog class="office-profile-dialog payroll-tax-dialog" id="payrollTaxDialog" aria-labelledby="payrollTaxTitle">
+ <div class="page-head">
+  <h2 id="payrollTaxTitle">Tax Information</h2>
+  <form method="dialog"><button class="outline" type="submit">Close</button></form>
+ </div>
+ <p id="payrollTaxStatus" class="muted" role="status"></p>
+ <div id="payrollTaxBody"></div>
+</dialog>
 <dialog class="office-profile-dialog" id="officePayrollShiftDialog" aria-labelledby="officePayrollShiftTitle">
  <form id="officePayrollShiftForm">
   <h2 id="officePayrollShiftTitle">Edit shift</h2>
@@ -1775,7 +1784,11 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 <script src="./dispatch.js?v=relay-resume-1"></script>
 <script src="./linked-profiles.js?v=owner-escrow-1"></script>
 <script src="./fleet-equipment.js?v=profile-links-1"></script>
-<script src="./company-driver-tools.js?v=owner-escrow-1"></script>
+<script src="./payroll-tax-jurisdictions.js?v=1"></script>
+<script src="./payroll-tax-new-york.js?v=1"></script>
+<script src="./payroll-tax-rules.js?v=1"></script>
+<script src="./payroll-tax-preview.js?v=1"></script>
+<script src="./company-driver-tools.js?v=payroll-tax-1"></script>
 <script src="./company-messages.js?v=driver-messages-1"></script>
 <script src="./driver-paperwork.js?v=1"></script>
 <script src="./driver-workflow.js?v=lumper-payer-1"></script>
@@ -1784,7 +1797,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 <script src="./driver-app.js?v=owner-escrow-1"></script>
 <script src="./fleet-bol-payments.js?v=paperwork-1"></script>
 <script src="./office-tools.js?v=payroll-time-1"></script>
-<script src="./office-payroll.js?v=daily-payroll-1"></script>
+<script src="./office-payroll.js?v=payroll-tax-1"></script>
 <script src="./owner-escrow.js?v=1"></script>
 <script src="./owner-settlement-records.js?v=owner-deductions-1"></script>
 <script src="./owner-settlement-import.js?v=preview-1"></script>
@@ -1996,6 +2009,7 @@ async function signOut(){
   currentUser=null;settlements=[];stays=[];taxDocuments=[];
   ownerSettlementImport.reset();
   ownerEscrow.reset();
+  payrollTaxPreview.reset();
   adminFleetId=null;
   fleetDispatchApp.reset();
   fleetEquipment.reset();

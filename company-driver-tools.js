@@ -335,6 +335,12 @@ const companyDriverTools = (() => {
         quickFact('Equipment', profile.equipment), quickFact('Dispatch availability', availability[profile.availability])
       );
       if (profile.linked) paintPresence(profile.presence || {});
+      const taxButton = byId('companyDriverPayrollTax');
+      const showTax = profile.company_driver && profile.linked && profile.profile_id && canManageTax();
+      taxButton.classList.toggle('hidden', !showTax);
+      taxButton.onclick = showTax ? () => payrollTaxPreview.open({
+        fleet:selection.fleet, kind:'driver', reference:profile.profile_id, name:name(profile)
+      }) : null;
       const allowed = new Set(profile.tabs || []);
       let recordsRestricted = false;
       for (const control of adminSections) {
@@ -935,6 +941,7 @@ const companyDriverTools = (() => {
     byId('companyPayDraft').replaceChildren(new Option('Generate a new settlement number', ''));
     clearPayForm();
     byId('companyDriverEscrowButton').classList.add('hidden');
+    byId('companyDriverPayrollTax').classList.add('hidden');
     showPage('companyDriverAdminPage');
     return loadOverview(view, initialProfile);
   }
@@ -1170,6 +1177,10 @@ const companyDriverTools = (() => {
       ...rows,
       element('strong', 'Known pay items: ' + settlementCurrency.format(Number(settlement.total_pay)), 'settlement-preview-total'),
       ...(missingBase ? [element('p', 'Review the loads with missing base pay before issuing this settlement.', 'muted')] : []),
+      ...(settlement.id && !missingBase && canManageTax() ? [button('Estimate Payroll Taxes', () => payrollTaxPreview.open({
+        mode:'preview', kind:'settlement', reference:settlement.id, fleet:payroll?.fleet_id,
+        name:[settlement.driver,settlement.settlement_number].filter(Boolean).join(' · '), gross:settlement.total_pay
+      }))] : []),
       button('Print / Save as PDF', () => window.print())
     );
     preview.classList.remove('hidden');
@@ -1425,6 +1436,11 @@ const companyDriverTools = (() => {
 
   function fuelSettingsFleet() {
     return accountTypeFor(currentUser) === 'fleet' ? adminFleetId : officeTools.fuelSettingsFleet();
+  }
+
+  function canManageTax() {
+    return accountTypeFor(currentUser) === 'fleet' || officeTools.has('payroll') ||
+      (officeTools.has('settlements') && officeTools.has('driver_tax'));
   }
 
   function canReadSettlements() {

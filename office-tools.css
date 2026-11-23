@@ -11,3 +11,20 @@
 #officeProfilePasswordForm .employee-setup-actions{flex-wrap:wrap}
 #dispatchWorkspace.office-drivers-only{grid-template-columns:minmax(0,1fr)}
 #dispatchWorkspace.office-drivers-only .dispatch-rail{display:none}
+
+.payroll-tax-dialog{width:min(720px,calc(100% - 24px))}
+.payroll-tax-dialog .page-head{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:8px}
+.payroll-tax-dialog .page-head form{margin:0}
+.payroll-tax-person{font-weight:700}
+.payroll-tax-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));gap:10px}
+.payroll-tax-field input:not([type=checkbox]),.payroll-tax-field select{width:100%;min-width:0;box-sizing:border-box}
+.payroll-tax-field:not([hidden]):has(input[type=checkbox]){display:flex;flex-direction:row-reverse;justify-content:flex-end;align-items:center;gap:8px}
+.payroll-tax-group{padding:10px;border:1px solid #34465f;border-radius:8px;margin:0 0 12px;min-width:0}
+.payroll-tax-group summary{cursor:pointer}
+.payroll-tax-group legend{padding:0 4px}
+.payroll-tax-results{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px 12px}
+.payroll-tax-results dd{margin:0;text-align:right}
+.payroll-tax-results a{font-size:.8em}
+#companyDriverPayrollTax{margin-bottom:12px}
+.payroll-tax-field input[type=checkbox]{width:auto;min-height:0;margin:0}
+.payroll-tax-dialog:modal{box-sizing:border-box}

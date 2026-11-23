@@ -295,7 +295,12 @@ const officePayroll = (() => {
       identity.className = 'muted';
       identity.textContent = [data.fleet_id + '-' + person.employee_id, person.office_role].filter(Boolean).join(' · ');
       card.append(identity);
-      card.append(action('Add Missed Shift', () => openShift(person)));
+      const actions = element('div', '', 'dispatch-actions');
+      const taxEmployee = { kind:'office', reference:person.user_id, fleet:data.fleet_id, name:person.name };
+      actions.append(action('Add Missed Shift', () => openShift(person)),
+        action('Tax Information', () => payrollTaxPreview.open(taxEmployee)),
+        action('Estimate Payroll Taxes', () => payrollTaxPreview.open({ ...taxEmployee,mode:'preview' })));
+      card.append(actions);
       const days = daysFor(person, expanded);
       if (days.length) {
         const list = element('div', '', 'office-payroll-shifts');
