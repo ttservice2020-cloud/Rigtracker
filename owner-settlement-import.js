@@ -69,7 +69,7 @@ const ownerSettlementImport = (() => {
       ['Driver subtotal', summary.gross + summary.driver], ['Carrier deductions and credits', summary.carrier],
       ['Printed net payout', summary.printedNet], ['Difference', summary.printedNet == null ? null : summary.net - summary.printedNet],
       ['Year-to-date earnings', summary.yearEarnings]];
-    const title = node('h3', data.carrier);
+    const title = node('h3', data.carrier + (data.reference ? ' · Statement #' + data.reference : ''));
     const facts = node('p', formatDate(data.periodStart) + ' – ' + formatDate(data.periodEnd) +
       ' · Pay date ' + formatDate(data.payDate), 'muted');
     const issues = data.issues?.length ? node('ul') : null;
@@ -102,7 +102,8 @@ const ownerSettlementImport = (() => {
   function paintRecords(saved) {
     records.replaceChildren();
     for (const row of saved) {
-      const action = node('button', formatDate(row.data.payDate) + ' · ' + formatMoney(row.data.summary.net), 'outline');
+      const label = [row.data.reference, formatDate(row.data.payDate), formatMoney(row.data.summary.net)].filter(Boolean);
+      const action = node('button', label.join(' · '), 'outline');
       action.type = 'button';
       action.addEventListener('click', () => {
         if (reading || currentUser !== view?.user) return;
@@ -119,24 +120,58 @@ const ownerSettlementImport = (() => {
     if (error) throw new Error('Could not open your saved spreadsheets. Try opening this page again.');
     if (request === view && currentUser === request.user) {
       request.saved = data;
+      request.state = 'ready';
       paintRecords(data);
     }
   }
 
+  function renderTaxIfOpen() {
+    if (find('taxPage').classList.contains('active')) renderTax();
+  }
+
+  function taxRecords() {
+    return view?.user === currentUser ? view : { state: 'unavailable', saved: [] };
+  }
+
   async function open() {
     if (!currentUser || accountTypeFor(currentUser) !== 'driver') return reset();
-    if (view?.user === currentUser) return;
+    if (view?.user === currentUser && view.state !== 'error') return;
     reset();
-    const request = { user: currentUser, saved: [] };
+    const request = { user: currentUser, saved: [], state: 'loading' };
     view = request;
-    const { data, error } = await supabaseClient.from('owner_settlement_import_access')
-      .select('user_id').maybeSingle();
-    if (request !== view || currentUser !== request.user) return;
-    if (error) { view = null; return; }
-    if (!data) return;
-    togglePanel(true);
-    try { await loadRecords(request); }
-    catch (error) { if (request === view && currentUser === request.user) status.textContent = error.message; }
+    input.disabled = true;
+    const active = () => request === view && currentUser === request.user;
+    try {
+      const { data, error } = await supabaseClient.from('owner_settlement_import_access')
+        .select('user_id').maybeSingle();
+      if (error) throw error;
+      if (!active()) return;
+      if (!data) {
+        request.state = 'unavailable';
+        return;
+      }
+      togglePanel(true);
+      await loadRecords(request);
+      if (active()) input.disabled = false;
+    } catch {
+      if (active()) {
+        request.state = 'error';
+        status.textContent = uploadStatus.textContent = 'Could not open your saved spreadsheets. Reopen this page to retry.';
+      }
+    } finally {
+      if (active()) renderTaxIfOpen();
+    }
+  }
+
+  function showExistingStatement(existing, data) {
+    if (!data || ownerSettlementRecords.sameAmounts(existing.data, data)) {
+      showSpreadsheet(existing.data);
+      status.textContent = 'This statement was already imported.';
+    } else {
+      showSpreadsheet(existing.data);
+      status.textContent = 'Needs Review. This statement number is saved with different figures. The saved spreadsheet is shown below.';
+    }
+    revealSpreadsheet();
   }
 
   function revealSpreadsheet() {
@@ -162,16 +197,14 @@ const ownerSettlementImport = (() => {
       if (!active()) return;
       const saved = request.saved.find(row => row.document_hash === documentHash);
       if (saved) {
-        showSpreadsheet(saved.data);
-        status.textContent = 'This statement was already imported.';
-        revealSpreadsheet();
+        showExistingStatement(saved);
         return;
       }
       const pages = await readStatementPages(file, (page, total) => {
         if (active()) uploadStatus.textContent = 'Reading page ' + page + ' of ' + total + '…';
       });
       if (!active()) return;
-      const { parseLavalleStatement } = await import('./owner-settlement-reader.mjs?v=1');
+      const { parseLavalleStatement } = await import('./owner-settlement-reader.mjs?v=reference-1');
       const data = parseLavalleStatement(pages);
       if (!active()) return;
       showSpreadsheet(data);
@@ -180,14 +213,25 @@ const ownerSettlementImport = (() => {
         revealSpreadsheet();
         return;
       }
+      const previous = request.saved.find(row => ownerSettlementRecords.sameStatement(row.data, data));
+      if (previous) return showExistingStatement(previous, data);
       uploadStatus.textContent = 'Payout matches. Saving the spreadsheet…';
       const { error } = await supabaseClient.from('owner_settlement_imports')
         .insert({ document_hash: documentHash, data });
       if (!active()) return;
-      if (error && error.code !== '23505') throw new Error('The totals match, but the spreadsheet could not be saved. Choose the statement again to retry.');
-      status.textContent = 'Spreadsheet saved. Payout matches the statement.';
-      revealSpreadsheet();
+      if (error?.code === '23505') {
+        await loadRecords(request);
+        if (!active()) return;
+        const existing = request.saved.find(row => row.document_hash === documentHash ||
+          ownerSettlementRecords.sameStatement(row.data, data));
+        if (existing) return showExistingStatement(existing, data);
+      }
+      if (error) throw new Error('The totals match, but the spreadsheet could not be saved. Choose the statement again to retry.');
       await loadRecords(request);
+      if (!active()) return;
+      status.textContent = 'Spreadsheet saved. Payout matches the statement.';
+      renderTaxIfOpen();
+      revealSpreadsheet();
     } catch (error) {
       if (active()) {
         const message = error.message;
@@ -204,5 +248,5 @@ const ownerSettlementImport = (() => {
     }
   });
 
-  return { open, reset };
+  return { open, reset, taxRecords };
 })();

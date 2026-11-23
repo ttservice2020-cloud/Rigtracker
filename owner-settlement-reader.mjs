@@ -70,7 +70,9 @@ export function parseLavalleStatement(pages) {
     throw new Error('This pilot reads Lavalle owner-operator statements. Choose that carrier’s PDF.');
   }
   const period = text.match(periodPattern);
-  const metadata = { carrier: 'Lavalle Transportation, Inc.', periodStart: date(period?.[1]),
+  const statementReference = text.match(/\b(?:Statement|Settlement)\s*(?:#|No\.?)\s*:?\s*([A-Z0-9-]*\d[A-Z0-9-]*)\b/i)?.[1] ??
+    text.match(/\bCheck\s*(?:#|No\.?)\s*:?\s*([A-Z0-9-]*\d[A-Z0-9-]*)\b/i)?.[1] ?? null;
+  const metadata = { carrier: 'Lavalle Transportation, Inc.', reference: statementReference, periodStart: date(period?.[1]),
     periodEnd: date(period?.[2]), payDate: date(text.match(payDatePattern)?.[1]) };
   const loads = [];
   const charges = [];

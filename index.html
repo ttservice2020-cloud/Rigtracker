@@ -460,14 +460,20 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
   <div class="grid stats tax-stats">
    <div class="card stat"><div class="stat-label">Total Gross</div><div class="stat-value" id="taxGross">$0.00</div></div>
    <div class="card stat"><div class="stat-label">Total Recorded Expenses</div><div class="stat-value" id="taxExpenses">$0.00</div></div>
-   <div class="card stat"><div class="stat-label">AGI (Adjusted Gross Income)</div><div class="stat-value" id="taxAgi">$0.00</div></div>
+   <div class="card stat"><div class="stat-label">Net Settlement Payout</div><div class="stat-value" id="taxNetPayout">$0.00</div></div>
   </div>
+  <p id="taxSpreadsheetSource" class="muted hidden" role="status"></p>
   <div class="summary-row">
    <div class="panel accent-edge" style="padding:0;overflow:hidden">
     <h2 style="padding:15px 18px;margin:0">Expense Breakdown</h2>
     <div class="table-shell" style="border:0;border-radius:0"><table class="expense-table"><thead><tr><th>Expense</th><th>Amount</th></tr></thead><tbody id="taxExpenseRows"></tbody></table></div>
    </div>
    <div class="grid" style="align-content:start">
+    <div class="tax-callout hidden" id="taxSettlementAdjustments">
+     <h2>Settlement Adjustments</h2>
+     <p id="taxRepairReserveRow" class="hidden">Repair reserve activity <strong id="taxRepairReserve"></strong></p>
+     <p id="taxSettlementCreditsRow" class="hidden">Settlement credits <strong id="taxSettlementCredits"></strong></p>
+    </div>
     <div class="tax-callout"><h2>Per Diem Log</h2><div id="taxNightsText">0 nights recorded</div><button class="outline full" style="margin-top:14px;border-color:var(--accent)" onclick="showPage('perDiemPage')">View Log</button></div>
     <div class="tax-callout"><h2>Tax Packet</h2><div>Settlements • Expense breakdown • Per diem log • Receipts list</div></div>
    </div>
@@ -1724,7 +1730,8 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 <script src="./fleet-bol-payments.js?v=paperwork-1"></script>
 <script src="./office-tools.js?v=payroll-time-1"></script>
 <script src="./office-payroll.js?v=daily-payroll-1"></script>
-<script src="./owner-settlement-import.js?v=1"></script>
+<script src="./owner-settlement-records.js?v=tax-1"></script>
+<script src="./owner-settlement-import.js?v=tax-1"></script>
 <script>
 const SUPABASE_URL = 'https://pxxikzzfrcncwufpzdfp.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_7yQMjUtCtnHC6jgRF4ROLA_CmgsHaZo';
@@ -1763,7 +1770,7 @@ function showPage(id){
  rigTrackerApp.pageChanged(id,currentUser ? accountTypeFor(currentUser) : null);
  window.scrollTo({top:0,behavior:'smooth'});
  if(id==='spreadsheetPage')renderSpreadsheet();
- if(id==='settlementPage'||id==='spreadsheetPage')void ownerSettlementImport.open();
+ if(['settlementPage','spreadsheetPage','taxPage'].includes(id))void ownerSettlementImport.open();
  if(id==='taxPage')renderTax();
  if(id==='perDiemPage')renderPerDiem();
 }
@@ -2212,12 +2219,29 @@ function downloadPerDiem(){
  downloadFile('RigTracker-Per-Diem-'+selectedYear+'.csv','\ufeff'+lines.join('\r\n'),'text/csv;charset=utf-8')
 }
 function renderTax(){
- const list=rowsForYear(settlements,'date');const nights=rowsForYear(stays,'date').length;
- let gross=0,expenses=0;const byName=new Map();
- list.forEach(s=>{gross+=Number(s.gross)||0;expenses+=Number(s.deductions)||0;normalizedItems(s).forEach(it=>{const name=(it.name||'Other').trim()||'Other';byName.set(name,(byName.get(name)||0)+(Number(it.amount)||0))})});
- document.getElementById('taxGross').textContent=money(gross);document.getElementById('taxExpenses').textContent=money(expenses);document.getElementById('taxAgi').textContent=money(gross-expenses);document.getElementById('taxNightsText').textContent=nights+' nights recorded';
- const entries=Array.from(byName.entries()).filter(x=>x[1]!==0);
- document.getElementById('taxExpenseRows').innerHTML=entries.length?entries.map((entry,i)=>'<tr class="'+(i%2?'expense-alt':'')+'"><td>'+escapeHtml(entry[0])+'</td><td style="text-align:right"><span class="amount-box">'+money(entry[1])+'</span></td></tr>').join(''):'<tr><td colspan="2" style="text-align:center;padding:25px">No recorded expenses for '+escapeHtml(selectedYear)+'.</td></tr>';
+ const {saved,state}=ownerSettlementImport.taxRecords();
+ const totals=ownerSettlementRecords.taxTotals(settlements,saved,selectedYear,normalizedItems);
+ const nights=rowsForYear(stays,'date').length;
+ const source=document.getElementById('taxSpreadsheetSource');
+ const messages=[];
+ if(state==='loading')messages.push('Loading saved settlement spreadsheets…');
+ if(state==='error')messages.push('Saved settlement spreadsheets could not be loaded. The totals shown cover manual entries.');
+ if(totals.imported)messages.push('Includes '+totals.imported+' saved settlement spreadsheet'+(totals.imported===1?'.':'s.'));
+ if(totals.duplicates)messages.push(totals.duplicates+' matching '+(totals.duplicates===1?'entry was':'entries were')+' counted once.');
+ if(totals.conflicts)messages.push('A matching settlement reference has different figures. The saved spreadsheet is used in these totals.');
+ source.textContent=messages.join(' ');
+ source.classList.toggle('hidden',!messages.length);
+ document.getElementById('taxGross').textContent=money(totals.gross/100);
+ document.getElementById('taxExpenses').textContent=money(totals.expenses/100);
+ document.getElementById('taxNetPayout').textContent=money(totals.net/100);
+ document.getElementById('taxNightsText').textContent=nights+' nights recorded';
+ document.getElementById('taxSettlementAdjustments').classList.toggle('hidden',!totals.reserve&&!totals.credits);
+ document.getElementById('taxRepairReserveRow').classList.toggle('hidden',!totals.reserve);
+ document.getElementById('taxRepairReserve').textContent=money(totals.reserve/100);
+ document.getElementById('taxSettlementCreditsRow').classList.toggle('hidden',!totals.credits);
+ document.getElementById('taxSettlementCredits').textContent=money(totals.credits/100);
+ const entries=[...totals.expensesByName].filter(([,amount])=>amount!==0);
+ document.getElementById('taxExpenseRows').innerHTML=entries.length?entries.map((entry,i)=>'<tr class="'+(i%2?'expense-alt':'')+'"><td>'+escapeHtml(entry[0])+'</td><td style="text-align:right"><span class="amount-box">'+money(entry[1]/100)+'</span></td></tr>').join(''):'<tr><td colspan="2" style="text-align:center;padding:25px">No recorded expenses for '+escapeHtml(selectedYear)+'.</td></tr>';
 }
 function currentTimeParts(zone){
  const now=new Date();const parts=new Intl.DateTimeFormat('en-US',{timeZone:zone,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(now);
