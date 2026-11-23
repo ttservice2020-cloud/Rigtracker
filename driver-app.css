@@ -83,7 +83,7 @@
  .driver-app-tabs button:focus-visible{outline:2px solid #81c4ff;outline-offset:1px}
  .driver-app-badge{position:absolute;top:1px;right:5px;min-width:17px;min-height:16px;padding:0 3px;border-radius:16px;
   background:#80c5ff;color:#071426;font-size:10px;line-height:16px;text-align:center;font-variant-numeric:tabular-nums}
- body[data-driver-app="company"] :is(#profileDriverLoadsButton,#companyDriverPayButton,#companyDriverMessagesButton){display:none}
+ body[data-driver-app="company"] :is(#profileDriverLoadsButton,#companyDriverMessagesButton){display:none}
 }
 @media (max-width:380px){
  .driver-app-tabs button[data-driver-tab="settlements"]{flex-grow:1.24}
