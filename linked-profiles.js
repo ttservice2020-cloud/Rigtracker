@@ -250,6 +250,8 @@ async function openOwnRigTrackerProfile({openLoads=false}={}){
  document.getElementById('companyDriverExtras')?.classList.toggle('hidden',!driver);
  document.getElementById('ownDriverDocumentsButton')?.classList.toggle('hidden',role!=='driver'&&!driver);
  document.getElementById('ownDriverSettlementsButton')?.classList.toggle('hidden',role!=='driver');
+ document.getElementById('companyDriverPayButton')?.classList.toggle('hidden',!driver);
+ document.getElementById('ownDriverTaxButton')?.classList.toggle('hidden',role!=='driver'&&!driver);
  document.getElementById('mechanicMessagesButton')?.classList.toggle('hidden',role!=='mechanic');
  document.getElementById('profileDriverLoadsButton')?.classList.toggle('hidden',role!=='driver'&&!driver);
  title.textContent=driver?'Company Driver Dashboard':role==='mechanic'?'Mechanic Dashboard':'RigTracker Profile';

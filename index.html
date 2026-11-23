@@ -1064,7 +1064,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
          <div class="field"><label for="newEmployeeOfficeRole">Job title</label><input id="newEmployeeOfficeRole" type="text" autocomplete="off" maxlength="100" placeholder="Dispatcher" required></div>
         </div>
         <label class="office-toggle"><input id="newEmployeeManageProfiles" type="checkbox" role="switch"> Manage Employee Profiles</label>
-        <p class="muted hidden" id="newEmployeeOfficialAccess">Officials have access to standard Office tools.</p>
+        <p class="muted hidden" id="newEmployeeOfficialAccess">Officials can open standard Office tools and view driver Documents, Pay Settlements, and Tax Information.</p>
         <fieldset class="employee-setup-step" id="newEmployeePermissionOptions">
          <legend>Access</legend>
          <div class="employee-access-list">
@@ -1124,9 +1124,10 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
     <div class="employee-setup-actions">
      <button class="primary-btn hidden" id="profileDriverLoadsButton" type="button" onclick="driverLoadWorkflow.open()">Loads</button>
      <button class="outline hidden" type="button" id="ownDriverDocumentsButton" onclick="companyDriverTools.openDocuments()">Documents</button>
-     <button class="outline hidden" type="button" id="ownDriverSettlementsButton" onclick="showPage('spreadsheetPage')">Settlements</button>
+     <button class="outline hidden" type="button" id="ownDriverSettlementsButton" onclick="showPage('spreadsheetPage')">Pay Settlements</button>
+     <button class="outline hidden" type="button" id="companyDriverPayButton" onclick="companyDriverTools.openSettlements()">Pay Settlements</button>
+     <button class="outline hidden" type="button" id="ownDriverTaxButton" onclick="companyDriverTools.openDocuments('tax')">Tax Information</button>
      <div class="employee-setup-actions hidden" id="companyDriverExtras">
-      <button class="outline" type="button" id="companyDriverPayButton" onclick="companyDriverTools.openSettlements()">Settlements</button>
       <button class="outline hidden" type="button" id="companyDriverClockButton" onclick="companyDriverTools.openClock()">Time Clock</button>
       <button class="outline" type="button" id="companyDriverMessagesButton" onclick="companyMessaging.open()">Messages</button>
      </div>
@@ -1236,8 +1237,8 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
    </form>
   </section>
   <section id="ownDriverDocumentsPage" class="page fleet-account-page">
-   <div class="page-head"><div><button class="back" type="button" onclick="showPage('rigTrackerProfilePage')">← Back to Profile</button><h1>Documents</h1></div></div>
-   <section class="panel" aria-label="Your driver documents">
+   <div class="page-head"><div><button class="back" type="button" onclick="showPage('rigTrackerProfilePage')">← Back to Profile</button><h1 id="ownDriverDocumentsTitle">Documents</h1></div></div>
+   <section class="panel" aria-labelledby="ownDriverDocumentsTitle">
     <p id="ownDriverDocumentStatus" class="muted" role="status"></p>
     <div id="ownDriverDocumentList" class="dispatch-load-list"></div>
    </section>
@@ -1286,6 +1287,8 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
     </section>
     <nav class="company-driver-record-nav" aria-label="Driver profile sections">
      <button class="outline" type="button" data-company-driver-section="documents" aria-controls="companyDriverAdminDocuments" aria-pressed="false">Documents</button>
+     <button class="outline" type="button" data-company-driver-section="pay_settlements" aria-controls="companyDriverAdminSettlements" aria-pressed="false">Pay Settlements</button>
+     <button class="outline" type="button" data-company-driver-section="tax" aria-controls="companyDriverAdminTax" aria-pressed="false">Tax Information</button>
      <button class="outline" type="button" data-company-driver-section="bols" aria-controls="companyDriverAdminBols" aria-pressed="false">BOLs</button>
      <button class="outline" type="button" data-company-driver-section="company" aria-controls="companyDriverAdminCompany" aria-pressed="true">Company File</button>
      <button class="outline" type="button" data-company-driver-section="messages" aria-controls="companyDriverAdminMessages" aria-pressed="false">Messages</button>
@@ -1293,10 +1296,9 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
      <button class="outline" type="button" data-company-driver-section="mileage" aria-controls="companyDriverAdminMileage" aria-pressed="false">Mileage</button>
      <button class="outline" type="button" data-company-driver-section="concerns" aria-controls="companyDriverAdminConcerns" aria-pressed="false">Concerns</button>
      <button class="outline" type="button" data-company-driver-section="pay_scale" aria-controls="companyDriverAdminPayScale" aria-pressed="false">Pay Scale</button>
-     <button class="outline" type="button" data-company-driver-section="pay_settlements" aria-controls="companyDriverAdminSettlements" aria-pressed="false">Pay Settlements</button>
-     <button class="outline" type="button" data-company-driver-section="tax" aria-controls="companyDriverAdminTax" aria-pressed="false">Tax Information</button>
      <button class="outline" type="button" data-company-driver-section="pay_status" aria-controls="companyDriverAdminPayStatus" aria-pressed="false">Pay Status</button>
     </nav>
+    <p class="muted hidden" id="companyDriverRecordsAccess">The Fleet Admin can grant access to unavailable profile tabs.</p>
     <section class="panel" id="companyDriverAdminCompany">
      <h2>Company File</h2>
      <dl class="dispatch-detail-facts" id="companyDriverCompanyFacts"></dl>
@@ -1647,7 +1649,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
    <label class="office-toggle"><input type="checkbox" id="officeProfileManage" role="switch"> Manage Employee Profiles</label>
   </div>
   <label class="office-toggle hidden" id="officeProfileLinkAccess"><input type="checkbox" id="officeProfileLink" role="switch"> Link RigTracker Profiles</label>
-  <p class="muted hidden" id="officeProfileOfficialAccess">Officials have access to standard Office tools.</p>
+  <p class="muted hidden" id="officeProfileOfficialAccess">Officials can open standard Office tools and view driver Documents, Pay Settlements, and Tax Information.</p>
   <label class="office-toggle hidden" id="officeProfileFuelAccess"><input id="officeProfileFuelSettings" type="checkbox" role="switch"> Manage Weekly Fuel Surcharge</label>
   <fieldset id="officeProfilePermissionFields"><legend>Access</legend><div class="employee-access-list" id="officeProfilePermissionOptions"></div></fieldset>
   <fieldset id="officeProfileDriverTabFields"><legend>Driver Profile Tabs</legend><div class="employee-access-list" id="officeProfileDriverTabOptions"></div></fieldset>
@@ -1685,9 +1687,9 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 <script src="./dispatch-progress.js?v=relay-resume-1"></script>
 <script src="./dispatch-rate-confirmation.js?v=1"></script>
 <script src="./dispatch.js?v=relay-resume-1"></script>
-<script src="./linked-profiles.js?v=driver-documents-1"></script>
+<script src="./linked-profiles.js?v=driver-profile-records-2"></script>
 <script src="./fleet-equipment.js?v=profile-links-1"></script>
-<script src="./company-driver-tools.js?v=saved-settlements-1"></script>
+<script src="./company-driver-tools.js?v=driver-profile-records-2"></script>
 <script src="./company-messages.js?v=driver-messages-1"></script>
 <script src="./driver-paperwork.js?v=1"></script>
 <script src="./driver-workflow.js?v=lumper-payer-1"></script>

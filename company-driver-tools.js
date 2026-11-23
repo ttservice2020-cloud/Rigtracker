@@ -73,6 +73,7 @@ const companyDriverTools = (() => {
   const profilePayCurrency = new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' });
   const profileFileBucket = 'fleet-driver-profile-files';
   const fileTabs = { documents: 'documents', company: 'company', tax: 'tax' };
+  const profileRecordTabs = new Set(['documents','pay_settlements','tax']);
   const sectionPermission = section => 'driver_' + (section === 'company' ? 'company_file' : section);
   const fileExtensions = { 'application/pdf': 'pdf', 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
 
@@ -83,8 +84,8 @@ const companyDriverTools = (() => {
 
   function selectAdminSection(section) {
     if (!view) return;
-    const requested = adminSections.find(control => control.dataset.companyDriverSection === section && !control.classList.contains('hidden'));
-    const selected = requested || adminSections.find(control => !control.classList.contains('hidden'));
+    const available = adminSections.filter(control => !control.disabled && !control.classList.contains('hidden'));
+    const selected = available.find(control => control.dataset.companyDriverSection === section) || available[0];
     for (const control of adminSections) {
       control.setAttribute('aria-pressed', String(control === selected));
       byId(control.getAttribute('aria-controls')).classList.toggle('hidden', control !== selected);
@@ -333,7 +334,16 @@ const companyDriverTools = (() => {
       );
       if (profile.linked) paintPresence(profile.presence || {});
       const allowed = new Set(profile.tabs || []);
-      for (const control of adminSections) control.classList.toggle('hidden', !allowed.has(sectionPermission(control.dataset.companyDriverSection)));
+      let recordsRestricted = false;
+      for (const control of adminSections) {
+        const section = control.dataset.companyDriverSection;
+        const canOpen = allowed.has(sectionPermission(section));
+        const record = profileRecordTabs.has(section);
+        control.disabled = !canOpen;
+        control.classList.toggle('hidden', !canOpen && !record);
+        if (record && !canOpen) recordsRestricted = true;
+      }
+      byId('companyDriverRecordsAccess').classList.toggle('hidden', !recordsRestricted);
       byId('companyDriverAdminSummary').classList.remove('hidden');
       byId('companyDriverAdminContent').classList.remove('hidden');
       byId('companyDriverAdminStatus').textContent = [...allowed].some(tab => tab !== 'driver_concerns')
@@ -745,7 +755,7 @@ const companyDriverTools = (() => {
     } catch { /* The screen still works without access to this browser’s storage. */ }
     const count = records.filter(record => Date.parse(record.published_at) > viewedAt).length;
     if (typeof rigTrackerApp !== 'undefined') rigTrackerApp.badge('settlements', count, 'new settlements');
-    byId('companyDriverPayButton').textContent = count ? 'Settlements (' + count + ')' : 'Settlements';
+    byId('companyDriverPayButton').textContent = count ? 'Pay Settlements (' + count + ')' : 'Pay Settlements';
   }
 
   async function refreshPay(showList = false) {
@@ -776,17 +786,20 @@ const companyDriverTools = (() => {
     return refreshPay(true);
   }
 
-  async function openDocuments() {
+  async function openDocuments(section = 'documents') {
     const user = currentUser;
     if (!user || !['driver','company'].includes(accountTypeFor(user))) return;
+    const tax = section === 'tax';
+    const category = tax ? 'tax' : 'documents';
     const request = {};
     ownDocumentsRequest = request;
     const active = () => ownDocumentsRequest === request && currentUser === user &&
       byId('ownDriverDocumentsPage').classList.contains('active');
     const status = byId('ownDriverDocumentStatus');
     const list = byId('ownDriverDocumentList');
+    byId('ownDriverDocumentsTitle').textContent = tax ? 'Tax Information' : 'Documents';
     list.replaceChildren();
-    status.textContent = 'Loading your documents…';
+    status.textContent = tax ? 'Loading your tax documents…' : 'Loading your documents…';
     showPage('ownDriverDocumentsPage');
     try {
       const { data: links, error } = await supabaseClient.from('rigtracker_fleet_links')
@@ -795,7 +808,7 @@ const companyDriverTools = (() => {
       if (!active()) return;
       const bucket = supabaseClient.storage.from(profileFileBucket);
       const groups = await Promise.all(links.filter(link => link.dispatch_driver_id).map(async link => {
-        const folder = [link.fleet_id, link.dispatch_driver_id, 'documents'].join('/');
+        const folder = [link.fleet_id, link.dispatch_driver_id, category].join('/');
         const { data, error } = await bucket.list(folder, { limit:100, sortBy:{column:'created_at',order:'desc'} });
         if (error) throw error;
         return data.filter(file => file.id).map(file => ({ name:file.name, fleet:link.fleet_id, path:folder + '/' + file.name }));
@@ -809,7 +822,7 @@ const companyDriverTools = (() => {
         row.append(info, button('Open', () => openProfileFile(file.path)));
         return row;
       }));
-      status.textContent = files.length ? '' : 'No documents are on your profile yet.';
+      status.textContent = files.length ? '' : tax ? 'No tax documents are on your profile yet.' : 'No documents are on your profile yet.';
     } catch (error) {
       if (active()) status.textContent = error.message || 'Could not load your documents.';
     }
@@ -1566,7 +1579,7 @@ const companyDriverTools = (() => {
     for (const id of ['driverPayList','companyDriverClockList','companyDriverAdminShifts','companyDriverAdminPayList',
       'formerCompanyDriverList','companyDriverAdminFacts','companyDriverHistoryList','companyDriverAdminPresence']) byId(id).replaceChildren();
     byId('companyDriverClockButton').classList.add('hidden');
-    byId('companyDriverPayButton').textContent = 'Settlements';
+    byId('companyDriverPayButton').textContent = 'Pay Settlements';
   }
 
   setInterval(() => {
