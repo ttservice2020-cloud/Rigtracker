@@ -321,6 +321,8 @@ const companyDriverTools = (() => {
       selection.dispatchDriverId = profile.dispatch_driver_id;
       byId('companyDriverAdminTitle').textContent = 'Driver Profile';
       byId('companyDriverReviewIssue').classList.toggle('hidden', selection.owner || !selection.dispatchDriverId);
+      byId('companyDriverEscrowButton').classList.toggle('hidden',
+        !profile.profile_id || profile.driver_type !== 'owner_op' || !selection.dispatchDriverId || !canReadSettlements());
       const canMessage = profile.company_driver && profile.linked;
       byId('companyDriverAdminMessage').classList.toggle('hidden', !canMessage);
       byId('companyDriverAdminMessagingStatus').textContent = canMessage ? '' : 'Conversations are available for linked Company Driver accounts.';
@@ -551,6 +553,9 @@ const companyDriverTools = (() => {
   });
   byId('companyDriverBolsMore').addEventListener('click', () => {
     if (view?.pages.bols?.cursor) void loadHistory(view, 'bols', true);
+  });
+  byId('companyDriverEscrowButton').addEventListener('click', () => {
+    if (view?.dispatchDriverId) return ownerEscrow.open({ fleet: view.fleet, roster: view.dispatchDriverId });
   });
   byId('companyDriverReviewIssue').addEventListener('click', () => {
     if (view?.dispatchDriverId) void officeTools.openReviewIssue(view.dispatchDriverId, name(view.profile));
@@ -929,6 +934,7 @@ const companyDriverTools = (() => {
     for (const container of document.querySelectorAll('[data-driver-tracking]')) container.replaceChildren();
     byId('companyPayDraft').replaceChildren(new Option('Generate a new settlement number', ''));
     clearPayForm();
+    byId('companyDriverEscrowButton').classList.add('hidden');
     showPage('companyDriverAdminPage');
     return loadOverview(view, initialProfile);
   }
@@ -1495,6 +1501,7 @@ const companyDriverTools = (() => {
   function selectPayrollSection(section) {
     const canManage = Boolean(fuelSettingsFleet());
     const canRead = canReadSettlements();
+    byId('companyPayrollEscrow').classList.toggle('hidden', !canRead);
     const manage = canManage && (section === 'manage' || !canRead);
     payrollSection = manage ? 'manage' : 'records';
     const listTab = byId('companyPayrollListTab');

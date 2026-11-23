@@ -38,6 +38,9 @@ const ownerSettlementImport = (() => {
     uploadStatus.textContent = '';
     records.replaceChildren();
     preview.replaceChildren();
+    find('ownerSettlementDeductionsContext').textContent = '';
+    find('ownerSettlementDeductionsTotal').textContent = '—';
+    find('ownerSettlementDeductionsTables').replaceChildren();
   }
 
   function table(heading, headers, rows) {
@@ -62,41 +65,78 @@ const ownerSettlementImport = (() => {
     return wrapper;
   }
 
+  function statementLabel(data) {
+    return data.carrier + (data.reference ? ' · Statement #' + data.reference : '');
+  }
+
+  function reserveTable(reserve) {
+    const panel = node('div');
+    panel.append(table('Repair Reserve', ['Balance detail', 'Amount'],
+      [['Previous balance', formatMoney(reserve.prior)], ['Deposit this period', formatMoney(reserve.deposit)],
+        ['New balance', formatMoney(reserve.balance)]]),
+    node('p', 'The reserve deposit is included in the carrier deductions.', 'muted'));
+    return panel;
+  }
+
+  function showDeductions(data) {
+    const categories = ['Fuel Purchases', 'Tolls', 'Fuel Card Fees', 'Other Driver Deductions', 'Carrier Deductions'];
+    const groups = new Map(categories.map(category => [category, []]));
+    for (const charge of data.charges) {
+      const category = charge.group === 'Carrier' ? 'Carrier Deductions'
+        : ({ Fuel: 'Fuel Purchases', Tolls: 'Tolls', 'Fuel card fees': 'Fuel Card Fees' })[
+          ownerSettlementRecords.expenseCategory(charge.description)] ?? 'Other Driver Deductions';
+      groups.get(category).push(charge);
+    }
+    const driver = node('div');
+    const carrier = node('div');
+    for (const [category, charges] of groups) {
+      if (!charges.length) continue;
+      const subtotal = charges.reduce((sum, charge) => sum + charge.amount, 0);
+      const rows = charges.map(charge => [formatDate(charge.posted), charge.description, formatMoney(charge.amount), charge.page]);
+      const section = table(category + ' · ' + formatMoney(subtotal), ['Posted', 'Description', 'Amount', 'Page'], rows);
+      (category === 'Carrier Deductions' ? carrier : driver).append(section);
+    }
+    if (!data.charges.length) driver.append(node('p', 'No deductions recorded.', 'muted'));
+    else driver.append(node('p', 'Driver deductions subtotal ' + formatMoney(data.summary.driver), 'owner-settlement-payout'));
+    if (data.reserve.balance != null) carrier.append(reserveTable(data.reserve));
+    find('ownerSettlementDeductionsContext').textContent = statementLabel(data) +
+      ' · ' + formatDate(data.periodStart) + ' – ' + formatDate(data.periodEnd);
+    find('ownerSettlementDeductionsTotal').textContent = formatMoney(data.summary.driver + data.summary.carrier);
+    find('ownerSettlementDeductionsTables').replaceChildren(driver, carrier);
+    showPage('ownerSettlementDeductionsPage');
+  }
+
   function showSpreadsheet(data) {
     const summary = data.summary;
-    const totals = [['Order pay', summary.orderPay], ['Fuel surcharge', summary.fuelSurcharge],
-      ['Gross earnings', summary.gross], ['Driver deductions and credits', summary.driver],
-      ['Driver subtotal', summary.gross + summary.driver], ['Carrier deductions and credits', summary.carrier],
-      ['Printed net payout', summary.printedNet], ['Difference', summary.printedNet == null ? null : summary.net - summary.printedNet],
-      ['Year-to-date earnings', summary.yearEarnings]];
-    const title = node('h3', data.carrier + (data.reference ? ' · Statement #' + data.reference : ''));
+    const totals = [['Owner’s linehaul pay', summary.orderPay], ['Fuel surcharge', summary.fuelSurcharge],
+      ['Gross earnings', summary.gross], ['Printed net payout', summary.printedNet],
+      ['Difference', summary.printedNet == null ? null : summary.net - summary.printedNet], ['Year-to-date earnings', summary.yearEarnings]];
+    const title = node('h3', statementLabel(data));
     const facts = node('p', formatDate(data.periodStart) + ' – ' + formatDate(data.periodEnd) +
       ' · Pay date ' + formatDate(data.payDate), 'muted');
     const issues = data.issues?.length ? node('ul') : null;
     if (issues) issues.append(...data.issues.map(issue => node('li', issue)));
-    const amounts = table('Settlement Summary', ['Pay item', 'Amount'],
-      totals.map(([label, amount]) => [label, formatMoney(amount)]));
-    const loads = table('Loads & Earnings', ['Load #', 'Origin', 'Destination', 'Shipped', 'Delivered', 'Tractor', 'Mileage',
-      'Miles', 'Gross linehaul', 'Rate', 'Order pay', 'Fuel surcharge', 'Load total', 'Page'], data.loads.map(load => [
+    const amounts = table('Pay Summary', ['Pay item', 'Amount'], totals.map(([label, amount]) => [label, formatMoney(amount)]));
+    const deductionButton = node('button', 'View Deductions · ' + formatMoney(summary.driver + summary.carrier), 'outline');
+    deductionButton.type = 'button';
+    deductionButton.addEventListener('click', () => showDeductions(data));
+    const payout = node('p', (issues ? 'Calculated payout ' : 'Net payout ') + formatMoney(summary.net), 'owner-settlement-payout');
+    const earnings = table('Loads & Earnings', ['Load #', 'Origin', 'Destination', 'Shipped', 'Delivered', 'Tractor', 'Mileage',
+      'Miles', 'Gross linehaul', 'Rate', 'Owner pay', 'Fuel surcharge', 'Load total', 'Page'], data.loads.map(load => [
       load.number, load.origin || '—', load.destination || '—', formatDate(load.shipped), formatDate(load.delivered),
       load.tractor || '—', load.mileageType || '—', formatMiles(load.miles), formatMoney(load.gross),
       Number.isFinite(load.rate) ? load.rate + '%' : '—', formatMoney(load.pay), formatMoney(load.surcharge ?? 0),
       formatMoney(load.total), load.page
     ]));
-    const charges = table('Deductions & Credits', ['Posted', 'Group', 'Description', 'Amount', 'Page'],
-      data.charges.map(charge => [formatDate(charge.posted), charge.group, charge.description, formatMoney(charge.amount), charge.page]));
-    const widgets = [title, facts, node('p', (issues ? 'Calculated payout ' : 'Net payout ') +
-      formatMoney(summary.net), 'owner-settlement-payout')];
-    if (issues) widgets.push(issues);
-    widgets.push(amounts, node('p', data.loads.length + ' loads · ' + formatMiles(summary.loadedMiles) +
-      ' loaded miles · ' + formatMiles(summary.emptyMiles) + ' empty miles', 'muted'), loads, charges);
-    if (data.reserve.balance != null) {
-      widgets.push(table('Repair Reserve', ['Balance detail', 'Amount'],
-        [['Previous balance', formatMoney(data.reserve.prior)], ['Deposit this period', formatMoney(data.reserve.deposit)],
-          ['New balance', formatMoney(data.reserve.balance)]]));
-      widgets.push(node('p', 'The reserve deposit is included in the carrier deductions.', 'muted'));
-    }
-    preview.replaceChildren(...widgets);
+    const loads = node('div');
+    loads.append(node('p', data.loads.length + ' loads · ' + formatMiles(summary.loadedMiles) +
+      ' loaded miles · ' + formatMiles(summary.emptyMiles) + ' empty miles', 'muted'), earnings);
+    const overview = node('div', undefined, 'owner-statement-grid');
+    const pay = node('div', undefined, 'panel owner-statement-summary');
+    pay.append(payout, amounts, deductionButton);
+    overview.append(loads, pay);
+    if (data.reserve.balance != null) loads.append(reserveTable(data.reserve));
+    preview.replaceChildren(title, facts, ...(issues ? [issues] : []), overview);
   }
 
   function paintRecords(saved) {

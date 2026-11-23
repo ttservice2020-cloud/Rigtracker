@@ -10,7 +10,8 @@ const rigTrackerApp = (() => {
     },
     driver: {
       driverLoadsPage: 'loads', driverLoadDetailPage: 'loads', spreadsheetPage: 'settlements', settlementPage: 'settlements',
-      dashboardPage: 'dashboard', rigTrackerProfilePage: 'dashboard', ownDriverDocumentsPage: 'dashboard', taxPage: 'dashboard', perDiemPage: 'dashboard'
+      dashboardPage: 'dashboard', rigTrackerProfilePage: 'dashboard', ownDriverDocumentsPage: 'dashboard', taxPage: 'dashboard', perDiemPage: 'dashboard',
+      ownerEscrowPage: 'dashboard', ownerSettlementDeductionsPage: 'settlements'
     }
   };
   const allowedTabs = {

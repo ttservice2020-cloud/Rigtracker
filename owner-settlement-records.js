@@ -103,5 +103,5 @@ const ownerSettlementRecords = (() => {
     return totals;
   }
 
-  return { sameStatement, sameAmounts, taxTotals };
+  return { sameStatement, sameAmounts, expenseCategory, taxTotals };
 })();

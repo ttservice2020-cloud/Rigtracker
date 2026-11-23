@@ -250,6 +250,7 @@ async function openOwnRigTrackerProfile({openLoads=false}={}){
  document.getElementById('companyDriverExtras')?.classList.toggle('hidden',!driver);
  document.getElementById('ownDriverDocumentsButton')?.classList.toggle('hidden',role!=='driver'&&!driver);
  document.getElementById('ownDriverSettlementsButton')?.classList.toggle('hidden',role!=='driver');
+ document.getElementById('ownOwnerEscrowButton')?.classList.add('hidden');
  document.getElementById('companyDriverPayButton')?.classList.toggle('hidden',!driver);
  document.getElementById('ownDriverTaxButton')?.classList.toggle('hidden',role!=='driver'&&!driver);
  document.getElementById('mechanicMessagesButton')?.classList.toggle('hidden',role!=='mechanic');
@@ -262,7 +263,7 @@ async function openOwnRigTrackerProfile({openLoads=false}={}){
  status.textContent='Loading your profile…';
  showPage('rigTrackerProfilePage');
  const {data:profile,error}=await supabaseClient.from('rigtracker_profiles')
-  .select('display_profile_id,first_name,last_name,phone,license_number,password_required').eq('user_id',user.id).maybeSingle();
+  .select('display_profile_id,first_name,last_name,phone,license_number,password_required,profile_type').eq('user_id',user.id).maybeSingle();
  if(!current())return;
  if(error||!profile){
   status.textContent='Could not load your profile. Try signing in again.';
@@ -274,6 +275,7 @@ async function openOwnRigTrackerProfile({openLoads=false}={}){
  }
  status.classList.add('hidden');
  details.classList.remove('hidden');
+ document.getElementById('ownOwnerEscrowButton')?.classList.toggle('hidden',role!=='driver'||profile.profile_type!=='driver');
  if(driver&&typeof rigTrackerApp!=='undefined')rigTrackerApp.companyReady();
  if(driver&&typeof companyDriverTools!=='undefined')companyDriverTools.refresh();
  if((driver||role==='mechanic')&&typeof companyMessaging!=='undefined')void companyMessaging.refresh();

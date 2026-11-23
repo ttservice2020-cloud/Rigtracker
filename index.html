@@ -80,6 +80,17 @@ p{line-height:1.45}
 #ownerSettlementPreview table{min-width:100%;width:max-content}
 #ownerSettlementPreview caption{text-align:left;padding:10px 12px;font-weight:700;color:#f3f7fc}
 #ownerSettlementPreview .table-shell:focus-visible{outline:2px solid #55a9fb;outline-offset:2px}
+.owner-statement-grid{display:grid;grid-template-columns:minmax(0,3fr) minmax(245px,2fr);gap:12px;align-items:start}
+.owner-statement-grid>div,.owner-deduction-layout>div{min-width:0}
+.owner-deduction-layout{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,2fr);gap:14px;align-items:start}
+.owner-deduction-layout .table-shell{margin:0 0 12px}
+.owner-deduction-layout table{width:max-content;min-width:100%}
+.owner-deduction-layout caption{text-align:left;padding:10px 12px;font-weight:700;color:#f3f7fc}
+@media(max-width:850px){
+ .owner-statement-grid,.owner-deduction-layout{grid-template-columns:minmax(0,1fr)}
+ .owner-statement-grid>.owner-statement-summary{grid-row:1}
+}
+
 
 table{width:100%;border-collapse:collapse;min-width:850px}
 th,td{padding:11px 13px;border:1px solid #2b4059;text-align:left;white-space:nowrap}
@@ -409,6 +420,48 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
    <div class="card stat"><div class="stat-label">Net Payout</div><div class="stat-value accent" id="sheetNet">$0.00</div></div>
   </div>
   <div class="actions-row no-print"><button class="primary-btn" type="button" onclick="showPage('settlementPage')">Add Settlement</button><button class="primary-btn" onclick="window.print()">▣ Print</button><button class="primary-btn" onclick="downloadSpreadsheet()">↓ Download</button></div>
+ </section>
+
+ <section id="ownerSettlementDeductionsPage" class="page fleet-account-page">
+  <div class="page-head">
+   <div><button type="button" class="back" onclick="showPage('spreadsheetPage')">← Settlement Overview</button><h1>Settlement Deductions</h1><p id="ownerSettlementDeductionsContext" class="muted"></p></div>
+   <div class="card stat"><div class="stat-label">Total deductions</div><div class="stat-value" id="ownerSettlementDeductionsTotal">—</div></div>
+  </div>
+  <div id="ownerSettlementDeductionsTables" class="owner-deduction-layout"></div>
+ </section>
+
+ <section id="ownerEscrowPage" class="page fleet-account-page">
+  <div class="page-head"><div><button id="ownerEscrowBack" class="back" type="button">← Back</button><h1>Escrow</h1><p class="muted" id="ownerEscrowAccountLabel"></p></div>
+   <div class="card stat"><div class="stat-label">Escrow balance</div><div class="stat-value" id="ownerEscrowBalance">—</div></div>
+  </div>
+  <div class="field hidden" id="ownerEscrowPicker"><label for="ownerEscrowAccount">Account</label><select id="ownerEscrowAccount"></select></div>
+  <p class="muted" id="ownerEscrowStatus" role="status"></p>
+  <div class="table-shell hidden" id="ownerEscrowLedger" tabindex="0" aria-label="Escrow activity">
+   <table>
+    <thead><tr><th scope="col">Posted</th><th scope="col">Type</th><th scope="col">Description</th><th scope="col">Settlement reference</th><th scope="col">Amount</th><th scope="col">Balance</th></tr></thead>
+    <tbody id="ownerEscrowEntries"></tbody>
+   </table>
+  </div>
+  <form class="panel hidden no-print" id="ownerEscrowTransactionForm" style="margin-top:14px">
+   <fieldset>
+    <legend>Record Escrow Activity</legend>
+    <div class="dispatch-fields">
+     <div class="field"><label for="ownerEscrowKind">Transaction type</label><select name="kind" id="ownerEscrowKind"><option value="deposit">Deposit</option><option value="opening">Opening balance</option><option value="interest">Interest</option><option value="withdrawal">Withdrawal</option><option value="refund">Refund to operator</option></select></div>
+     <div class="field"><label for="ownerEscrowDate">Date posted</label><input id="ownerEscrowDate" type="date" name="posted_on" required></div>
+     <div class="field"><label for="ownerEscrowAmount">Amount ($)</label><input id="ownerEscrowAmount" type="number" name="amount" min="0.01" max="999999999999.99" step="0.01" inputmode="decimal" required></div>
+     <div class="field"><label for="ownerEscrowReference">Settlement reference (optional)</label><input id="ownerEscrowReference" name="settlement_reference" maxlength="80"></div>
+     <div class="field"><label for="ownerEscrowDescription">Description</label><input id="ownerEscrowDescription" name="description" maxlength="500" required></div>
+    </div>
+    <button type="submit" class="primary-btn">Record Transaction</button>
+   </fieldset>
+  </form>
+  <form class="panel hidden no-print" id="ownerEscrowTypeForm" style="margin-top:14px">
+   <fieldset>
+    <legend>Operator Type</legend>
+    <div class="field"><label for="ownerEscrowOperatorType">Fleet classification</label><select id="ownerEscrowOperatorType" name="operator_type"><option value="owner_operator">Owner-Operator</option><option value="lease_operator">Lease Operator</option></select></div>
+    <button type="submit" class="outline">Save Operator Type</button>
+   </fieldset>
+  </form>
  </section>
 
  <section id="perDiemPage" class="page">
@@ -1156,6 +1209,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
      <button class="primary-btn hidden" id="profileDriverLoadsButton" type="button" onclick="driverLoadWorkflow.open()">Loads</button>
      <button class="outline hidden" type="button" id="ownDriverDocumentsButton" onclick="companyDriverTools.openDocuments()">Documents</button>
      <button class="outline hidden" type="button" id="ownDriverSettlementsButton" onclick="showPage('spreadsheetPage')">Pay Settlements</button>
+     <button class="outline hidden" type="button" id="ownOwnerEscrowButton" onclick="ownerEscrow.open()">Escrow</button>
      <button class="outline hidden" type="button" id="companyDriverPayButton" onclick="companyDriverTools.openSettlements()">Pay Settlements</button>
      <button class="outline hidden" type="button" id="ownDriverTaxButton" onclick="companyDriverTools.openDocuments('tax')">Tax Information</button>
      <div class="employee-setup-actions hidden" id="companyDriverExtras">
@@ -1287,7 +1341,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
    <div id="companyDriverClockList"></div>
   </section>
   <section id="companyDriverAdminPage" class="page fleet-account-page">
-   <div class="page-head"><div><button class="back" type="button" onclick="companyDriverTools.backAdmin()">← Back</button><h1 id="companyDriverAdminTitle">Driver Profile</h1></div><button class="outline hidden" id="companyDriverReviewIssue" type="button">File a Review Issue</button></div>
+   <div class="page-head"><div><button class="back" type="button" onclick="companyDriverTools.backAdmin()">← Back</button><h1 id="companyDriverAdminTitle">Driver Profile</h1></div><div class="dispatch-actions"><button class="outline hidden" id="companyDriverEscrowButton" type="button">Escrow</button><button class="outline hidden" id="companyDriverReviewIssue" type="button">File a Review Issue</button></div></div>
    <p id="companyDriverAdminStatus" class="muted" role="status"></p>
    <div id="companyDriverAdminContent" class="hidden">
     <section class="panel company-driver-summary hidden" id="companyDriverAdminSummary" aria-label="Driver quick reference">
@@ -1425,6 +1479,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
    <nav class="company-driver-record-nav" aria-label="Settlement sections">
     <button class="outline" id="companyPayrollListTab" type="button" aria-controls="companyPayrollRecords" aria-pressed="true">Settlements</button>
     <button class="outline hidden" id="companyPayrollManageTab" type="button" aria-controls="companyPayrollManage" aria-pressed="false">Manage</button>
+    <button class="outline hidden" id="companyPayrollEscrow" type="button" onclick="ownerEscrow.open()">Owner-Operator Escrow</button>
    </nav>
    <div id="companyPayrollRecords">
     <p id="companyPayrollStatus" class="muted" role="status"></p>
@@ -1718,20 +1773,21 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 <script src="./dispatch-progress.js?v=relay-resume-1"></script>
 <script src="./dispatch-rate-confirmation.js?v=1"></script>
 <script src="./dispatch.js?v=relay-resume-1"></script>
-<script src="./linked-profiles.js?v=driver-profile-records-2"></script>
+<script src="./linked-profiles.js?v=owner-escrow-1"></script>
 <script src="./fleet-equipment.js?v=profile-links-1"></script>
-<script src="./company-driver-tools.js?v=driver-profile-records-2"></script>
+<script src="./company-driver-tools.js?v=owner-escrow-1"></script>
 <script src="./company-messages.js?v=driver-messages-1"></script>
 <script src="./driver-paperwork.js?v=1"></script>
 <script src="./driver-workflow.js?v=lumper-payer-1"></script>
 <script src="./fleet-admin-driver.js?v=1"></script>
 <script src="./company-safety.js?v=1"></script>
-<script src="./driver-app.js?v=driver-documents-1"></script>
+<script src="./driver-app.js?v=owner-escrow-1"></script>
 <script src="./fleet-bol-payments.js?v=paperwork-1"></script>
 <script src="./office-tools.js?v=payroll-time-1"></script>
 <script src="./office-payroll.js?v=daily-payroll-1"></script>
-<script src="./owner-settlement-records.js?v=tax-1"></script>
-<script src="./owner-settlement-import.js?v=tax-1"></script>
+<script src="./owner-escrow.js?v=1"></script>
+<script src="./owner-settlement-records.js?v=owner-deductions-1"></script>
+<script src="./owner-settlement-import.js?v=preview-1"></script>
 <script>
 const SUPABASE_URL = 'https://pxxikzzfrcncwufpzdfp.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_7yQMjUtCtnHC6jgRF4ROLA_CmgsHaZo';
@@ -1939,6 +1995,7 @@ async function signOut(){
   stopFleetPresenceTimer();
   currentUser=null;settlements=[];stays=[];taxDocuments=[];
   ownerSettlementImport.reset();
+  ownerEscrow.reset();
   adminFleetId=null;
   fleetDispatchApp.reset();
   fleetEquipment.reset();
