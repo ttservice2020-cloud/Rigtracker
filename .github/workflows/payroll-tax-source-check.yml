@@ -1,17 +1,50 @@
 name: Payroll tax source check
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/payroll-tax-source-check.yml
+      - scripts/check-payroll-tax-sources.py
+      - scripts/payroll-tax-sources.json
   schedule:
     - cron: '17 14 * * 1,4'
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
+
+concurrency:
+  group: payroll-tax-source-check
 
 jobs:
   check:
+    if: github.ref_name == github.event.repository.default_branch
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      - run: python3 scripts/check-payroll-tax-sources.py
+      - name: Check government sources
+        id: sources
+        continue-on-error: true
+        run: python3 scripts/check-payroll-tax-sources.py --status-json "$RUNNER_TEMP/payroll-tax-source-status.json"
+      - name: Publish source status for payroll
+        run: |
+          status_file=payroll-tax-source-status.json
+          test -s "$RUNNER_TEMP/$status_file"
+          branch=payroll-tax-monitor
+          if git ls-remote --exit-code --heads origin "$branch" >/dev/null; then
+            git fetch --depth=1 origin "$branch"
+            git checkout --detach FETCH_HEAD
+          else
+            git switch --orphan "$branch"
+          fi
+          cp "$RUNNER_TEMP/$status_file" "$status_file"
+          git add "$status_file"
+          if ! git diff --cached --quiet; then
+            git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Record payroll source check'
+            git push origin "HEAD:refs/heads/$branch"
+          fi
+      - name: Flag sources that need review
+        if: steps.sources.outcome == 'failure'
+        run: exit 1

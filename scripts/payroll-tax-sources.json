@@ -108,5 +108,225 @@
     "name": "Bardstown occupational tax",
     "url": "https://www.cityofbardstown.org/document_center/Licensing%20and%20Permits/Occupational%20License%20Fee%20Form.pdf",
     "sha256": "44256a3077ff17e821d2ecaf1f2f430f11a2492520c685ee04be4ece0b461258"
+  },
+  {
+    "name": "Alabama withholding rules",
+    "url": "https://www.revenue.alabama.gov/wp-content/uploads/2026/01/whbooklet_0126.pdf",
+    "sha256": "11aa9a42eb1ba920918bcb7ed9356d6b2aad5b446079ac14c170b46c7313f628"
+  },
+  {
+    "name": "Arkansas withholding rules",
+    "url": "https://www.dfa.arkansas.gov/wp-content/uploads/Withholding-Tax-Formula.pdf",
+    "sha256": "8a2d94f074d0a0a59ed8210a43b996a102367b4113f0f9ecec996dace11cbc64"
+  },
+  {
+    "name": "California withholding rules",
+    "url": "https://edd.ca.gov/siteassets/files/pdf_pub_ctr/26methb.pdf",
+    "sha256": "145b570a333f22ff0b4c230ef8ee04bd6f5dc89f8351eb134754b4820f6c7047"
+  },
+  {
+    "name": "Connecticut withholding rules",
+    "url": "https://portal.ct.gov/-/media/drs/publications/pubsip/2026/ip-2026-1.pdf",
+    "sha256": "1df6a8f3dbdc4403e5c3910eea2bee72904fb3535323b4fc68cb9726afe664a2"
+  },
+  {
+    "name": "Delaware withholding rules",
+    "url": "https://revenue.delaware.gov/employers-guide-withholding-regulations-employers-duties/",
+    "sha256": "f509fafd5dce68c89d4930930c946058b2724a6b31632eb0db144176254cc5ac"
+  },
+  {
+    "name": "District of Columbia withholding rules",
+    "url": "https://help.nfc.usda.gov/bulletins/2022/1668460546.htm?taxmap=true",
+    "sha256": "33306752a17545f2ed4b2d9d25ab1a655bb1723115695d71e31848b6057a6544"
+  },
+  {
+    "name": "Hawaii withholding rules",
+    "url": "https://files.hawaii.gov/tax/news/pubs/25BkltA.pdf",
+    "sha256": "94bcfa3586a72bbe70060504ad1e7c37d3395acbbfdafa0cc0bc91f459c545be"
+  },
+  {
+    "name": "Idaho withholding rules",
+    "url": "https://tax.idaho.gov/wp-content/uploads/pubs/EPB00744/EPB00744_07-23-2026.pdf",
+    "sha256": "c52b383684af433b12eb3b712fbb0de6b61326b5061562440b43464b332cb3d8"
+  },
+  {
+    "name": "Kansas withholding rules",
+    "url": "https://www.ksrevenue.gov/kw100.html",
+    "sha256": "b57e132fe7c8763bb6bed6d4716c9a0c694ae3362ea70372f4eff949fd660499"
+  },
+  {
+    "name": "Louisiana withholding rules",
+    "url": "https://dam.ldr.la.gov/taxforms/1306-1-26.pdf",
+    "sha256": "894da1932daa836b9817ccb1515ba81913838cb2957f7948368c4e67a2daab27"
+  },
+  {
+    "name": "Maine withholding rules",
+    "url": "https://www1.maine.gov/revenue/sites/maine.gov.revenue/files/inline-files/26_wh_tab_instr_August2026.pdf",
+    "sha256": "dbb7a2e2981ca9a9af9eee55647742663f51b9439688870dfcaeb63d5b6e5bdb"
+  },
+  {
+    "name": "Maryland withholding rules",
+    "url": "https://www.marylandcomptroller.gov/content/dam/mdcomp/tax/instructions/withholding/2026/withholding-guide.pdf",
+    "sha256": "ce61cef90c00bc41ad4f4a4913ea1f9f5be65db9c08b015d43c191d20883e0bf"
+  },
+  {
+    "name": "Michigan withholding rules",
+    "url": "https://www.michigan.gov/taxes/business-taxes/withholding/calendar-year-tax-information",
+    "sha256": "2e6e2d6d5f40cd9dff940a440148812f85451d2b9112b78079def5885cdc364f"
+  },
+  {
+    "name": "Minnesota withholding rules",
+    "url": "https://www.revenue.state.mn.us/sites/default/files/2025-12/wh-inst-26.pdf",
+    "sha256": "47c22acd256bcb85fe6fd49a8012835acc5e97b1ebaec99362e6a154e1795da9"
+  },
+  {
+    "name": "Mississippi withholding rules",
+    "url": "https://www.dor.ms.gov/sites/default/files/tax-forms/business/89700251revised1.13.2026.pdf",
+    "sha256": "5eabfe62a2d271ab21f72f741c95d1e0b49021b4ef286a644f4270b512a4d585"
+  },
+  {
+    "name": "Montana withholding rules",
+    "url": "https://revenuefiles.mt.gov/files/Forms/Montana_Employer_and_Information_Agent_Guide_with_Tax_Tables.pdf",
+    "sha256": "be5e53a31b7175ed17fd2457ef40dff1224e4e9737ac18248f1434c6d4b578eb"
+  },
+  {
+    "name": "Nebraska withholding rules",
+    "url": "https://revenue.nebraska.gov/sites/default/files/doc/business/Cir_En_2025/2026_percent.pdf",
+    "sha256": "3688c1c21a859c941d3ece99dafe99021b9178156c1075eccfe9637d4eef7c49"
+  },
+  {
+    "name": "New Jersey withholding rules",
+    "url": "https://www.nj.gov/treasury/taxation/pdf/withholdingtables.pdf",
+    "sha256": "e7480d096b6126f49181c9f5e9b04a15b1542ca79e7480d01e4a3d6bb359f3f8"
+  },
+  {
+    "name": "New Mexico withholding rules",
+    "url": "https://realfile.tax.newmexico.gov/FYI-104.pdf",
+    "sha256": "400f141e3cc28d352712cd0cb94f80d7c2dc1c40463fcdcf31561247b5889a82"
+  },
+  {
+    "name": "North Dakota withholding rules",
+    "url": "https://www.tax.nd.gov/sites/www/files/documents/forms/individual/2026-iit/2026-income-tax-withholding-rates-booklet.pdf",
+    "sha256": "b265477a04e5932a79efc5bbc1be6db812febbe018a4f8b7018b7a72553f0415"
+  },
+  {
+    "name": "Ohio withholding rules",
+    "url": "https://dam.assets.ohio.gov/image/upload/tax.ohio.gov/employer_withholding/2026%20Withholding%20Tables/WHT_PercentageMethod_2026.pdf",
+    "sha256": "e258bb3a32c8f41ce71b03fe1ae652a34a43347918c7fd37b640d8c149d447c2"
+  },
+  {
+    "name": "Oklahoma withholding rules",
+    "url": "https://oklahoma.gov/content/dam/ok/en/tax/documents/resources/publications/businesses/withholding-tables/WHTables-2026.pdf",
+    "sha256": "6accb881c35c7dedc0abf6ef23064e0e02de1f3a3ebebc614370c853ecec95ad"
+  },
+  {
+    "name": "Oregon withholding rules",
+    "url": "https://www.oregon.gov/dor/forms/FormsPubs/withholding-tax-formulas_206-436_2026.pdf",
+    "sha256": "5beea1190b4072da8fb027d211665a4899ffd43d4488ab9e910bde57261ed37d"
+  },
+  {
+    "name": "Rhode Island withholding rules",
+    "url": "https://tax.ri.gov/sites/g/files/xkgbur541/files/2025-12/2026%20Withholding%20Tax%20Booklet.pdf",
+    "sha256": "1e6883fa1a02cc03eaa0be3a62a8e8bf34b2a02ed5246fc8bcc7c54b0bab37c1"
+  },
+  {
+    "name": "South Carolina withholding rules",
+    "url": "https://dor.sc.gov/sites/dor/files/forms/WH1603F_2026.pdf",
+    "sha256": "588edf32e0876bc842d41dea20eebac59c2b12e5457562d052c0c28ac5e9ffff"
+  },
+  {
+    "name": "Vermont withholding rules",
+    "url": "https://help.nfc.usda.gov/bulletins/2026/1780320782.htm?taxmap=true",
+    "sha256": "263221bdebb6576023361cbae50fdf0abf01ea9e7648c10676209a62bed71e1f"
+  },
+  {
+    "name": "West Virginia withholding rules",
+    "url": "https://tax.wv.gov/Documents/Withholding/it100.2a.pdf",
+    "sha256": "c103bacc00f5d3c6c02ce3831c76d328e3ada5ee8af3746a48100b9001ee68b2"
+  },
+  {
+    "name": "Wisconsin withholding rules",
+    "url": "https://www.revenue.wi.gov/DOR%20Publications/pb166.pdf",
+    "sha256": "c400ce62d7a945f111d01f42e541415d27c3cae45eb30f3fbf25ac5220949fb7"
+  },
+  {
+    "name": "Arkansas low-income withholding tables",
+    "url": "https://www.dfa.arkansas.gov/wp-content/uploads/Withholding-Tax-Tables-for-Low-Income.pdf",
+    "sha256": "66967ea49c6b368e200a705743a5737c66ddec54c601f5a709c43618b666301a"
+  },
+  {
+    "name": "Idaho employer calculation guidance",
+    "url": "https://tax.idaho.gov/taxes/income-tax/withholding/computing/",
+    "sha256": "ec91a8be83b653c0a09d6a70102dde378465b8b9fd9c14afe7512af733eefbfe"
+  },
+  {
+    "name": "Ohio percentage method effective October 2025",
+    "url": "https://dam.assets.ohio.gov/image/upload/tax.ohio.gov/employer_withholding/2025%20Withholding%20Tables/WHT_PercentageMethod_2025.pdf",
+    "sha256": "b726a7db435a59f5f9239059840b478d32ea8666b9e7813bb7b342b44099e2e1"
+  },
+  {
+    "name": "Ohio school district rates",
+    "url": "https://dam.assets.ohio.gov/image/upload/tax.ohio.gov/employer_withholding/2025-2026%20NYP%20Updates/School_Districts_2026.pdf",
+    "sha256": "3b13e9c6fd9ee63392401035322082b89ce9764a777c9637a0ef15a50a3d80e2"
+  },
+  {
+    "name": "Philadelphia Wage Tax",
+    "url": "https://www.phila.gov/services/business-self-employment/business-taxes/wage-tax-employers/",
+    "sha256": "3187d96d796c9d7f42608ffaab2426d13cbd6e6d6c1f1370c6f3c9b9824e7022"
+  },
+  {
+    "name": "Yonkers exact withholding method",
+    "url": "https://www.tax.ny.gov/pdf/publications/withholding/nys50_t_y.pdf",
+    "sha256": "2fb609e46fbd1a7cc481b85558f0c3543aa7c982b6ac4c4402320234d6307858"
+  },
+  {
+    "name": "Department of Labor unemployment rules by state",
+    "url": "https://oui.doleta.gov/unemploy/statelaws.asp",
+    "sha256": "93b9e33676cb339aed701d7b4e9dadbb3ff019fe3e0c0315e56172f7478273e7"
+  },
+  {
+    "name": "Department of Labor July 2026 unemployment wage bases",
+    "url": "https://oui.doleta.gov/unemploy/content/sigpros/2020-2029/July2026.pdf",
+    "sha256": "35f0b7356037fa24f6d9d73989ebb55fdfde84047a3d2eb8117d57f8e002b7f3"
+  },
+  {
+    "name": "Kentucky unemployment wage base",
+    "url": "https://ui.ky.gov/Redesign/ResourcePages/TaxableWageBase.aspx",
+    "sha256": "229df34fb1cb48647c164d4787f5c0355c796d7101fac6ce70ecaf93a7947fdc"
+  },
+  {
+    "name": "Nevada unemployment wage base",
+    "url": "https://detr.nv.gov/Page/UI_Tax",
+    "sha256": "609599e5027db16016f23a4a2e1185ac66539824a3e9b55bcefe38989e7cf7c4"
+  },
+  {
+    "name": "Rhode Island unemployment wage base",
+    "url": "https://dlt.ri.gov/employers/employer-tax-unit",
+    "sha256": "9c0dd004caec2fdf04c23808350b6380eceb9feb6140a2382de85ccb3c7ac002"
+  },
+  {
+    "name": "Department of Labor wage garnishment limits",
+    "url": "https://www.dol.gov/agencies/whd/fact-sheets/30-cppa/",
+    "sha256": "ad67e5c45a50e620316b74825e7eb432a3b374a263f4fce022e68d1782a933a2"
+  },
+  {
+    "name": "Georgia state employer tax guide directory",
+    "url": "https://dor.georgia.gov/employers-tax-guide",
+    "sha256": "76273ca3f16aa52fd91671474a37269240774f294fc83cb308b7945efe20a201"
+  },
+  {
+    "name": "DC Office of Tax and Revenue withholding forms",
+    "url": "https://otr.cfo.dc.gov/page/withholding-tax-forms",
+    "sha256": "3dd75f3c5204b8fd0faa9de95e06b4e2356474ba92fc4ea305dd3dca6c8aabdc"
+  },
+  {
+    "name": "Arkansas withholding guide",
+    "url": "https://www.dfa.arkansas.gov/wp-content/uploads/withholdInstructions_2026.pdf",
+    "sha256": "6626a41766e3a1ad0512a4e3c80f207e5a53789b23fee55f9bc96c29903c81c7"
+  },
+  {
+    "name": "New Mexico withholding rates directory",
+    "url": "https://www.tax.newmexico.gov/all-nm-taxes/current-historic-tax-rates-overview/withholding-tax-rates/",
+    "sha256": "96b0371f2331e3cb95820abee8a5a795286905c937f4f39c5054b871a4d0731a"
   }
 ]

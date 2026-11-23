@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 """Compare published payroll references with the documents reviewed for the calculator."""
 
+import argparse
 import hashlib
 import json
 import os
 import re
 import subprocess
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timezone
 from pathlib import Path
 
 MANIFEST = Path(__file__).with_name("payroll-tax-sources.json")
@@ -42,6 +44,9 @@ def check(source):
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--status-json", type=Path, help="Write the latest source status for the payroll portal")
+    args = parser.parse_args()
     sources = json.loads(MANIFEST.read_text(encoding="utf-8"))
     with ThreadPoolExecutor(max_workers=6) as executor:
         results = list(executor.map(check, sources))
@@ -62,6 +67,14 @@ def main():
     if summary:
         with Path(summary).open("a", encoding="utf-8") as output:
             output.write(report)
+    if args.status_json:
+        issues = [
+            {"name": name, "url": url, "status": "changed" if status == "Source changed" else "unavailable"}
+            for name, url, status in needs_review
+        ]
+        result = {"checked_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                  "sources_checked": len(results), "needs_review": issues}
+        args.status_json.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
     return int(bool(needs_review))
 
 

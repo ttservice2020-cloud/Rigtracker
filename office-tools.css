@@ -22,9 +22,13 @@
 .payroll-tax-group{padding:10px;border:1px solid #34465f;border-radius:8px;margin:0 0 12px;min-width:0}
 .payroll-tax-group summary{cursor:pointer}
 .payroll-tax-group legend{padding:0 4px}
+.office-payroll-actions{display:flex;flex-wrap:wrap;gap:8px}
+.office-payroll-actions button{max-width:100%}
 .payroll-tax-results{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px 12px}
 .payroll-tax-results dd{margin:0;text-align:right}
 .payroll-tax-results a{font-size:.8em}
 #companyDriverPayrollTax{margin-bottom:12px}
 .payroll-tax-field input[type=checkbox]{width:auto;min-height:0;margin:0}
 .payroll-tax-dialog:modal{box-sizing:border-box}
+.payroll-tax-local-item{border-top:1px solid #34465f;padding:12px 0}
+.payroll-tax-local-list:not(:empty){margin-top:8px}

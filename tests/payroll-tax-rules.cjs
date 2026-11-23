@@ -1,5 +1,9 @@
 const assert = require('node:assert/strict');
-const { calculate, covers, states, indianaCounties, kentuckyLocalities } = require('../payroll-tax-rules.js');
+const {
+  calculate, covers, states, indianaCounties, kentuckyLocalities, baseFields, marylandLocalities, ohioDistricts
+} = require('../payroll-tax-rules.js');
+const stateFormulas = require('../payroll-tax-state-formulas.js');
+const { stateWageBase, unemployment, federalGarnishmentLimit } = require('../payroll-tax-deductions.js');
 const profile = {
   state:'KY', periods:52, federalForm:'current', filingStatus:'single', multipleJobs:false, legacyAllowances:0,
   credits:0, otherIncome:0, deductions:0, federalExtra:0, federalExemptYear:2026, stateTreatment:'regular',
@@ -31,7 +35,7 @@ assert.equal(deductions(1000,{ locality:'elizabethtown' })[2],19.5);
 assert.equal(deductions(1000,{ locality:'bardstown' })[2],10);
 const indiana = { state:'IN',locality:'in:31',elections:{ inPersonal:5,inDependent:3,inFirst:1,inAdopted:2 } };
 assert.deepEqual(deductions(800,indiana).slice(1,3),[13.96,4.73]);
-assert.deepEqual(deductions(800,indiana,{date:'2026-10-09', periodStartsOn:'2026-09-29'}).slice(1,3),[13.96,null]);
+assert.deepEqual(deductions(800,indiana,{date:'2026-10-09', periodStartsOn:'2026-09-29'}).slice(1,3),[13.96,4.73]);
 assert.deepEqual(deductions(800,indiana,{date:'2026-10-09', periodStartsOn:'2026-10-01'}).slice(1,3),[13.96,4.73]);
 assert.equal(deductions(1000,{state:'CA',locality:'unverified'})[1],null);
 const noStateIncome = ['AK','FL','NV','NH','SD','TN','TX','WA','WY'];
@@ -49,7 +53,9 @@ assert.equal(deductions(450,{state:'NC',elections:{ncStatus:'standard',ncAllowan
 assert.equal(deductions(1000,{state:'PA'})[1],30.70);
 assert.equal(deductions(1200,{state:'UT',periods:24,elections:{utStatus:'married'}})[1],18);
 assert.equal(deductions(400,{state:'UT',elections:{utStatus:'single'}})[1],12);
-assert.equal(deductions(400,{state:'UT',elections:{utStatus:'single'}},{date:'2026-06-04', periodStartsOn:'2026-05-31'})[1],null);
+assert.equal(deductions(2000,{state:'UT',elections:{utStatus:'single'}},{date:'2026-06-04', periodStartsOn:'2026-05-31'})[1],90);
+assert.equal(deductions(2000,{state:'UT',elections:{utStatus:'single'}},{date:'2026-06-04', periodStartsOn:'2026-06-01'})[1],89);
+assert.equal(deductions(400,{state:'UT',elections:{utStatus:'single'}},{date:'2026-06-04', periodStartsOn:''})[1],null);
 assert.equal(deductions(400,{state:'UT',elections:{utStatus:'single'}},{date:'2026-06-04', periodStartsOn:'2026-06-01'})[1],12);
 const newYorkElections = { nyStatus:'single',nyAllowances:3,nyCityAllowances:3 };
 assert.deepEqual(deductions(400,{state:'NY',locality:'newYorkCity',elections:newYorkElections}).slice(1,3),[8.01,6.11]);
@@ -59,7 +65,7 @@ assert.equal(deductions(2649,{state:'VA',periods:24,elections:{vaPersonal:5,vaAg
 assert.equal(deductions(2100,{state:'IA',periods:26,elections:{iaStatus:'standard',iaAllowance:40,iaLegacyCount:0}})[1],59.26);
 assert.equal(deductions(5000,{state:'IA',periods:12,elections:{iaStatus:'joint',iaAllowance:80,iaLegacyCount:0}})[1],101);
 assert.equal(deductions(2000,{state:'GA',periods:24,elections:{gaStatus:'joint',gaDependents:1}})[1],27.03);
-assert.equal(deductions(2000,{state:'GA',periods:24,elections:{gaStatus:'joint',gaDependents:1}},{date:'2026-05-10',periodStartsOn:''})[1],null);
+assert.equal(deductions(2000,{state:'GA',periods:24,elections:{gaStatus:'joint',gaDependents:1}},{date:'2026-05-10',periodStartsOn:''})[1],43.25);
 assert.equal(deductions(1000,{state:'MA',elections:{maAllowances:1,maHead:0,maBlind:0}},{maContributions:76.5})[1],41.93);
 assert.equal(deductions(1000,{state:'MA',elections:{maAllowances:1,maHead:0,maBlind:0}})[1],null);
 assert.deepEqual(deductions(2000,{}, {socialSecurityYtd:184200,medicareYtd:199500}).slice(3),[18.60,29,13.50]);
@@ -68,4 +74,94 @@ assert.deepEqual(deductions(2000,{}, {date:'2027-01-01', periodStartsOn:'2026-12
 assert.throws(()=>deductions(2000,{}, {date:'2026-02-31', periodStartsOn:''}));
 assert.throws(()=>deductions(2000,{}, {periodStartsOn:'2026-11-28'}));
 assert.throws(()=>deductions(2000,{}, {medicareYtd:NaN}));
-console.log('Payroll calculations passed federal/W-4, all supported state cases, official examples, city and county rates, date boundaries, and FICA caps.');
+
+for (const state of Object.keys(states)) {
+  assert.equal(covers(state),true,state);
+  const elections = Object.fromEntries((baseFields[state] || []).map(([name,,choices]) => [name,choices ? choices.at(-1)[0] : 0]));
+  if (state === 'AR') elections.arMethod = 'standard';
+  for (const periods of [52,26,24,12]) {
+    const gross = 120000 / periods;
+    const amount = deductions(gross,{state,periods,elections},{maContributions:0})[1];
+    assert.equal(Number.isFinite(amount),true,state + ' ' + periods);
+    assert.equal(amount === 0,noStateIncome.includes(state),state);
+  }
+}
+
+// Examples from the respective agencies' payroll withholding instructions.
+const stateExamples = [
+  ['AL',850,52,{alStatus:'married',alDependents:2},29.59,35.19],
+  ['AR',2127,12,{arExemptions:2,arMethod:'standard',arLowStatus:'single',arLowDependents:0},36.50],
+  ['AR',282.70,52,{arExemptions:0,arMethod:'lowIncome',arLowStatus:'single',arLowDependents:1},.07],
+  ['AR',336.55,52,{arExemptions:0,arMethod:'lowIncome',arLowStatus:'single',arLowDependents:0},null],
+  ['CA',210,52,{caStatus:'single',caRegular:1,caDeduction:0},0],
+  ['CA',1600,26,{caStatus:'married',caRegular:2,caDeduction:1},2.38],
+  ['CA',5100,12,{caStatus:'married',caRegular:5,caDeduction:0},0.82],
+  ['CA',950,52,{caStatus:'head',caRegular:3,caDeduction:0},1.69],
+  ['HI',500,52,{hiStatus:'single',hiAllowances:3},9.58],
+  ['ID',1000,52,{idStatus:'married',idAllowances:4},7,0,'2026-07-30'],
+  ['ID',1000,52,{idStatus:'married',idAllowances:4},20,0,'2026-07-31'],
+  ['KS',2000,24,{ksStatus:'married',ksPersonal:2,ksAllowances:1},41.44],
+  ['LA',700,52,{laDeduction:1},13.98],
+  ['LA',4600,26,{laDeduction:2},111.54],
+  ['ME',1000,52,{meStatus:'single',meAllowances:2},32],
+  ['ND',1800,52,{ndStatus:'oldSingle',ndAllowances:2},10],
+  ['OH',2000,52,{ohExemptions:1},53.75,0,'2026-07-31'],
+  ['OH',2000,52,{ohExemptions:1},52.73,0,'2026-08-01'],
+  ['OR',25000/52,52,{orStatus:'single',orAllowances:0},34,1000/52],
+  ['RI',2195,52,{riExemptions:1},87.57],
+  ['SC',750,52,{scAllowances:3},10.58],
+  ['WI',350,52,{wiStatus:'single',wiExemptions:1},7.59],
+  ['WI',500,52,{wiStatus:'single',wiExemptions:3},14.34],
+  ['WI',1000,26,{wiStatus:'married',wiExemptions:3},22.08]
+];
+for (const [state,wages,periods,elections,expected,federalAmount = 0,date = '2026-11-27'] of stateExamples) {
+  assert.equal(stateFormulas.calculate(state,{date,wages,periods,elections,federalAmount,input:{}}),expected,state);
+}
+assert.equal(deductions(850,{state:'AL',federalForm:'special',elections:{alStatus:'married',alDependents:2}})[1],null);
+assert.equal(deductions(1000,{state:'WV',elections:{wvStatus:'one',wvExemptions:1}},
+  {date:'2026-06-11',periodStartsOn:'2026-06-01'})[1],null);
+
+assert.equal(deductions(400,{state:'NY',locality:'yonkersResident',elections:newYorkElections})[2],1.34);
+assert.equal(deductions(50000,{state:'NY',locality:'yonkersResident',periods:12,elections:newYorkElections})[2],599.08);
+assert.equal(deductions(75,{state:'NY',locality:'yonkersNonresident',elections:newYorkElections})[2],0);
+assert.equal(deductions(200,{state:'NY',locality:'yonkersNonresident',elections:newYorkElections})[2],0.81);
+assert.equal(deductions(400,{state:'NY',locality:'yonkersNonresident',periods:24,elections:newYorkElections})[2],1.38);
+assert.equal(deductions(1000,{state:'IN',locality:'in:06',elections:indiana.elections},
+  {date:'2026-09-29',periodStartsOn:'2026-09-21'})[2],11.44);
+assert.equal(deductions(1000,{state:'IN',locality:'in:06',elections:indiana.elections},
+  {date:'2026-10-03',periodStartsOn:'2026-10-01'})[2],11.51);
+assert.equal(Object.keys(marylandLocalities).length,25);
+assert.deepEqual(deductions(1300,{state:'MD',locality:'md:04',elections:{mdStatus:'single',mdExemptions:1}}).slice(1,3),[55.72,37.54]);
+assert.equal(Object.keys(ohioDistricts).length,214);
+assert.equal(deductions(1000,{state:'OH',locality:'oh:0502',elections:{ohExemptions:2}})[2],10);
+assert.equal(deductions(1000,{state:'OH',locality:'oh:2501',elections:{ohExemptions:2}})[2],7.31);
+assert.equal(deductions(2000,{state:'PA',locality:'philadelphiaResident'},
+  {date:'2026-06-30',periodStartsOn:'2026-06-25'})[2],74.80);
+assert.equal(deductions(2000,{state:'PA',locality:'philadelphiaResident'},
+  {date:'2026-07-01',periodStartsOn:'2026-06-25'})[2],74.70);
+assert.equal(deductions(2000,{state:'PA',locality:'philadelphiaNonresident'})[2],68.50);
+const localTaxes = [
+  {name:'City tax',method:'rate',value:1.5,source:'https://example.gov/city'},
+  {name:'School tax',method:'rate',value:.75}, {name:'Local fee',method:'fixed',value:2}
+];
+const localAmounts = estimate(1000,{locality:'configured',localTaxes},{localTaxWages:[undefined,800]})
+  .employee.filter(row=>localTaxes.some(tax=>tax.name===row.name));
+assert.deepEqual(localAmounts.map(row=>row.amount),[15,6,2]);
+assert.equal(localAmounts[0].source,'https://example.gov/city');
+assert.equal(deductions(1000,{locality:'unverified',localTaxes})[2],null);
+for (const state of Object.keys(states)) assert.ok(stateWageBase(state,2026),state);
+assert.equal(stateWageBase('KY',2026),12000);
+assert.equal(stateWageBase('NV',2026),43700);
+assert.deepEqual(stateWageBase('RI',2026),[30800,32300]);
+assert.equal(stateWageBase('KY',2027),undefined);
+assert.equal(unemployment(1200,6500,7000,.6),3);
+assert.equal(unemployment(1200,12000,12000,2.7),0);
+assert.equal(unemployment(1200,11600,12000,2.7),10.8);
+assert.throws(() => unemployment(1200,NaN,7000,2.7));
+assert.equal(federalGarnishmentLimit(52,200,'ordinary'),0);
+assert.equal(federalGarnishmentLimit(52,233,'ordinary'),15.50);
+assert.equal(federalGarnishmentLimit(52,370,'ordinary'),92.50);
+assert.equal(federalGarnishmentLimit(12,1000,'ordinary'),57.50);
+assert.equal(federalGarnishmentLimit(52,800,'support',true,false),400);
+assert.equal(federalGarnishmentLimit(52,800,'support',false,true),520);
+console.log('Payroll calculations passed nationwide regular wages, agency examples, local rates, effective dates, unemployment, and federal deduction limits.');

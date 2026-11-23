@@ -3,8 +3,12 @@ const payrollTaxRules = (() => {
   const { states, indianaCounties } = typeof module === 'undefined'
     ? payrollTaxJurisdictions : require('./payroll-tax-jurisdictions.js');
 
-  const { nys, nyc } = typeof module === 'undefined' ? payrollTaxNewYork : require('./payroll-tax-new-york.js');
+  const { nys, nyc, nyy } = typeof module === 'undefined' ? payrollTaxNewYork : require('./payroll-tax-new-york.js');
+  const stateFormulas = typeof module === 'undefined'
+    ? payrollTaxStateFormulas : require('./payroll-tax-state-formulas.js');
+  const ohioDistricts = typeof module === 'undefined' ? payrollTaxOhioDistricts : require('./payroll-tax-ohio-districts.js');
   const sources = {
+    ...stateFormulas.sources,
     federal: 'https://www.irs.gov/publications/p15t',
     fica: 'https://www.irs.gov/publications/p15',
     noState: 'https://mn.gov/mmb/assets/20260916a_tcm1059-768126.pdf',
@@ -13,6 +17,7 @@ const payrollTaxRules = (() => {
     MA: 'https://www.mass.gov/doc/massachusetts-circular-m-income-tax-withholding-tables-at-50-effective-january-1-2026/download',
     NY: 'https://www.tax.ny.gov/pdf/publications/withholding/nys50_t_nys.pdf',
     nyc: 'https://www.tax.ny.gov/pdf/publications/withholding/nys50_t_nyc.pdf',
+    yonkers: 'https://www.tax.ny.gov/pdf/publications/withholding/nys50_t_y.pdf',
     VA: 'https://www.tax.virginia.gov/sites/default/files/vatax-pdf/employer-withholding-instructions.pdf',
     NH: states.NH[1],
     CO: 'https://tax.colorado.gov/sites/tax/files/documents/DR_1098_Colorado_Withholding_Worksheet_for_Employees.pdf',
@@ -22,6 +27,9 @@ const payrollTaxRules = (() => {
     AZ: 'https://azdor.gov/sites/default/files/document/FORMS_WITHHOLDING_2026_A-4_f.pdf',
     IL: 'https://tax.illinois.gov/forms/withholding/currentyear/il-700-t-withholding-guide-tables.html',
     IN: 'https://www.in.gov/dor/files/dn01.pdf',
+    ohioDistricts: 'https://dam.assets.ohio.gov/image/upload/tax.ohio.gov/employer_withholding/2025-2026%20NYP%20Updates/School_Districts_2026.pdf',
+    ohioFinder: 'https://tax.ohio.gov/business/ohio-business-taxes/online-services/thefinderschooldistrict',
+    philadelphia: 'https://www.phila.gov/services/business-self-employment/business-taxes/wage-tax-employers/',
     KY: 'https://revenue.ky.gov/Forms/2026%20Withholding%20Formula.pdf',
     NC: 'https://www.ncdor.gov/income-tax-withholding-tables-and-instructions-employers/open',
     PA: 'https://www.pa.gov/agencies/revenue/resources/tax-types-and-information/employer-withholding',
@@ -55,6 +63,7 @@ const payrollTaxRules = (() => {
   };
   const statusChoices = [['single','Single or married filing separately'], ['married','Married']];
   const baseFields = {
+    ...stateFormulas.fields,
     GA: [['gaStatus','Form G-4 withholding status',[
       ['standard','Single, head of household, married filing separately or both spouses working'],
       ['joint','Married filing jointly with one spouse working']]],
@@ -68,7 +77,7 @@ const payrollTaxRules = (() => {
     MA: [['maAllowances','Form M-4 total exemptions (including spouse allowance)'],
       ['maHead','Head of household on Form M-4',[[0,'No'],[1,'Yes']]],
       ['maBlind','Blindness exemptions (employee and spouse)',[[0,'0'],[1,'1'],[2,'2']]]],
-    NY: [['nyStatus','IT-2104 withholding status',statusChoices], ['nyAllowances','IT-2104 line 1 state allowances'],
+    NY: [['nyStatus','IT-2104 withholding status',statusChoices], ['nyAllowances','IT-2104 line 1 state and Yonkers allowances'],
       ['nyCityAllowances','IT-2104 line 2 New York City allowances']],
     VA: [['vaPersonal','VA-4 personal and dependent exemptions'], ['vaAgeBlind','VA-4 age 65 or blindness exemptions']],
     CO: [['coStatus','Colorado filing status',[
@@ -93,6 +102,10 @@ const payrollTaxRules = (() => {
     52:[[9,180],[19,360]], 26:[[19,360],[37,719]],
     24:[[20,390],[40,779]], 12:[[40,779],[81,1558]]
   };
+  const utahEarlierSchedules = {
+    52:[[9,175],[17,350]], 26:[[17,350],[35,701]],
+    24:[[19,379],[38,759]], 12:[[38,759],[75,1518]]
+  };
   const missouriRates = [0,.02,.025,.03,.035,.04,.045,.047];
   const virginiaBrackets = [[0,.02,0],[3000,.03,60],[5000,.05,120],[17000,.0575,720]];
   // NYS-50-T-NYS and NYS-50-T-NYC Table B deductions and Table C exemptions.
@@ -100,23 +113,33 @@ const payrollTaxRules = (() => {
     52:[142.30,152.90,96.15,105.75,19.25], 26:[284.60,305.80,192.30,211.50,38.50],
     24:[308.35,331.25,208.35,229.15,41.65], 12:[616.70,662.50,416.70,458.30,83.30]
   };
+  // NYS-50-T-Y Method VII gross wages and exemptions for nonresidents.
+  const yonkersNonresident = {
+    52:[[77,58],[192,38],[385,19],[577,0]],
+    26:[[154,115],[385,77],[769,38],[1154,0]],
+    24:[[167,125],[417,83],[833,42],[1250,0]],
+    12:[[333,250],[833,167],[1667,83],[2500,0]]
+  };
 
   function bracketTax(wages, brackets) {
     const [floor,rate,base] = brackets.findLast(([floor]) => wages >= floor);
     return base + (wages - floor) * rate;
   }
 
-  function newYorkWithholding(wages, count, elections, city) {
+  function newYorkWithholding(wages, count, elections, jurisdiction = 'state') {
     const { nyStatus, nyAllowances, nyCityAllowances } = elections;
+    const city = jurisdiction === 'city';
     const married = nyStatus === 'married';
     const deductions = newYorkDeductions[count];
     const standard = deductions[(city ? 2 : 0) + Number(married)];
     const net = Math.max(0,round(wages - standard - (city ? nyCityAllowances : nyAllowances) * deductions[4]));
     const annual = net * count;
-    if (!city && annual >= (married ? 2155350 : 1077550)) {
-      return net * (annual >= 25000000 ? .117 : annual >= 5000000 ? .111 : .1045);
-    }
-    return bracketTax(net,city ? nyc.single[count] : nys[nyStatus][count]);
+    if (city) return bracketTax(net,nyc.single[count]);
+    const yonkers = jurisdiction === 'yonkers';
+    const amount = annual >= (married ? 2155350 : 1077550)
+      ? net * (annual >= 25000000 ? .117 : annual >= 5000000 ? .111 : .1045)
+      : bracketTax(net,(yonkers ? nyy : nys)[nyStatus][count]);
+    return yonkers ? amount * .1675 : amount;
   }
 
   function covers(state) {
@@ -172,10 +195,10 @@ const payrollTaxRules = (() => {
     return Math.round(tax / count);
   }
 
-  function utahIncome(wages,count,status) {
-    const [allowance,threshold] = utahSchedules[count][status === 'married' ? 1 : 0];
+  function utahIncome(wages,count,status,earlier) {
+    const [allowance,threshold] = (earlier ? utahEarlierSchedules : utahSchedules)[count][status === 'married' ? 1 : 0];
     const reduction = Math.round(Math.max(0,wages - threshold) * .013);
-    return Math.max(0,Math.round(wages * .0445) - Math.max(0,allowance - reduction));
+    return Math.max(0,Math.round(wages * (earlier ? .045 : .0445)) - Math.max(0,allowance - reduction));
   }
 
   const massachusettsPeriods = {
@@ -195,18 +218,21 @@ const payrollTaxRules = (() => {
     return Math.max(0,tax / count - maHead * headCredit - maBlind * blindCredit);
   }
 
-  function stateIncome(date, profile, wages, count, periodStartsOn, maContributions) {
+  function stateIncome(date, profile, wages, count, input, federalAmount) {
     const { state, elections, stateTreatment, stateExtra } = profile;
+    const { periodStartsOn, maContributions } = input;
     if (!date.startsWith('2026-') || !covers(state) || stateTreatment === 'review') return null;
     if (noStateIncomeTax.has(state)) return 0;
-    if (state === 'UT' && (!periodStartsOn || periodStartsOn < '2026-06-01')) return null;
-    if (state === 'GA' && date < '2026-05-11') return null;
+    if (state === 'UT' && !periodStartsOn && date >= '2026-06-01') return null;
     if (stateTreatment === 'exempt') return profile.stateExemptYear === 2026 ? 0 : null;
     let amount;
     switch (state) {
       case 'GA': {
-        const standard = round((elections.gaStatus === 'joint' ? 30000 : 15000) / count);
-        amount = Math.max(0,wages - standard - round(5000 / count) * elections.gaDependents) * .0499;
+        const earlier = date < '2026-05-11';
+        const singleDeduction = earlier ? 12000 : 15000;
+        const standard = round(singleDeduction * (elections.gaStatus === 'joint' ? 2 : 1) / count);
+        amount = Math.max(0,wages - standard - round((earlier ? 4000 : 5000) / count) * elections.gaDependents) *
+          (earlier ? .0519 : .0499);
         break;
       }
       case 'IA': {
@@ -217,7 +243,7 @@ const payrollTaxRules = (() => {
         break;
       }
       case 'MA': amount = massachusettsIncome(wages,count,elections,maContributions); break;
-      case 'NY': amount = newYorkWithholding(wages,count,elections,false); break;
+      case 'NY': amount = newYorkWithholding(wages,count,elections); break;
       case 'VA': {
         const annual = Math.max(0,wages * count - 8750 - 930 * elections.vaPersonal - 800 * elections.vaAgeBlind);
         amount = bracketTax(annual,virginiaBrackets) / count;
@@ -230,7 +256,7 @@ const payrollTaxRules = (() => {
       }
       case 'MI': amount = Math.max(0,wages - elections.miAllowances * 5900 / count) * .0425; break;
       case 'MO': amount = missouriIncome(wages,count,elections.moStatus); break;
-      case 'UT': amount = utahIncome(wages,count,elections.utStatus); break;
+      case 'UT': amount = utahIncome(wages,count,elections.utStatus,(periodStartsOn || date) < '2026-06-01'); break;
       case 'AZ': amount = wages * elections.azRate / 100; break;
       case 'IL': amount = Math.max(0, wages - (elections.ilBase * 2925 + elections.ilAdditional * 1000) / count) * .0495; break;
       case 'IN': amount = indianaTaxable(elections, wages, count) * .0295; break;
@@ -241,9 +267,11 @@ const payrollTaxRules = (() => {
         break;
       }
       case 'PA': amount = wages * .0307; break;
-      default: return null;
+      default: amount = stateFormulas.calculate(state,{ date, wages, periods:count, elections, federalAmount, input:{ ...input,federalExtra:profile.federalExtra } });
     }
-    return amount === null ? null : round(round(amount) + stateExtra);
+    if (amount === null) return null;
+    const reduction = state === 'CT' ? Number(elections.ctReduction) || 0 : 0;
+    return round(Math.max(0,round(amount) + stateExtra - reduction));
   }
 
   function localIncome(date, profile, wages, count, periodStartsOn) {
@@ -256,16 +284,50 @@ const payrollTaxRules = (() => {
       return { amount:round(wages * rate), name, source };
     }
     if (state === 'NY' && locality === 'newYorkCity') {
-      return { amount:round(round(newYorkWithholding(wages,count,elections,true)) + localExtra),
+      return { amount:round(round(newYorkWithholding(wages,count,elections,'city')) + localExtra),
         name:'New York City resident income tax', source:sources.nyc };
+    }
+    if (state === 'NY' && locality === 'yonkersResident') {
+      return { amount:round(round(newYorkWithholding(wages,count,elections,'yonkers')) + localExtra),
+        name:'Yonkers resident income tax', source:sources.yonkers };
+    }
+    if (state === 'NY' && locality === 'yonkersNonresident') {
+      const bracket = yonkersNonresident[count].findLast(([floor]) => wages >= floor);
+      return { amount:bracket ? round((wages - bracket[1]) * .005) : 0,
+        name:'Yonkers nonresident earnings tax', source:sources.yonkers };
+    }
+    if (state === 'PA' && ['philadelphiaResident','philadelphiaNonresident'].includes(locality)) {
+      const resident = locality === 'philadelphiaResident';
+      const earlier = date < '2026-07-01';
+      const rate = resident ? (earlier ? .0374 : .03735) : (earlier ? .0343 : .03425);
+      return { amount:round(wages * rate), name:'Philadelphia Wage Tax · ' + (resident ? 'resident' : 'nonresident'),
+        source:sources.philadelphia };
+    }
+    if (state === 'OH' && locality.startsWith('oh:')) {
+      const code = locality.slice(3);
+      const district = ohioDistricts[code];
+      if (district) {
+        const [name,rate,type] = district;
+        const taxable = type === 'earned' ? wages :
+          Math.max(0,wages - round(650 / count) * elections.ohExemptions);
+        return { amount:Number.isFinite(taxable) ? round(taxable * rate) : null,
+          name:name + ' school district · ' + code, source:sources.ohioDistricts };
+      }
     }
     if (state === 'IN' && locality.startsWith('in:')) {
       const county = indianaCounties.find(([code]) => 'in:' + code === locality);
-      if (county && periodStartsOn >= '2026-10-01') return {
-        amount:round(round(indianaTaxable(elections,wages,count) * county[2]) + localExtra),
-        name:county[1] + ' County, IN', source:sources.IN
-      };
+      if (county) {
+        // Boone County was the only change in the October bulletin.
+        const rate = county[0] === '06' && (periodStartsOn || date) < '2026-10-01' ? .017 : county[2];
+        return { amount:round(round(indianaTaxable(elections,wages,count) * rate) + localExtra),
+          name:county[1] + ' County, IN', source:sources.IN };
+      }
       return { amount:null, name:county ? county[1] + ' County, IN' : 'Indiana county tax', source:sources.IN };
+    }
+    if (state === 'MD' && Object.hasOwn(stateFormulas.marylandLocalities,locality)) {
+      const amount = stateFormulas.marylandLocality(locality,wages,count,elections);
+      return { amount:amount === null ? null : round(amount + localExtra),
+        name:stateFormulas.marylandLocalities[locality][0], source:sources.MD };
     }
     return { amount:null };
   }
@@ -289,12 +351,21 @@ const payrollTaxRules = (() => {
       throw new Error('Enter each wage amount and both year-to-date totals. Enter 0 where applicable.');
     }
     const local = localIncome(date, profile, localWages, profile.periods, periodStartsOn);
+    const savedLocalTaxes = (profile.localTaxes || []).map((tax,index) => {
+      const specificWages = input.localTaxWages?.[index];
+      const wages = Number.isFinite(specificWages) ? specificWages : localWages;
+      return { name:tax.name, amount:round(tax.method === 'fixed' ? tax.value : wages * tax.value / 100),
+        source:typeof tax.source === 'string' && tax.source.startsWith('https://') ? tax.source : undefined };
+    });
     const [socialSecurity, medicare, additionalMedicare] = fica(date, input);
+    const federalAmount = federalIncome(date,profile,federalWages,profile.periods);
     const employee = [
-      { name:'Federal income tax', amount:federalIncome(date, profile, federalWages, profile.periods), source:sources.federal },
-      { name:states[profile.state][0] + ' income tax', amount:stateIncome(date,profile,stateWages,profile.periods,periodStartsOn,input.maContributions),
+      { name:'Federal income tax', amount:federalAmount, source:sources.federal },
+      { type:'state', name:states[profile.state][0] + ' income tax', amount:stateIncome(date,profile,stateWages,profile.periods,input,federalAmount),
         source:sources[profile.state] || (noStateIncomeTax.has(profile.state) ? sources.noState : states[profile.state][1]) },
-      { name:local.name || 'City / county income tax', amount:local.amount, source:local.source },
+      ...(savedLocalTaxes.length && profile.locality === 'configured' ? [] :
+        [{ type:'local', name:local.name || 'City / county income tax', amount:local.amount, source:local.source }]),
+      ...savedLocalTaxes,
       { name:'Social Security', amount:socialSecurity, source:sources.fica },
       { name:'Medicare', amount:medicare, source:sources.fica },
       { name:'Additional Medicare', amount:additionalMedicare, source:sources.fica }
@@ -308,7 +379,8 @@ const payrollTaxRules = (() => {
     ] };
   }
 
-  return { states, indianaCounties, kentuckyLocalities, sources, covers, periods, baseFields, calculate };
+  return { states, indianaCounties, kentuckyLocalities, ohioDistricts, sources, covers, periods, baseFields, calculate,
+    hasStateElections:stateFormulas.hasElections, marylandLocalities:stateFormulas.marylandLocalities };
 })();
 
 if (typeof module !== 'undefined') module.exports = payrollTaxRules;

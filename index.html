@@ -296,7 +296,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 </style>
 <link rel="stylesheet" href="./dispatch.css?v=daily-payroll-1">
 <link rel="stylesheet" href="./driver-app.css?v=profile-records-1">
-<link rel="stylesheet" href="./office-tools.css?v=payroll-tax-1">
+<link rel="stylesheet" href="./office-tools.css?v=payroll-tax-2">
 </head>
 <body>
 <header class="brandbar hidden" id="appHeader">
@@ -1462,7 +1462,10 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
    </div>
   </section>
   <section id="officePayrollPage" class="page fleet-account-page">
-   <div class="page-head"><div><button class="back" type="button" onclick="officePayroll.back()">← Back</button><h1>Office Payroll</h1></div><button class="outline" type="button" id="officePayrollRefresh">Refresh</button></div>
+   <div class="page-head"><div><button class="back" type="button" onclick="officePayroll.back()">← Back</button><h1>Office Payroll</h1></div>
+    <div class="office-payroll-actions"><button class="outline" type="button" id="officePayrollTaxUpdates" hidden>Tax Rule Updates</button>
+     <button class="outline" type="button" id="officePayrollRefresh">Refresh</button></div>
+   </div>
    <p class="muted">Open a payroll day to save total hours and hourly pay or correct a shift.</p>
    <p id="officePayrollStatus" class="muted" role="status"></p>
    <section class="panel">
@@ -1710,6 +1713,15 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
  <p id="payrollTaxStatus" class="muted" role="status"></p>
  <div id="payrollTaxBody"></div>
 </dialog>
+<dialog class="office-profile-dialog payroll-tax-dialog" id="payrollTaxUpdatesDialog" aria-labelledby="payrollTaxUpdatesTitle">
+ <div class="page-head">
+  <h2 id="payrollTaxUpdatesTitle">Tax Rule Updates</h2>
+  <form method="dialog"><button class="outline" type="submit">Close</button></form>
+ </div>
+ <p id="payrollTaxUpdatesStatus" class="muted" role="status"></p>
+ <div id="payrollTaxUpdatesReleases"></div>
+ <section id="payrollTaxUpdatesSources" class="payroll-tax-group"></section>
+</dialog>
 <dialog class="office-profile-dialog" id="officePayrollShiftDialog" aria-labelledby="officePayrollShiftTitle">
  <form id="officePayrollShiftForm">
   <h2 id="officePayrollShiftTitle">Edit shift</h2>
@@ -1785,9 +1797,17 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 <script src="./linked-profiles.js?v=owner-escrow-1"></script>
 <script src="./fleet-equipment.js?v=profile-links-1"></script>
 <script src="./payroll-tax-jurisdictions.js?v=2"></script>
-<script src="./payroll-tax-new-york.js?v=1"></script>
-<script src="./payroll-tax-rules.js?v=2"></script>
-<script src="./payroll-tax-preview.js?v=2"></script>
+<script src="./payroll-tax-new-york.js?v=2"></script>
+<script src="./payroll-tax-arkansas-low.js?v=1"></script>
+<script src="./payroll-tax-california.js?v=1"></script>
+<script src="./payroll-tax-new-jersey.js?v=1"></script>
+<script src="./payroll-tax-new-mexico.js?v=1"></script>
+<script src="./payroll-tax-ohio-districts.js?v=1"></script>
+<script src="./payroll-tax-state-formulas.js?v=1"></script>
+<script src="./payroll-tax-rules.js?v=3"></script>
+<script src="./payroll-tax-deductions.js?v=1"></script>
+<script src="./payroll-tax-updates.js?v=1"></script>
+<script src="./payroll-tax-preview.js?v=3"></script>
 <script src="./company-driver-tools.js?v=payroll-tax-1"></script>
 <script src="./company-messages.js?v=driver-messages-1"></script>
 <script src="./driver-paperwork.js?v=1"></script>
@@ -1797,7 +1817,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 <script src="./driver-app.js?v=owner-escrow-1"></script>
 <script src="./fleet-bol-payments.js?v=paperwork-1"></script>
 <script src="./office-tools.js?v=payroll-time-1"></script>
-<script src="./office-payroll.js?v=payroll-tax-1"></script>
+<script src="./office-payroll.js?v=payroll-tax-2"></script>
 <script src="./owner-escrow.js?v=1"></script>
 <script src="./owner-settlement-records.js?v=owner-deductions-1"></script>
 <script src="./owner-settlement-import.js?v=preview-1"></script>
@@ -2010,6 +2030,7 @@ async function signOut(){
   ownerSettlementImport.reset();
   ownerEscrow.reset();
   payrollTaxPreview.reset();
+  payrollTaxUpdates.reset();
   adminFleetId=null;
   fleetDispatchApp.reset();
   fleetEquipment.reset();

@@ -31,6 +31,7 @@ const officePayroll = (() => {
     if (!currentUser) return;
     origin = accountTypeFor(currentUser) === 'fleet' ? 'fleet' : 'employee';
     fleet = targetFleet;
+    byId('officePayrollTaxUpdates').hidden = true;
     const now = new Date();
     const first = new Date(now.getFullYear(), now.getMonth(), 1);
     byId('officePayrollFrom').value ||= localDate(first);
@@ -67,6 +68,7 @@ const officePayroll = (() => {
       if (user !== currentUser || request !== token || !byId('officePayrollPage').classList.contains('active')) return;
       data = result;
       fleet = result?.fleet_id || fleet;
+      payrollTaxUpdates.buttonFor(fleet,byId('officePayrollTaxUpdates'));
       const people = result?.employees || [];
       const picker = byId('officePayrollEmployee');
       const selected = picker.value;
