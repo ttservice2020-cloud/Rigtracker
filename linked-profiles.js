@@ -287,6 +287,8 @@ async function openOwnRigTrackerProfile({openLoads=false}={}){
   driver:'Linked fleets can assign loads to you.',
   mechanic:'Linking gives you access to the fleet’s Dispatch, Maintenance, and Safety conversations.'
  };
+ if(hasDriverWorkflow)void driverNotifications.prepare(user);
+ else document.getElementById('driverPushSettings').classList.add('hidden');
  document.getElementById('ownLinkAccess').textContent=linkAccess[role];
  void updateOwnLinkKey('status');
  document.getElementById('ownProfileEmail').value=user.email||'';
@@ -313,6 +315,7 @@ async function openOwnRigTrackerProfile({openLoads=false}={}){
   row.textContent=link.employee_number?link.fleet_id+' · Employee '+link.employee_number:link.fleet_id;
   linkedFleets.append(row);
  }
+ if(hasDriverWorkflow&&driverNotifications.openRequestedPage())return;
  if(hasDriverWorkflow&&openLoads&&links.length&&document.getElementById('rigTrackerProfilePage').classList.contains('active')){
   void driverLoadWorkflow.open();
  }

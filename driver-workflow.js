@@ -326,7 +326,8 @@ const driverLoadWorkflow = (() => {
       ['Current Load', driverData.loads.filter(load => Number(load.queuePosition) === 1)],
       ['Queued Loads', queue],
       ['New Offers', driverData.loads.filter(isOffer)],
-      ['Other Loads', driverData.loads.filter(load => !load.queuePosition && !isOffer(load))]
+      ['Other Loads', driverData.loads.filter(load => !load.queuePosition && !isOffer(load) && load.status !== 'completed')],
+      ['Completed Loads', driverData.loads.filter(load => load.status === 'completed' && !load.queuePosition)]
     ];
     const rows = groups.filter(([, loads]) => loads.length).map(([title, loads]) => {
       const group = node('section', '', 'driver-assignment-group');
@@ -336,7 +337,16 @@ const driverLoadWorkflow = (() => {
       return group;
     });
     setList('driverWorkflowLoads', rows, 'No loads are assigned to you.');
+    paintYard();
+  }
+
+  function paintYard() {
+    const yard = byId('driverWorkflowYard');
+    const company = accountTypeFor(currentUser) === 'company';
+    const host = byId(company ? 'companyMessageYardHost' : 'driverLoadsYardHost');
+    if (yard.parentElement !== host) host.append(yard);
     const offers = driverData.yard;
+    yard.classList.toggle('hidden',company && !offers.length);
     const waiting = offers.filter(offer => !offer.picked_up_at);
     byId('driverYardList').replaceChildren(...offers.map(offer => node('li',
       [offer.trailer, offer.yard, pro(offer), offer.picked_up_at ? 'In Transit · Dispatch review' : 'Ready at yard'].join(' · '))));
@@ -384,6 +394,10 @@ const driverLoadWorkflow = (() => {
         row.append(node('p', departed ? 'Arrived ' + time + ' · Departed ' + departed : 'Arrived ' + time, 'muted'));
       }
       row.append(...stopReport(stop));
+      if (load.status === 'completed' && load.decision !== 'rejected') {
+        const upload = completedPaperworkButton(load,stop);
+        if (upload) row.append(upload);
+      }
       list.append(row);
     }
     return list;
@@ -414,9 +428,47 @@ const driverLoadWorkflow = (() => {
     return 'Lumper fee: ' + currency.format(reported ? amount : 0) + (reported ? ' · ' + payer : '');
   }
 
-  function paperworkButtons(report, label, makeButton, context = '') {
-    const documents = Array.isArray(report?.documents) && report.documents.length
+  function paperworkFiles(report) {
+    return Array.isArray(report?.documents) && report.documents.length
       ? report.documents : [report?.document].filter(Boolean);
+  }
+
+  function completedPaperworkButton(load, stop) {
+    const limit = 20 - paperworkFiles(stop.progress?.driverReport).length;
+    if (limit <= 0) return null;
+    const label = stop.kind === 'pickup' ? 'BOL' : 'Proof of Delivery';
+    const key = JSON.stringify([load.id,stop.key]);
+    return button('Upload ' + label, () => {
+      const user = currentUser;
+      if (!user) return;
+      const draft = paperworkDrafts.get(key) || {files:[],saving:false};
+      if (draft.saving) return;
+      paperworkDrafts.set(key,draft);
+      driverPaperwork.edit(draft,'Upload ' + label,pro(load) + ' · ' + stop.info.company,() => {},{
+        limit,
+        async save() {
+          const documents = [];
+          for (const entry of draft.files) {
+            if (currentUser !== user) throw new Error('Sign in again to upload paperwork.');
+            documents.push(await driverPaperwork.upload(load.id,user.id,entry));
+          }
+          if (currentUser !== user) throw new Error('Sign in again to attach your paperwork.');
+          const { error } = await supabaseClient.rpc('attach_completed_load_paperwork',{
+            target_load:load.id,target_stop:stop.key,documents
+          });
+          if (error) throw error;
+          paperworkDrafts.delete(key);
+          if (currentUser === user) {
+            showToast(label + ' saved.');
+            await refresh(false,true);
+          }
+        }
+      });
+    });
+  }
+
+  function paperworkButtons(report, label, makeButton, context = '') {
+    const documents = paperworkFiles(report);
     if (!documents.length) return [];
     const title = label + (context ? ' · ' + context : '');
     const count = documents.length > 1 ? ' · ' + documents.length + ' files' : '';
@@ -1165,20 +1217,23 @@ const driverLoadWorkflow = (() => {
       const previous = driverData.loads.find(load => load.id === selected);
       driverData = data;
       const unread = data.loads.filter(isOffer);
-      const offers = data.yard.filter(offer => !offer.picked_up_at);
+      const offers = role === 'company' ? [] : data.yard.filter(offer => !offer.picked_up_at);
       const keys = [...unread.map(load => 'load:' + load.id), ...offers.map(offer => 'trailer:' + offer.id + ':' + offer.trailer)];
       const justArrived = keys.some(key => !seenDriver.has(key));
-      if (driverInitialized && justArrived) showToast('You have a new load assignment or yard trailer.');
+      if (driverInitialized && justArrived) showToast(role === 'company'
+        ? 'You have a new load assignment.' : 'You have a new load assignment or yard trailer.');
       seenDriver = new Set(keys);
       driverInitialized = true;
       const viewing = showingLoads() && !document.hidden;
-      const updated = role === 'company' && companyLoadUpdate(user, data, viewing);
+      const updated = role === 'company' && companyLoadUpdate(user, {loads:data.loads,yard:[]}, viewing);
       if (typeof rigTrackerApp !== 'undefined') {
-        rigTrackerApp.badge('loads', keys.length || (updated ? '•' : ''), keys.length ? 'new assignments or yard trailers' : 'load update');
+        rigTrackerApp.badge('loads', keys.length || (updated ? '•' : ''), keys.length
+          ? (role === 'company' ? 'new assignments' : 'new assignments or yard trailers') : 'load update');
       }
       byId('profileDriverLoadsButton').textContent = keys.length ? 'Loads (' + keys.length + ')' : updated ? 'Loads · Update' : 'Loads';
       byId('ownerDriverLoadsButton').textContent = keys.length ? 'Loads (' + keys.length + ')' : 'Loads';
       const snapshot = JSON.stringify(data);
+      if (role === 'company' && byId('companyMessagesPage').classList.contains('active')) paintYard();
       if (listScreen.classList.contains('active')) {
         if (redraw || snapshot !== driverSnapshot) paintDriverList();
         byId('driverWorkflowStatus').textContent = '';
@@ -1401,6 +1456,8 @@ const driverLoadWorkflow = (() => {
       'dispatchWorkflowYard','dispatchWorkflowResponses']) byId(id).replaceChildren();
     byId('driverLoadDetailStatus').textContent = '';
     byId('driverYardForm').reset();
+    byId('driverWorkflowYard').classList.add('hidden');
+    byId('driverLoadsYardHost').append(byId('driverWorkflowYard'));
     byId('dispatchYardSendForm').reset();
     for (const id of ['profileDriverLoadsButton','ownerDriverLoadsButton']) byId(id).textContent = 'Loads';
     byId('dispatch-tab-activity').textContent = 'Driver Activity';

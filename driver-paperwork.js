@@ -87,8 +87,9 @@ const driverPaperwork = (() => {
     return file.type && file.type !== 'application/octet-stream' ? file.type : mimeByExtension[extension];
   }
 
-  function edit(draft, title, subtitle, onChange) {
+  function edit(draft, title, subtitle, onChange, options = {}) {
     const view = show(title, subtitle);
+    const limit = options.limit ?? maxFiles;
     const gallery = element('ol', '', 'driver-paperwork-grid');
     const count = element('p', '', 'muted');
     count.setAttribute('role', 'status');
@@ -110,12 +111,14 @@ const driverPaperwork = (() => {
           (gallery.children[Math.min(index, gallery.children.length - 1)]?.querySelector('button') || add).focus();
         });
         remove.setAttribute('aria-label', 'Remove ' + file.name);
+        remove.disabled = Boolean(draft.saving);
         card.append(remove);
         return card;
       }));
       const total = draft.files.length;
       count.textContent = total ? total + (total === 1 ? ' file selected' : ' files selected') : 'No files selected';
-      add.disabled = take.disabled = total >= maxFiles;
+      add.disabled = take.disabled = Boolean(draft.saving) || total >= limit;
+      if (options.save) done.disabled = Boolean(draft.saving) || !total;
     }
 
     function update() {
@@ -131,14 +134,14 @@ const driverPaperwork = (() => {
       picker.accept = accept;
       picker.hidden = true;
       picker.addEventListener('change', () => {
-        if (session !== view || !dialog.open) return;
+        if (session !== view || !dialog.open || draft.saving) return;
         const errors = new Set();
         for (const file of picker.files) {
           const mime = fileMime(file);
           if (!Object.hasOwn(extensionByMime, mime) || !file.size || file.size > maxBytes) {
             errors.add(file.name + ' must be a supported photo or PDF up to 10 MB.');
-          } else if (draft.files.length >= maxFiles) {
-            errors.add('You can attach up to ' + maxFiles + ' files per stop.');
+          } else if (draft.files.length >= limit) {
+            errors.add('You can add up to ' + limit + (limit === 1 ? ' more file.' : ' more files.'));
             break;
           } else {
             draft.files.push({ file, mime });
@@ -160,8 +163,30 @@ const driverPaperwork = (() => {
     const actions = element('div', '', 'driver-paperwork-actions');
     actions.append(take, add, camera, files);
     const footer = element('footer');
-    footer.append(button('Done', close, 'primary-btn'));
-    view.body.append(actions, element('p', 'Files are attached when you save the stop.', 'muted'), count, error, gallery, footer);
+    const done = button(options.save ? 'Save Files' : 'Done', async () => {
+      if (!options.save) return close();
+      if (draft.saving || !draft.files.length || session !== view) return;
+      draft.saving = true;
+      error.textContent = '';
+      done.textContent = 'Saving files…';
+      update();
+      try {
+        await options.save();
+        if (session === view) close();
+      } catch (failure) {
+        if (session === view) error.textContent = failure.message || 'Could not save the paperwork. Try again.';
+      } finally {
+        draft.saving = false;
+        if (session === view) {
+          done.textContent = 'Save Files';
+          update();
+        }
+      }
+    }, 'primary-btn');
+    footer.append(done);
+    view.body.append(actions, element('p', options.save
+      ? 'Choose files and save them to this completed load.' : 'Files are attached when you save the stop.', 'muted'),
+    count, error, gallery, footer);
     paint();
   }
 

@@ -373,6 +373,7 @@ const companyMessaging = (() => {
     if (!byId('companyMessagesPage').classList.contains('active')) returnPage = document.querySelector('.page.active')?.id;
     showPage('companyMessagesPage');
     byId('companyMessagesStatus').textContent = 'Loading messages…';
+    if (accountTypeFor(currentUser) === 'company') void driverLoadWorkflow.refresh(true);
     return refresh(true);
   }
 

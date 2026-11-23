@@ -124,7 +124,7 @@ const rigTrackerApp = (() => {
   window.addEventListener('appinstalled', () => { installPrompt = null; });
   document.querySelectorAll('[data-install-app]').forEach(button => button.addEventListener('click', () => void install()));
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('./sw.js').catch(error => console.warn('App installation worker unavailable.', error));
+    navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'}).catch(error => console.warn('App installation worker unavailable.', error));
   }
 
   return { pageChanged, companyReady, badge, reset, launchedAsApp };

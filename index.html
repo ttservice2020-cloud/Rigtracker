@@ -296,7 +296,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 </style>
 <link rel="stylesheet" href="./dispatch.css?v=daily-payroll-1">
 <link rel="stylesheet" href="./driver-app.css?v=profile-records-1">
-<link rel="stylesheet" href="./office-tools.css?v=payroll-statement-1">
+<link rel="stylesheet" href="./office-tools.css?v=settlement-queue-1">
 </head>
 <body>
 <header class="brandbar hidden" id="appHeader">
@@ -1219,6 +1219,11 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
      <button class="outline hidden" id="mechanicMessagesButton" type="button" onclick="companyMessaging.open()">Messages</button>
      <button class="outline" type="button" data-install-app>Install App</button>
     </div>
+    <section class="panel hidden" id="driverPushSettings">
+     <h2>Notifications</h2>
+     <p id="driverPushStatus" class="muted" role="status"></p>
+     <button class="outline" id="driverPushToggle" type="button" disabled>Turn On Notifications</button>
+    </section>
     <section class="panel">
      <h2>RigTracker Profile ID</h2>
      <div class="field"><input id="ownRigTrackerId" aria-label="RigTracker Profile ID" readonly></div>
@@ -1286,7 +1291,8 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
     <h2>Assignments</h2>
     <div id="driverWorkflowLoads" class="dispatch-load-list"></div>
    </section>
-   <section class="panel" id="driverWorkflowYard">
+   <div id="driverLoadsYardHost">
+   <section class="panel hidden" id="driverWorkflowYard">
     <h2>Yard trailers</h2>
     <p class="muted" id="driverYardStatus"></p>
     <ul id="driverYardList"></ul>
@@ -1298,6 +1304,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
      <button class="primary-btn" type="submit">In Transit</button>
     </form>
    </section>
+   </div>
   </section>
   <section id="driverLoadDetailPage" class="page fleet-account-page" aria-labelledby="driverLoadHeading">
    <div class="driver-load-navigation">
@@ -1487,19 +1494,32 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
    </nav>
    <div id="companyPayrollRecords">
     <p id="companyPayrollStatus" class="muted" role="status"></p>
-    <section class="panel"><h2>Driver load settlements</h2><div class="field">
-     <label for="companyPayrollDriver">Company Driver</label><select id="companyPayrollDriver"></select>
-    </div><button class="outline" id="companyPayrollOpenDriver" type="button">Open Driver Records</button></section>
+    <div id="companyStatementWorkspace">
+     <aside class="panel" id="companySettlementLoadQueue" aria-labelledby="companySettlementLoadTitle">
+      <div class="statement-heading">
+       <h2 id="companySettlementLoadTitle">Loads in Queue</h2>
+       <button class="primary-btn" type="button" id="companyPayrollCreateSettlement" disabled>Add Loads</button>
+      </div>
+      <p class="muted" id="companySettlementLoadStatus" role="status"></p>
+      <div class="field"><label for="companyPayrollDriver">Company Driver</label><select id="companyPayrollDriver"></select></div>
+      <p class="muted">Completed loads are released on the hour after the two-hour hold.</p>
+      <div id="companyPayrollLoadSettlements" class="dispatch-load-list"></div>
+      <button class="outline" type="button" id="companyPayrollOpenDriver">Open Driver Records</button>
+     </aside>
+     <div class="statement-work-area">
+      <section class="panel">
+       <div class="statement-heading">
+        <h2>Create Statement</h2>
+        <button class="outline hidden" type="button" id="companyPayrollNewStatement">New Statement</button>
+       </div>
+      </section>
+      <section class="panel hidden" id="companyPayrollSettlementPreview" aria-live="polite"></section>
+     </div>
+    </div>
     <section class="panel"><h2>Saved settlement drafts</h2>
      <p class="muted" id="companyPayrollDraftStatus" role="status"></p>
      <div id="companyPayrollDraftList" class="dispatch-load-list"></div>
     </section>
-    <section class="panel"><h2>Create Load Settlement</h2>
-     <p class="muted">Select completed loads to preview driver pay. Loads become available at the top of the hour at least two hours after Dispatch marks them complete.</p>
-     <div id="companyPayrollLoadSettlements" class="dispatch-load-list"><p class="muted">Select a driver to view completed loads.</p></div>
-     <button class="primary-btn" type="button" id="companyPayrollCreateSettlement" disabled>Create Settlement</button>
-    </section>
-    <section class="panel hidden" id="companyPayrollSettlementPreview" aria-live="polite"></section>
     <section class="panel"><h2>Settlement reviews</h2><div id="companyPayrollQueue" class="dispatch-load-list"></div></section>
    </div>
    <div class="hidden" id="companyPayrollManage">
@@ -1547,6 +1567,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
     </div>
    </div>
    <p class="muted" role="status" id="companyMessagesStatus"></p>
+   <div id="companyMessageYardHost"></div>
    <details id="companyMessageWatchSettings" class="company-message-watch-settings hidden">
     <summary>Watch list</summary>
     <form id="companyMessageWatchForm">
@@ -1794,7 +1815,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 <script src="./dispatch-progress.js?v=relay-resume-1"></script>
 <script src="./dispatch-rate-confirmation.js?v=1"></script>
 <script src="./dispatch.js?v=relay-resume-1"></script>
-<script src="./linked-profiles.js?v=owner-escrow-1"></script>
+<script src="./linked-profiles.js?v=driver-push-1"></script>
 <script src="./fleet-equipment.js?v=profile-links-1"></script>
 <script src="./payroll-tax-jurisdictions.js?v=2"></script>
 <script src="./payroll-tax-new-york.js?v=2"></script>
@@ -1807,14 +1828,15 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 <script src="./payroll-tax-rules.js?v=4"></script>
 <script src="./payroll-tax-deductions.js?v=2"></script>
 <script src="./payroll-tax-updates.js?v=1"></script>
-<script src="./payroll-tax-preview.js?v=5"></script>
-<script src="./company-driver-tools.js?v=payroll-statement-1"></script>
-<script src="./company-messages.js?v=driver-messages-1"></script>
-<script src="./driver-paperwork.js?v=1"></script>
-<script src="./driver-workflow.js?v=lumper-payer-1"></script>
+<script src="./payroll-tax-preview.js?v=6"></script>
+<script src="./company-driver-tools.js?v=settlement-queue-1"></script>
+<script src="./company-messages.js?v=driver-push-1"></script>
+<script src="./driver-paperwork.js?v=2"></script>
+<script src="./driver-workflow.js?v=completed-bol-1"></script>
 <script src="./fleet-admin-driver.js?v=1"></script>
 <script src="./company-safety.js?v=1"></script>
-<script src="./driver-app.js?v=owner-escrow-1"></script>
+<script src="./driver-app.js?v=push-1"></script>
+<script src="./driver-notifications.js?v=1"></script>
 <script src="./fleet-bol-payments.js?v=paperwork-1"></script>
 <script src="./office-tools.js?v=payroll-time-1"></script>
 <script src="./office-payroll.js?v=payroll-tax-2"></script>
@@ -2011,6 +2033,7 @@ async function openSignedInApp(user){
  }
  await loadUserData();
  if(currentUser===user){
+  if(driverNotifications.openRequestedPage())return;
   if(rigTrackerApp.launchedAsApp())await driverLoadWorkflow.open();
   else showPage('dashboardPage');
  }
@@ -2023,6 +2046,7 @@ async function signOut(){
    await employeePresenceWrite;
    await writeEmployeePresence(false);
   }
+  await driverNotifications.signOut();
   const result=await supabaseClient.auth.signOut();
   if(result.error)throw result.error;
   stopFleetPresenceTimer();

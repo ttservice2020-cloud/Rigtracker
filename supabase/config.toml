@@ -7,3 +7,7 @@ verify_jwt = false
 [functions.fleet-profile-links]
 # The function authenticates the bearer token and checks fleet ownership.
 verify_jwt = false
+
+[functions.driver-push]
+# Validates the scheduled worker token in Vault before accessing the delivery queue.
+verify_jwt = false

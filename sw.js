@@ -19,3 +19,28 @@ self.addEventListener('fetch', event => {
     headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' }
   })));
 });
+
+self.addEventListener('install',event => event.waitUntil(self.skipWaiting()));
+
+self.addEventListener('push',event => {
+  let kind;
+  try { kind = event.data?.json()?.kind; } catch {}
+  if (kind !== 'loads' && kind !== 'messages') return;
+  const icon = new URL('icons/rigtracker-192.png',self.registration.scope).href;
+  event.waitUntil(self.registration.showNotification('RigTracker Pro',{
+    body:kind === 'loads' ? 'You have a new load assignment.' : 'You have a new fleet message.',
+    icon,
+    tag:'rigtracker-' + kind,
+    data:{kind}
+  }));
+});
+
+self.addEventListener('notificationclick',event => {
+  event.notification.close();
+  const kind = event.notification.data?.kind;
+  if (kind !== 'loads' && kind !== 'messages') return;
+  const url = new URL(self.registration.scope);
+  url.searchParams.set('app','driver');
+  url.searchParams.set('push',kind);
+  event.waitUntil(self.clients.openWindow(url.href));
+});

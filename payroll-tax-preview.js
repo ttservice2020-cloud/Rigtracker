@@ -459,12 +459,41 @@ const payrollTaxPreview = (() => {
     return section;
   }
 
+  function statementLoadTable(loads) {
+    const table = element('table','','payroll-statement-loads');
+    const head = table.createTHead().insertRow();
+    for (const caption of ['PRO','Origin','Destination','Load pay']) {
+      const cell = element('th',caption);
+      cell.scope = 'col';
+      head.append(cell);
+    }
+    const body = table.createTBody();
+    for (const load of loads) {
+      const row = body.insertRow();
+      for (const amount of [load.pro,load.origin,load.destination,
+        hasAmount(load.pay) ? currency.format(load.pay) : '—']) row.insertCell().textContent = amount;
+      if (load.hasBol === false) {
+        row.dataset.missingBol = 'true';
+        row.cells[0].append(element('strong','Signed BOL missing','settlement-missing-bol'));
+      }
+    }
+    return table;
+  }
+
   function statementPages(name, date, details, amounts, totals, state, paid) {
     const statement = element('section','','payroll-statement');
+    const loads = Array.isArray(details.loads) ? details.loads : [];
+    const firstPageLimit = 8;
+    const continuationLimit = 16;
+    const continuationPages = [];
+    for (let index = firstPageLimit; index < loads.length; index += continuationLimit) {
+      continuationPages.push(loads.slice(index,index+continuationLimit));
+    }
+    const pageCount = 2 + continuationPages.length;
     function sheet(page, heading) {
       const section = element('article','','payroll-statement-page');
-      section.append(element('p','RigTracker Pro · ' + (paid ? 'Paid settlement' : 'Settlement estimate') +
-        ' · Page ' + page + ' of 2','payroll-statement-kicker'),element('h2',heading),
+      const label = paid ? 'Paid settlement' : details.draft ? 'Draft settlement' : 'Settlement estimate';
+      section.append(element('p','RigTracker Pro · ' + label + ' · Page ' + page + ' of ' + pageCount,'payroll-statement-kicker'),element('h2',heading),
         element('p',[name,date].join(' · '),'payroll-statement-identity'));
       return section;
     }
@@ -477,6 +506,9 @@ const payrollTaxPreview = (() => {
       if (value) hours.append(element('dt',label),element('dd',value));
     }
     if (hours.children.length) pay.append(hours);
+    if (loads.length) {
+      pay.append(element('h3','Loads in this statement'),statementLoadTable(loads.slice(0,firstPageLimit)));
+    }
     pay.append(...estimateSection('Earnings and reimbursements',[
       ...(details.earnings || []),{name:'Gross pay',amount:amounts.gross}
     ]),...estimateSection('Deductions',[
@@ -484,7 +516,7 @@ const payrollTaxPreview = (() => {
       {name:'Total taxes and deductions',amount:amounts.deductions}
     ]));
 
-    const taxes = sheet(2,'Taxes and Net Pay');
+    const taxes = sheet(pageCount,'Taxes and Net Pay');
     taxes.append(...estimateSection('Taxable wages',[
       {name:'Federal taxable wages',amount:amounts.federalWages},
       {name:'Social Security wages',amount:amounts.socialSecurityYtd},
@@ -492,11 +524,17 @@ const payrollTaxPreview = (() => {
     ]),...estimateSection('Employee taxes',details.taxes || []));
     taxes.append(hasAmount(amounts.deductions)
       ? element('strong','Net pay ' + currency.format(money(amounts.gross - amounts.deductions)),'payroll-statement-net')
-      : element('p','Net pay requires a confirmed amount for each tax marked Needs review.','muted'));
+      : element('p',details.draft ? 'Estimate payroll taxes to calculate net pay.'
+        : 'Net pay requires a confirmed amount for each tax marked Needs review.','muted'));
     const ytd = ytdSection(totals,date.slice(0,4),state);
-    if (!paid) ytd.append(element('p','Projected totals through this check.','muted'));
+    if (!paid) ytd.append(element('p',details.draft ? 'Confirmed payroll before this draft.'
+      : 'Projected totals through this check.','muted'));
     taxes.append(ytd);
-    statement.append(pay,taxes);
+    statement.append(pay,...continuationPages.map((loads,index) => {
+      const page = sheet(index+2,'Loads in this Statement');
+      page.append(statementLoadTable(loads));
+      return page;
+    }),taxes);
     return statement;
   }
 
@@ -519,14 +557,18 @@ const payrollTaxPreview = (() => {
       const history = await checkHistory(context,date);
       if (!container.isConnected || context.user !== currentUser) return;
       if (history.paid_on) {
-        const statement = statementPages(context.name,history.paid_on,history.statement,
+        const statement = statementPages(context.name,history.paid_on,{...history.statement,loads:context.loads ?? history.statement.loads},
           history.amounts,history.through,history.ui_state,true);
         container.replaceChildren(statement,button('Print / Save as PDF',() => printStatement(statement)));
         return;
       }
-      const section = ytdSection(history.before,date.slice(0,4));
-      section.append(element('p','Confirmed payroll before this draft.','muted'));
-      container.replaceChildren(section);
+      const draft = statementPages(context.name,date,{
+        draft:true,loads:context.loads,taxTotal:null
+      },{
+        gross:context.gross == null ? null : Number(context.gross),deductions:null,
+        federalWages:null,socialSecurityYtd:null,medicareYtd:null
+      },history.before,null,false);
+      container.replaceChildren(draft);
     } catch {
       if (container.isConnected && context.user === currentUser) {
         container.textContent = 'Year-to-date payroll is temporarily unavailable.';
@@ -875,8 +917,9 @@ const payrollTaxPreview = (() => {
     const otherTaxes = otherTaxFields(clearResult);
     const year = Number(date.slice(0,4));
     form.append(element('p','Estimate for W-2 pay. Enter only confirmed deductions and taxable wages.', 'muted'),
-      ...(context.kind === 'settlement' && context.gross != null ? [element('p',
-        'The settlement total is prefilled. If you itemize pay below, enter just the regular portion in Regular gross pay.','muted')] : []),
+      ...(context.kind === 'settlement' ? [element('p',context.gross != null
+        ? 'The settlement total is prefilled. If you itemize pay below, enter just the regular portion in Regular gross pay.'
+        : 'Enter verified regular gross pay or use the hours and rate for an hourly driver.','muted')] : []),
       grid(amount,...(periodStart ? [periodStart] : []),...(massachusettsDeduction ? [massachusettsDeduction] : []),field('socialSecurityYtd','YTD Social Security wages before this check'),
         field('medicareYtd','YTD Medicare wages before this check')),
       checkFields,foundingTotals,payItems.details,payrollDeductions.details,wageDetails,reviewedIncome,otherTaxes.details,
@@ -888,7 +931,7 @@ const payrollTaxPreview = (() => {
       payDateInput.value = record.paid_on;
       payDateInput.disabled = context.kind === 'settlement';
       historyNote.textContent = 'Paid check recorded on ' + record.paid_on + '.';
-      const statement = statementPages(context.name,record.paid_on,record.statement,
+      const statement = statementPages(context.name,record.paid_on,{...record.statement,loads:context.loads ?? record.statement.loads},
         record.amounts,record.through,record.ui_state,true);
       result.replaceChildren(statement,button('Print / Save as PDF',() => printStatement(statement)));
     }
@@ -980,6 +1023,7 @@ const payrollTaxPreview = (() => {
           : money(taxTotal + deductionsForStatement.reduce((sum,row) => sum + row.amount,0));
         const complete = subtotal !== null;
         const statement = {
+          ...(Number.isInteger(context.loadCount) ? {loadCount:context.loadCount} : {}),
           hours:hasAmount(value('workedHours')) ? value('workedHours') : null,
           hourlyRate:hasAmount(value('hourlyRate')) ? value('hourlyRate') : null,
           earnings:[{name:'Regular pay',amount:value('grossPay')},...earnings],
@@ -1001,9 +1045,9 @@ const payrollTaxPreview = (() => {
         };
         const projected = Object.fromEntries(historyFields.map(([key]) => [key,
           hasAmount(prior[key]) && hasAmount(current[key]) ? money(prior[key] + current[key]) : null]));
-        const report = statementPages(context.name,date,statement,current,projected,state,false);
+        const report = statementPages(context.name,date,{...statement,loads:context.loads},current,projected,state,false);
         const statementPreview = element('details','','payroll-tax-group');
-        statementPreview.append(element('summary','Two-page settlement preview'),report,
+        statementPreview.append(element('summary','Statement preview'),report,
           button('Print / Save as PDF',() => printStatement(report)));
         employee.push(...deductionsForStatement);
         const isMainTax = row => ['federal','fica','state'].includes(row.type);
