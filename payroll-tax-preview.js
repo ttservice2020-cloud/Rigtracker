@@ -12,6 +12,18 @@ const payrollTaxPreview = (() => {
     ['socialSecurityWages', 'Social Security wages'],
     ['medicareWages', 'Medicare wages']
   ];
+  const historyFields = [
+    ['gross','Gross pay'],
+    ['deductions','Total taxes and deductions'],
+    ['federalWages','Federal taxable wages'],
+    ['socialSecurityYtd','Social Security wages'],
+    ['medicareYtd','Medicare wages'],
+    ['supplementalYtd','Federal taxable supplemental pay'],
+    ['futaYtd','FUTA covered wages'],
+    ['sutaYtd','State UI covered wages']
+  ];
+  const money = amount => Math.round((amount + Number.EPSILON) * 100) / 100;
+  const hasAmount = amount => Number.isFinite(amount);
   let session;
 
   function element(tag, content, className) {
@@ -92,6 +104,15 @@ const payrollTaxPreview = (() => {
     const { data, error } = await supabaseClient.rpc('payroll_tax_profile', {
       action, target_fleet:context.fleet, target_kind:context.kind, target_reference:context.reference,
       as_of:date, ...options
+    });
+    if (error) throw error;
+    return data;
+  }
+
+  async function checkHistory(context, date, parameters = {}) {
+    const { data, error } = await supabaseClient.rpc('payroll_paid_check_history', {
+      action:'read', target_fleet:context.fleet, target_kind:context.kind, target_reference:context.reference,
+      pay_date:date, ...parameters
     });
     if (error) throw error;
     return data;
@@ -424,6 +445,95 @@ const payrollTaxPreview = (() => {
     return [element('h3',label),list];
   }
 
+  function ytdSection(totals, year, state) {
+    const rows = historyFields.filter(([key]) => hasAmount(totals[key])).map(([key,name]) => ({
+      name:key === 'sutaYtd' && state ? name + ' · ' + state : name, amount:totals[key]
+    }));
+    if (hasAmount(totals.gross) && hasAmount(totals.deductions)) {
+      rows.splice(2,0,{name:'Net pay',amount:money(totals.gross - totals.deductions)});
+    }
+    const section = element('section');
+    if (rows.length) section.append(...estimateSection('Year to Date · ' + year,rows));
+    else section.append(element('h3','Year to Date · ' + year),
+      element('p','No verified payroll totals are available for this pay year.'));
+    return section;
+  }
+
+  function statementPages(name, date, details, amounts, totals, state, paid) {
+    const statement = element('section','','payroll-statement');
+    function sheet(page, heading) {
+      const section = element('article','','payroll-statement-page');
+      section.append(element('p','RigTracker Pro · ' + (paid ? 'Paid settlement' : 'Settlement estimate') +
+        ' · Page ' + page + ' of 2','payroll-statement-kicker'),element('h2',heading),
+        element('p',[name,date].join(' · '),'payroll-statement-identity'));
+      return section;
+    }
+    const pay = sheet(1,'Pay Information');
+    const hours = element('dl','','payroll-tax-results');
+    for (const [label,value] of [
+      ['Hours worked',hasAmount(details.hours) ? details.hours.toLocaleString('en-US') : ''],
+      ['Hourly rate',hasAmount(details.hourlyRate) ? currency.format(details.hourlyRate) : '']
+    ]) {
+      if (value) hours.append(element('dt',label),element('dd',value));
+    }
+    if (hours.children.length) pay.append(hours);
+    pay.append(...estimateSection('Earnings and reimbursements',[
+      ...(details.earnings || []),{name:'Gross pay',amount:amounts.gross}
+    ]),...estimateSection('Deductions',[
+      ...(details.deductions || []),{name:'Employee taxes',amount:details.taxTotal},
+      {name:'Total taxes and deductions',amount:amounts.deductions}
+    ]));
+
+    const taxes = sheet(2,'Taxes and Net Pay');
+    taxes.append(...estimateSection('Taxable wages',[
+      {name:'Federal taxable wages',amount:amounts.federalWages},
+      {name:'Social Security wages',amount:amounts.socialSecurityYtd},
+      {name:'Medicare wages',amount:amounts.medicareYtd}
+    ]),...estimateSection('Employee taxes',details.taxes || []));
+    taxes.append(hasAmount(amounts.deductions)
+      ? element('strong','Net pay ' + currency.format(money(amounts.gross - amounts.deductions)),'payroll-statement-net')
+      : element('p','Net pay requires a confirmed amount for each tax marked Needs review.','muted'));
+    const ytd = ytdSection(totals,date.slice(0,4),state);
+    if (!paid) ytd.append(element('p','Projected totals through this check.','muted'));
+    taxes.append(ytd);
+    statement.append(pay,taxes);
+    return statement;
+  }
+
+  function printStatement(statement) {
+    const copy = statement.cloneNode(true);
+    copy.id = 'payrollStatementPrint';
+    document.body.append(copy);
+    document.body.classList.add('printing-payroll-statement');
+    function cleanup() {
+      copy.remove();
+      document.body.classList.remove('printing-payroll-statement');
+    }
+    window.addEventListener('afterprint',cleanup,{once:true});
+    window.print();
+  }
+
+  async function showSettlementYtd(container,context) {
+    const date = today();
+    try {
+      const history = await checkHistory(context,date);
+      if (!container.isConnected || context.user !== currentUser) return;
+      if (history.paid_on) {
+        const statement = statementPages(context.name,history.paid_on,history.statement,
+          history.amounts,history.through,history.ui_state,true);
+        container.replaceChildren(statement,button('Print / Save as PDF',() => printStatement(statement)));
+        return;
+      }
+      const section = ytdSection(history.before,date.slice(0,4));
+      section.append(element('p','Confirmed payroll before this draft.','muted'));
+      container.replaceChildren(section);
+    } catch {
+      if (container.isConnected && context.user === currentUser) {
+        container.textContent = 'Year-to-date payroll is temporarily unavailable.';
+      }
+    }
+  }
+
   function estimateEntries(label,addLabel,idPrefix,createEntry,onChange) {
     const details = element('details','','payroll-tax-group');
     const list = element('div','','payroll-tax-local-list');
@@ -551,7 +661,7 @@ const payrollTaxPreview = (() => {
       visible(method,!setup.hidden);
       visible(separate,!setup.hidden);
       visible(ytd,!setup.hidden && !manual);
-      visible(taxable,!setup.hidden && !manual);
+      visible(taxable,!setup.hidden);
       visible(confirmed,!setup.hidden && methodInput.value === 'flat');
       const prior = !setup.hidden && separateInput.checked && methodInput.value === 'aggregate';
       visible(priorWages,prior);
@@ -562,7 +672,8 @@ const payrollTaxPreview = (() => {
       const amount = field(id + 'Amount','Pay amount ($)');
       const select = type.querySelector('select');
       select.addEventListener('change',sync);
-      return {content:grid(type,amount),read:() => ({type:select.value,amount:amount.querySelector('input').valueAsNumber})};
+      return {content:grid(type,amount),read:() => ({type:select.value,name:select.selectedOptions[0].textContent,
+        amount:amount.querySelector('input').valueAsNumber})};
     },() => {
       sync();
       onChange();
@@ -583,8 +694,8 @@ const payrollTaxPreview = (() => {
   function unemploymentFields(state,year) {
     const details = element('details','','payroll-tax-group');
     const selector = field('sutaState','State where unemployment wages are reported',{
-      value:state,choices:Object.entries(payrollTaxRules.states).sort((a,b) => a[1][0].localeCompare(b[1][0]))
-        .map(([code,[name]]) => [code,name])
+      value:state,required:false,choices:[['','Select state'],...Object.entries(payrollTaxRules.states)
+        .sort((a,b) => a[1][0].localeCompare(b[1][0])).map(([code,[name]]) => [code,name])]
     });
     const wageBase = field('sutaWageBase','Confirmed state annual wage base (if different or required)',{required:false});
     const note = element('p','','muted');
@@ -651,7 +762,8 @@ const payrollTaxPreview = (() => {
       const ytd = value(prefix + 'Ytd');
       const rate = value(prefix + 'Rate');
       const override = prefix === 'suta' ? value('sutaWageBase') : NaN;
-      if ([wages,ytd,rate,override].every(Number.isNaN)) continue;
+      if ([wages,rate,override].every(Number.isNaN)) continue;
+      if (prefix === 'suta' && !state) throw new Error('Select the state where unemployment wages are reported.');
       const base = Number.isFinite(override) ? override : publishedBase;
       if (!Number.isFinite(base)) throw new Error('Choose the confirmed unemployment wage base for this pay date and employer account.');
       const covered = Number.isNaN(wages) ? wageBases[prefix + 'Wages'] : wages;
@@ -699,6 +811,38 @@ const payrollTaxPreview = (() => {
 
     const form = element('form');
     const amount = field('grossPay','Regular gross pay',{ value:context.gross });
+    const hours = field('workedHours','Hours worked (optional)',{required:false,max:1000});
+    const rate = field('hourlyRate','Hourly rate (optional)',{required:false});
+    const useHours = button('Use Hours × Rate',() => {
+      if (!form.elements.workedHours.reportValidity() || !form.elements.hourlyRate.reportValidity()) return;
+      const payHours = form.elements.workedHours.valueAsNumber;
+      const hourlyRate = form.elements.hourlyRate.valueAsNumber;
+      if (!hasAmount(payHours) || !hasAmount(hourlyRate)) {
+        message('Enter hours worked and the hourly rate.',true);
+        return;
+      }
+      form.elements.grossPay.value = money(payHours * hourlyRate).toFixed(2);
+      context.gross = form.elements.grossPay.value;
+      clearResult();
+    });
+    const checkFields = fieldset('Hours and rate (optional)',grid(hours,rate),useHours);
+    const reference = context.kind === 'office'
+      ? field('paymentReference','Payment reference',{type:'text',required:false}) : null;
+    const historyNote = element('p','','muted');
+    historyNote.setAttribute('role','status');
+    const historyControls = fieldset('Paid check history',...(reference ? [reference] : []),historyNote);
+    const foundingTotals = element('details','','payroll-tax-group');
+    foundingTotals.append(element('summary','Year-to-date pay before this check'),
+      element('p','Enter verified totals from earlier payroll. Use zero if this is the first check of the calendar year.','muted'),
+      grid(...historyFields.slice(0,3).map(([key,label]) => field(key + 'Prior','Prior YTD ' + label.toLowerCase(),
+        {required:false}))));
+    let history;
+    let historyRequest;
+    let recording = false;
+    const automatic = new Map();
+    const tracked = historyFields.map(([key]) => [key,key === 'gross' || key === 'deductions' ||
+      key === 'federalWages' ? key + 'Prior' : key]);
+    const paymentRef = () => reference?.querySelector('input').value.trim() || null;
     const wageDetails = element('details', '', 'payroll-tax-group');
     const wages = wageBases.map(([key,label]) => field(key,label + ' (optional override)', { required:false }));
     const savedLocalTaxes = saved.settings.localTaxes || [];
@@ -735,16 +879,73 @@ const payrollTaxPreview = (() => {
         'The settlement total is prefilled. If you itemize pay below, enter just the regular portion in Regular gross pay.','muted')] : []),
       grid(amount,...(periodStart ? [periodStart] : []),...(massachusettsDeduction ? [massachusettsDeduction] : []),field('socialSecurityYtd','YTD Social Security wages before this check'),
         field('medicareYtd','YTD Medicare wages before this check')),
-      payItems.details,payrollDeductions.details,wageDetails,reviewedIncome,otherTaxes.details,
-      garnishmentFields(),unemploymentFields(saved.settings.state,year),calculate,result);
-    body.append(form);
+      checkFields,foundingTotals,payItems.details,payrollDeductions.details,wageDetails,reviewedIncome,otherTaxes.details,
+      garnishmentFields(),unemploymentFields(saved.settings.state,year),calculate);
+    body.append(historyControls,form,result);
+
+    function showPaid(record) {
+      form.hidden = true;
+      payDateInput.value = record.paid_on;
+      payDateInput.disabled = context.kind === 'settlement';
+      historyNote.textContent = 'Paid check recorded on ' + record.paid_on + '.';
+      const statement = statementPages(context.name,record.paid_on,record.statement,
+        record.amounts,record.through,record.ui_state,true);
+      result.replaceChildren(statement,button('Print / Save as PDF',() => printStatement(statement)));
+    }
+
+    async function refreshHistory({resetState=false} = {}) {
+      const token = {};
+      historyRequest = token;
+      history = null;
+      const state = form.elements.sutaState.value || null;
+      const ref = paymentRef();
+      if (resetState) {
+        form.elements.sutaYtd.value = '';
+        form.elements.sutaWages.value = '';
+        form.elements.sutaRate.value = '';
+        automatic.delete('sutaYtd');
+      }
+      historyNote.textContent = 'Loading paid-check totals…';
+      try {
+        const record = await checkHistory(context,date,{state_ui:state,payment_reference:ref});
+        if (!active(context) || !form.isConnected || historyRequest !== token) return;
+        history = { ...record, ref, state };
+        if (record.paid_on) {
+          showPaid(record);
+          return;
+        }
+        form.hidden = false;
+        payDateInput.value = date;
+        let filled = false;
+        for (const [key,name] of tracked) {
+          const input = form.elements[name];
+          if (input.value && input.value !== automatic.get(key)) continue;
+          input.value = hasAmount(record.before[key]) ? record.before[key].toFixed(2) : '';
+          automatic.set(key,input.value);
+          filled ||= Boolean(input.value);
+        }
+        historyNote.textContent = filled ? 'Year-to-date amounts loaded from paid checks.'
+          : 'Enter verified year-to-date amounts to start tracking this pay year.';
+      } catch {
+        if (active(context) && form.isConnected && historyRequest === token) {
+          historyNote.textContent = 'Paid-check history is unavailable. You can still enter verified amounts for an estimate.';
+        }
+      }
+    }
+
+    reference?.addEventListener('change',() => {
+      clearResult();
+      void refreshHistory();
+    });
+    form.elements.sutaState.addEventListener('change',() => void refreshHistory({resetState:true}));
+    void refreshHistory();
     form.addEventListener('input',() => {
       context.gross = form.elements.grossPay.value;
       clearResult();
     });
     form.addEventListener('submit',event => {
       event.preventDefault();
-      if (!active(context)) return;
+      if (!active(context) || recording || form.hidden) return;
       if (payDateInput.value !== date) {
         message('Choose a valid pay date before calculating.',true);
         return;
@@ -769,12 +970,42 @@ const payrollTaxPreview = (() => {
           row.name += ' (entered by payroll)';
           row.amount = value(key);
         }
-        employee.push(...otherTaxes.read(),...deductions);
+        employee.push(...otherTaxes.read());
         employer.push(...estimateUnemployment(form,pay.wageBases,year));
         const garnishment = estimateGarnishment(form,saved.settings.periods);
-        if (garnishment) employee.push(garnishment);
-        const subtotal = employee.reduce((sum, row) => sum + (row.amount ?? 0),0);
-        const complete = employee.every(row => row.amount !== null);
+        const deductionsForStatement = garnishment ? [...deductions,garnishment] : deductions;
+        const taxTotal = employee.every(row => row.amount !== null)
+          ? money(employee.reduce((sum,row) => sum + row.amount,0)) : null;
+        const subtotal = taxTotal === null ? null
+          : money(taxTotal + deductionsForStatement.reduce((sum,row) => sum + row.amount,0));
+        const complete = subtotal !== null;
+        const statement = {
+          hours:hasAmount(value('workedHours')) ? value('workedHours') : null,
+          hourlyRate:hasAmount(value('hourlyRate')) ? value('hourlyRate') : null,
+          earnings:[{name:'Regular pay',amount:value('grossPay')},...earnings],
+          deductions:deductionsForStatement.map(({name,amount}) => ({name,amount})),
+          taxes:employee.filter(row => row.amount !== 0 || row.type !== 'local').map(({name,amount}) => ({name,amount})),
+          taxTotal
+        };
+        const prior = Object.fromEntries(tracked.map(([key,name]) => [key,hasAmount(value(name)) ? value(name) : null]));
+        const supplementalTaxable = input.supplemental?.taxable;
+        const selectedState = form.elements.sutaState.value || null;
+        const state = ['sutaYtd','sutaWages','sutaRate'].some(name => hasAmount(value(name))) ? selectedState : null;
+        const current = {
+          gross:grossPay,deductions:subtotal,federalWages:input.federalWages,
+          socialSecurityYtd:input.socialSecurityWages,medicareYtd:input.medicareWages,
+          supplementalYtd:hasAmount(supplementalTaxable) ? supplementalTaxable
+            : input.federalWages === pay.taxableGross || !pay.supplementalGross ? pay.supplementalGross : null,
+          futaYtd:hasAmount(value('futaWages')) ? value('futaWages') : pay.wageBases.futaWages,
+          sutaYtd:state ? (hasAmount(value('sutaWages')) ? value('sutaWages') : pay.wageBases.sutaWages) : null
+        };
+        const projected = Object.fromEntries(historyFields.map(([key]) => [key,
+          hasAmount(prior[key]) && hasAmount(current[key]) ? money(prior[key] + current[key]) : null]));
+        const report = statementPages(context.name,date,statement,current,projected,state,false);
+        const statementPreview = element('details','','payroll-tax-group');
+        statementPreview.append(element('summary','Two-page settlement preview'),report,
+          button('Print / Save as PDF',() => printStatement(report)));
+        employee.push(...deductionsForStatement);
         const isMainTax = row => ['federal','fica','state'].includes(row.type);
         const additional = employee.filter(row => !isMainTax(row) &&
           !(row.type === 'local' && saved.settings.locality === 'none' && row.amount === 0));
@@ -784,7 +1015,63 @@ const payrollTaxPreview = (() => {
           ...(additional.length ? estimateSection('Other taxes and deductions',additional) : []),
           complete ? element('strong','Estimated take-home from entered amounts ' + currency.format(grossPay - subtotal))
             : element('p','Take-home estimate is unavailable until the rows marked Needs review are resolved.','muted'),
-          ...estimateSection('Employer taxes',employer));
+          ...estimateSection('Employer taxes',employer),statementPreview);
+        if (complete && subtotal <= grossPay && date <= today() && history && history.ref === paymentRef() && history.state === selectedState) {
+          const confirm = field('confirmIssued','This payment has been issued and I verified the amounts shown.',{type:'checkbox'});
+          const record = button('Record Paid Check',async () => {
+            if (recording || !active(context) || !form.isConnected) return;
+            if (reference && !paymentRef()) {
+              message('Enter the reference for this payment, then calculate again.',true);
+              reference.querySelector('input').focus();
+              return;
+            }
+            if (!hasAmount(prior.gross) || !hasAmount(prior.deductions)) {
+              foundingTotals.open = true;
+              message('Enter verified prior YTD gross pay and total taxes and deductions, then calculate again.',true);
+              form.elements.grossPrior.focus();
+              return;
+            }
+            if (prior.deductions > prior.gross) {
+              message('Prior YTD taxes and deductions cannot exceed prior YTD gross pay.',true);
+              return;
+            }
+            if (input.supplemental && current.supplementalYtd === null) {
+              payItems.details.open = true;
+              message('Enter the verified federal taxable supplemental pay for this check, then calculate again.',true);
+              form.elements.supplementalTaxable.focus();
+              return;
+            }
+            recording = true;
+            record.disabled = true;
+            calculate.disabled = true;
+            message('Recording paid check…');
+            try {
+              const savedCheck = await checkHistory(context,date,{
+                action:'record',state_ui:state,payment_reference:paymentRef(),expected_revision:history.revision,
+                check_data:{prior,amounts:current,statement}
+              });
+              if (!active(context) || !form.isConnected) return;
+              showPaid(savedCheck);
+              context.onRecorded?.();
+              message('Paid check recorded.');
+            } catch (error) {
+              if (active(context) && form.isConnected) {
+                const notice = error.message || 'Could not record this check.';
+                clearResult();
+                await refreshHistory();
+                if (active(context) && form.isConnected) message(notice,true);
+              }
+            } finally {
+              recording = false;
+              record.disabled = !confirm.querySelector('input').checked;
+              calculate.disabled = false;
+            }
+          },'primary-btn');
+          const verify = confirm.querySelector('input');
+          record.disabled = true;
+          verify.addEventListener('change',() => { record.disabled = !verify.checked; });
+          result.append(fieldset('Record payment',confirm,record));
+        }
         message('');
       } catch (error) {
         result.replaceChildren();
@@ -838,5 +1125,5 @@ const payrollTaxPreview = (() => {
   }
 
   dialog.addEventListener('close',() => { if (!dialog.open) reset(); });
-  return { open,reset };
+  return { open,reset,showSettlementYtd };
 })();

@@ -1171,18 +1171,27 @@ const companyDriverTools = (() => {
       return row;
     });
     const missingBase = lines.some(line => !line.base_pay_entered);
+    const taxContext = settlement.id && canManageTax() ? {
+      mode:'preview',kind:'settlement',reference:settlement.id,fleet:payroll?.fleet_id,user:currentUser,
+      name:[settlement.driver,settlement.settlement_number].filter(Boolean).join(' · '),gross:settlement.total_pay
+    } : null;
+    const yearToDate = element('div','','settlement-year-to-date');
+    if (taxContext) {
+      yearToDate.textContent = 'Loading year-to-date pay…';
+      taxContext.onRecorded = () => void payrollTaxPreview.showSettlementYtd(yearToDate,taxContext);
+    }
     preview.replaceChildren(
       element('h3', 'Settlement ' + settlement.settlement_number + ' · ' + status),
       element('p', [settlement.driver, lines.length + ' completed load' + (lines.length === 1 ? '' : 's')].filter(Boolean).join(' · ')),
       ...rows,
       element('strong', 'Known pay items: ' + settlementCurrency.format(Number(settlement.total_pay)), 'settlement-preview-total'),
       ...(missingBase ? [element('p', 'Review the loads with missing base pay before issuing this settlement.', 'muted')] : []),
-      ...(settlement.id && !missingBase && canManageTax() ? [button('Estimate Payroll Taxes', () => payrollTaxPreview.open({
-        mode:'preview', kind:'settlement', reference:settlement.id, fleet:payroll?.fleet_id,
-        name:[settlement.driver,settlement.settlement_number].filter(Boolean).join(' · '), gross:settlement.total_pay
-      }))] : []),
-      button('Print / Save as PDF', () => window.print())
+      ...(taxContext ? [
+        ...(!missingBase ? [button('Estimate Payroll Taxes', () => payrollTaxPreview.open(taxContext))] : []),yearToDate
+      ] : []),
+      button(taxContext ? 'Print Load Details' : 'Print / Save as PDF', () => window.print())
     );
+    if (taxContext) void payrollTaxPreview.showSettlementYtd(yearToDate,taxContext);
     preview.classList.remove('hidden');
     preview.scrollIntoView?.({ block:'nearest' });
   }

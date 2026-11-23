@@ -32,3 +32,24 @@
 .payroll-tax-dialog:modal{box-sizing:border-box}
 .payroll-tax-local-item{border-top:1px solid #34465f;padding:12px 0}
 .payroll-tax-local-list:not(:empty){margin-top:8px}
+
+.settlement-year-to-date{margin:16px 0}
+.payroll-statement{display:grid;gap:16px;margin:18px 0}
+.payroll-statement-page{min-width:0;padding:clamp(12px,3vw,24px);border:1px solid #34465f;border-radius:10px}
+.payroll-statement-page h2{margin:6px 0}
+.payroll-statement-page h3{font-size:1rem;margin:18px 0 6px}
+.payroll-statement-kicker,.payroll-statement-identity{margin:0;color:#a9bed5;font-size:.9rem}
+.payroll-statement-net{display:block;padding:10px 0;border-block:1px solid #34465f}
+#payrollStatementPrint{display:none}
+@media print{
+ body.printing-payroll-statement{margin:0;background:#fff}
+ body.printing-payroll-statement > :not(#payrollStatementPrint){display:none!important}
+ body.printing-payroll-statement #payrollStatementPrint,
+ body.printing-payroll-statement #payrollStatementPrint *{visibility:visible!important;color:#111!important}
+ body.printing-payroll-statement #payrollStatementPrint{display:block;margin:0}
+ #payrollStatementPrint .payroll-statement-page{padding:0;border:0}
+ #payrollStatementPrint .payroll-statement-page + .payroll-statement-page{break-before:page}
+ #payrollStatementPrint h2,#payrollStatementPrint h3{break-after:avoid}
+ #payrollStatementPrint dt,#payrollStatementPrint dd{break-inside:avoid}
+ #companyPayrollSettlementPreview .payroll-statement{display:none!important}
+}
