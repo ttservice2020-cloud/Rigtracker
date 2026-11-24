@@ -261,7 +261,8 @@ const payrollTaxPreview = (() => {
     save.type = 'submit';
     const actions = element('div', '', 'dispatch-actions');
     actions.append(save);
-    if (context.mode === 'preview') actions.append(button('Back to Estimate', () => showPreview(context,date,saved)));
+    if (context.mode === 'preview') actions.append(button(context.hourlyPay ? 'Back to Paycheck' : 'Back to Estimate',
+      () => showPreview(context,date,saved)));
     const forms = element('section', '', 'payroll-tax-group withholding-forms');
 
     form.append(
@@ -875,7 +876,7 @@ const payrollTaxPreview = (() => {
   }
 
   function showPreview(context,date,saved) {
-    title.textContent = 'Payroll Tax Estimate';
+    title.textContent = context.hourlyPay ? 'Create Hourly Paycheck' : 'Payroll Tax Estimate';
     const payDate = field('payDate','Pay date',{ type:'date',value:date });
     const payDateInput = payDate.querySelector('input');
     const summary = saved ? [payrollTaxRules.states[saved.settings.state][0],
@@ -887,7 +888,9 @@ const payrollTaxPreview = (() => {
     });
     const actions = element('div','','office-payroll-actions');
     actions.append(edit,payrollTaxUpdates.buttonFor(context.fleet));
-    body.replaceChildren(element('p',context.name,'payroll-tax-person'),grid(payDate),element('p',summary,'muted'),actions);
+    body.replaceChildren(element('p',context.name,'payroll-tax-person'),
+      ...(context.hourlyPay ? [element('p','Pay period ' + context.payPeriod,'muted')] : []),
+      grid(payDate),element('p',summary,'muted'),actions);
     payDateInput.addEventListener('change', event => {
       if (event.target.value && event.target.checkValidity()) void loadPreview(context,event.target.value);
     });
@@ -905,8 +908,12 @@ const payrollTaxPreview = (() => {
       choices:[['','Choose tax treatment'],['accountableReimbursement','Qualified accountable-plan reimbursement'],
         ['taxableReimbursement','Taxable reimbursement']]
     }) : null;
-    const hours = field('workedHours','Hours worked (optional)',{required:false,max:1000});
-    const rate = field('hourlyRate','Hourly rate (optional)',{required:false});
+    const hours = field('workedHours',context.hourlyPay ? 'Hours worked' : 'Hours worked (optional)',{
+      required:false,max:1000,step:context.hourlyPay ? '0.0001' : '0.01',value:context.workedHours
+    });
+    const rate = field('hourlyRate',context.hourlyPay ? 'Hourly rate ($)' : 'Hourly rate (optional)',{
+      required:false,value:context.hourlyRate
+    });
     const useHours = button('Use Hours × Rate',() => {
       if (!form.elements.workedHours.reportValidity() || !form.elements.hourlyRate.reportValidity()) return;
       const payHours = form.elements.workedHours.valueAsNumber;
@@ -919,9 +926,10 @@ const payrollTaxPreview = (() => {
       context.gross = form.elements.grossPay.value;
       clearResult();
     });
-    const checkFields = fieldset('Hours and rate (optional)',grid(hours,rate),useHours);
+    const checkFields = fieldset(context.hourlyPay ? 'Hours and rate' : 'Hours and rate (optional)',
+      ...(context.hourlyNote ? [element('p',context.hourlyNote,'muted')] : []),grid(hours,rate),useHours);
     const reference = context.kind === 'office'
-      ? field('paymentReference','Payment reference',{type:'text',required:false}) : null;
+      ? field('paymentReference','Payment reference',{type:'text',required:false,value:context.paymentReference}) : null;
     const historyNote = element('p','','muted');
     historyNote.setAttribute('role','status');
     const historyControls = fieldset('Paid check history',...(reference ? [reference] : []),historyNote);
@@ -946,7 +954,7 @@ const payrollTaxPreview = (() => {
       element('p','Enter final taxable wages after any pre-tax deductions to override the calculated amounts.','muted'),
       grid(...wages,...localWages));
     const periodStart = ['UT','IN'].includes(saved.settings.state) ? field('periodStartsOn','Pay period starts on',{
-      type:'date',required:false
+      type:'date',required:false,value:context.startsOn
     }) : null;
     const massachusettsDeduction = saved.settings.state === 'MA' ? field('maContributions',
       'Massachusetts eligible payroll contributions this check (after $2,000 annual limit)',{
@@ -958,7 +966,7 @@ const payrollTaxPreview = (() => {
         field('reviewedState','State withholding (if marked Needs review)',{required:false})));
     const result = element('section');
     result.setAttribute('aria-live','polite');
-    const calculate = button('Calculate Estimate',null,'primary-btn');
+    const calculate = button(context.hourlyPay ? 'Calculate Paycheck' : 'Calculate Estimate',null,'primary-btn');
     calculate.type = 'submit';
     function clearResult() {
       result.replaceChildren();
@@ -970,13 +978,15 @@ const payrollTaxPreview = (() => {
     const payrollDeductions = payrollDeductionFields(clearResult);
     const otherTaxes = otherTaxFields(clearResult);
     const year = Number(date.slice(0,4));
-    form.append(element('p','Estimate for W-2 pay. Enter only confirmed deductions and taxable wages.', 'muted'),
+    form.append(element('p',context.hourlyPay ? 'Review regular gross pay and enter overtime, bonuses, and adjustments under Pay items.'
+      : 'Estimate for W-2 pay. Enter only confirmed deductions and taxable wages.', 'muted'),
+      ...(context.hourlyPay ? [checkFields] : []),
       ...(context.kind === 'settlement' ? [element('p',context.gross != null
         ? 'The settlement total is prefilled. If you itemize pay below, enter just the regular portion in Regular gross pay.'
         : 'Enter verified regular gross pay or use the hours and rate for an hourly driver.','muted')] : []),
       grid(amount,...(periodStart ? [periodStart] : []),...(massachusettsDeduction ? [massachusettsDeduction] : []),field('socialSecurityYtd','YTD Social Security wages before this check'),
         field('medicareYtd','YTD Medicare wages before this check')),
-      checkFields,...(lumperTreatment ? [lumperTreatment] : []),foundingTotals,payItems.details,payrollDeductions.details,wageDetails,reviewedIncome,otherTaxes.details,
+      ...(context.hourlyPay ? [] : [checkFields]),...(lumperTreatment ? [lumperTreatment] : []),foundingTotals,payItems.details,payrollDeductions.details,wageDetails,reviewedIncome,otherTaxes.details,
       garnishmentFields(),unemploymentFields(saved.settings.state,year),calculate);
     body.append(historyControls,form,result);
 
@@ -985,7 +995,8 @@ const payrollTaxPreview = (() => {
       payDateInput.value = record.paid_on;
       payDateInput.disabled = context.kind === 'settlement';
       historyNote.textContent = 'Paid check recorded on ' + record.paid_on + '.';
-      const statement = statementPages(context.name,record.paid_on,{...record.statement,payPeriod:context.payPeriod,loads:context.loads ?? record.statement.loads},
+      const paidPeriod = record.statement.payPeriod ?? (context.kind === 'settlement' ? context.payPeriod : undefined);
+      const statement = statementPages(context.name,record.paid_on,{...record.statement,payPeriod:paidPeriod,loads:context.loads ?? record.statement.loads},
         record.amounts,record.through,record.ui_state,true);
       result.replaceChildren(statement,button('Print / Save as PDF',() => printStatement(statement)));
     }
@@ -1038,8 +1049,13 @@ const payrollTaxPreview = (() => {
     void refreshHistory();
     form.addEventListener('input',() => {
       context.gross = form.elements.grossPay.value;
+      if (context.hourlyPay) {
+        context.workedHours = form.elements.workedHours.value;
+        context.hourlyRate = form.elements.hourlyRate.value;
+      }
       clearResult();
     });
+    reference?.addEventListener('input',() => { context.paymentReference = paymentRef(); });
     form.addEventListener('submit',event => {
       event.preventDefault();
       if (!active(context) || recording || form.hidden) return;
@@ -1082,6 +1098,7 @@ const payrollTaxPreview = (() => {
         const statement = {
           ...(Number.isInteger(context.loadCount) ? {loadCount:context.loadCount,lumperTotal} : {}),
           ...(Number.isInteger(context.loadRevision) ? {loadRevision:context.loadRevision} : {}),
+          ...(context.hourlyPay ? {payPeriod:context.payPeriod} : {}),
           hours:hasAmount(value('workedHours')) ? value('workedHours') : null,
           hourlyRate:hasAmount(value('hourlyRate')) ? value('hourlyRate') : null,
           earnings:[{name:'Regular pay',amount:value('grossPay')},...earnings],
@@ -1205,7 +1222,7 @@ const payrollTaxPreview = (() => {
     session = context;
     const date = today();
     body.replaceChildren();
-    title.textContent = options.mode === 'preview' ? 'Payroll Tax Estimate' : 'Tax Information';
+    title.textContent = options.hourlyPay ? 'Create Hourly Paycheck' : options.mode === 'preview' ? 'Payroll Tax Estimate' : 'Tax Information';
     if (!dialog.open) dialog.showModal();
     if (options.mode === 'preview') return loadPreview(context,date);
     message('Loading tax elections…');

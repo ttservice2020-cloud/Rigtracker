@@ -96,8 +96,8 @@ const officePayroll = (() => {
     return node;
   }
 
-  function action(label, callback) {
-    const button = element('button', label, 'outline');
+  function action(label, callback, style = 'outline') {
+    const button = element('button', label, style);
     button.type = 'button';
     button.addEventListener('click', callback);
     return button;
@@ -275,6 +275,38 @@ const officePayroll = (() => {
     });
   }
 
+  function createHourlyPaycheck(person) {
+    const shifts = person.shifts || [];
+    const closed = new Map();
+    const open = new Set();
+    for (const shift of shifts) {
+      if (!shift.ended_at) open.add(shift.payroll_date);
+      else closed.set(shift.payroll_date, (closed.get(shift.payroll_date) || 0) + Number(shift.seconds));
+    }
+    const seconds = [...closed.values()].reduce((sum, duration) => sum + duration, 0);
+    const saved = new Map((person.payroll_days || []).map(day => [day.payroll_date, day]));
+    const matchedDays = [...closed].map(([date, duration]) => {
+      const day = saved.get(date);
+      return !open.has(date) && Number(day?.worked_seconds) === duration && day?.gross_pay != null && day.hourly_rate != null ? day : null;
+    });
+    const allPaySaved = matchedDays.length > 0 && matchedDays.every(Boolean);
+    const rates = new Set(allPaySaved ? matchedDays.map(day => Number(day.hourly_rate)) : []);
+    const gross = allPaySaved ? Math.round(matchedDays.reduce((sum, day) => sum + Number(day.gross_pay) * 100, 0)) / 100 : null;
+    const startsOn = data.from || byId('officePayrollFrom').value;
+    const endsOn = data.to || byId('officePayrollTo').value;
+    const notes = [seconds ? 'Clocked hours from completed shifts are prefilled.' : 'Enter hours manually or add a missed shift in Office Payroll.'];
+    if (open.size) notes.push('An open shift needs a clock-out time if it belongs in this check.');
+    if (rates.size > 1) notes.push('Regular gross pay uses the saved daily totals at their individual rates.');
+    if (!allPaySaved) notes.push('Enter the hourly rate and use Hours × Rate to calculate regular gross pay.');
+    return payrollTaxPreview.open({
+      kind:'office', mode:'preview', reference:person.user_id, fleet:data.fleet_id, name:person.name,
+      hourlyPay:true, startsOn, endsOn, payPeriod:payrollDateLabel(startsOn) + ' to ' + payrollDateLabel(endsOn),
+      workedHours:seconds ? Number((seconds / 3600).toFixed(4)) : null,
+      hourlyRate:rates.size === 1 ? rates.values().next().value : null,
+      gross, hourlyNote:notes.join(' ')
+    });
+  }
+
   function paint(expanded = new Set()) {
     const people = data?.employees || [];
     const selected = byId('officePayrollEmployee').value;
@@ -299,9 +331,9 @@ const officePayroll = (() => {
       card.append(identity);
       const actions = element('div', '', 'dispatch-actions');
       const taxEmployee = { kind:'office', reference:person.user_id, fleet:data.fleet_id, name:person.name };
-      actions.append(action('Add Missed Shift', () => openShift(person)),
-        action('Tax Information', () => payrollTaxPreview.open(taxEmployee)),
-        action('Estimate Payroll Taxes', () => payrollTaxPreview.open({ ...taxEmployee,mode:'preview' })));
+      actions.append(action('Create Hourly Paycheck', () => createHourlyPaycheck(person), 'primary-btn'),
+        action('Add Missed Shift', () => openShift(person)),
+        action('Tax Information', () => payrollTaxPreview.open(taxEmployee)));
       card.append(actions);
       const days = daysFor(person, expanded);
       if (days.length) {
