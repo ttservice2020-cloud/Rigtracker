@@ -11,3 +11,7 @@ verify_jwt = false
 [functions.driver-push]
 # Validates the scheduled worker token in Vault before accessing the delivery queue.
 verify_jwt = false
+
+[functions.dispatch-address-zip]
+# The function verifies each bearer token and checks Dispatch access for the fleet.
+verify_jwt = false

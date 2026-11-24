@@ -31,6 +31,7 @@ const fleetDispatchApp = (() => {
   const driverTable = 'fleet_dispatch_drivers';
   const locationTable = 'fleet_dispatch_locations';
   const addressParts = ['address', 'city', 'state', 'zip'];
+  const stopZipLookups = new WeakMap();
   const locationRequired = ['name', ...addressParts];
   const relayAddressFields = { address: 'relayAddress', city: 'relayCity', state: 'relayState', zip: 'relayZip' };
   const payLabels = { hourly: 'Hourly', split: 'Split Load', per_mile: 'Per mile', load_percent: 'Load %', higher_of: 'Whichever is higher' };
@@ -122,6 +123,45 @@ const fleetDispatchApp = (() => {
     });
   }
 
+  async function lookupAddressZip(key, address) {
+    const scope = state;
+    const cache = scope.zipCodes ??= new Map();
+    if (cache.has(key)) return cache.get(key);
+    const {data,error} = await scope.client.functions.invoke('dispatch-address-zip',{
+      body:{fleetId:scope.fleetId,...address}
+    });
+    if (error) throw error;
+    const zip = typeof data?.zip === 'string' && /^\d{5}$/.test(data.zip) ? data.zip : null;
+    if (cache.size >= 150) cache.delete(cache.keys().next().value);
+    cache.set(key,zip);
+    return zip;
+  }
+
+  function bindAddressZip(getField,status,allowed) {
+    return dispatchZipLookup.bind({street:getField('address'),city:getField('city'),state:getField('state'),
+      zip:getField('zip'),status,allowed,lookup:lookupAddressZip});
+  }
+
+  const locationZipLookup = bindAddressZip(key => locationForm.elements.namedItem(key),byId('dispatchLocationZipStatus'),
+    () => Boolean(state?.access.dispatch && !state.locationSaving));
+  const editorCanLookupZip = () => Boolean(state?.access.dispatch && edit && !byId('dispatchLoadFields').disabled);
+  const relayZipLookup = bindAddressZip(key => form.elements.namedItem(relayAddressFields[key]),
+    byId('dispatchRelayZipStatus'),editorCanLookupZip);
+
+  function updateEditorZips() {
+    relayZipLookup.update();
+    for (const container of Object.values(stops)) {
+      for (const group of container.children) stopZipLookups.get(group)?.update();
+    }
+  }
+
+  function resetEditorZips() {
+    relayZipLookup.reset();
+    for (const container of Object.values(stops)) {
+      for (const group of container.children) stopZipLookups.get(group)?.reset();
+    }
+  }
+
   function paintLocations() {
     const locations = state?.locations || [];
     byId('dispatchLocationNames').replaceChildren(...locations.map(location => new Option(location.address, location.name)));
@@ -160,6 +200,7 @@ const fleetDispatchApp = (() => {
   function editLocation(location = null) {
     if (!state || state.locationSaving) return;
     state.locationEdit = location;
+    locationZipLookup.reset();
     locationForm.reset();
     if (location) for (const field of [...locationRequired, 'wait_alert_hours']) locationForm.elements.namedItem(field).value = location[field] ?? '';
     byId('dispatchLocationHeading').textContent = location ? 'Edit location' : 'Add a location';
@@ -257,6 +298,7 @@ const fleetDispatchApp = (() => {
     }
     if (showEditor || tab === 'activity' || tab === 'locations') {
       void readLocations(state);
+      if (showEditor) updateEditorZips();
       if (tab === 'locations') paintLocations();
     }
   }
@@ -931,11 +973,19 @@ const fleetDispatchApp = (() => {
     zip.inputMode = 'numeric';
     zip.pattern = '[0-9]{5}(-[0-9]{4})?';
     zip.title = '5-digit or ZIP+4 code';
-    field('zip', 'ZIP', zip, required);
+    const zipField = field('zip', 'ZIP', zip, required);
+    const zipStatus = element('p','','muted dispatch-compact');
+    zipStatus.id = prefix + 'zip-status';
+    zipStatus.setAttribute('role','status');
+    zipField.append(zipStatus);
+    const zipLookup = bindAddressZip(key => fields.querySelector('[data-stop-field=' + key + ']'),zipStatus,
+      () => group.isConnected && editorCanLookupZip());
+    stopZipLookups.set(group,zipLookup);
     const waitAlert = input('number');
     Object.assign(waitAlert, { min:'0', step:'any', placeholder:'2', inputMode:'decimal' });
     field('waitAlertHours', 'Wait alert (hours after appointment)', waitAlert);
     useSavedLocation(company, location => {
+      zipLookup.reset();
       for (const key of addressParts) group.querySelector('[data-stop-field=' + key + ']').value = location[key];
       waitAlert.value = location.wait_alert_hours ?? '';
     });
@@ -957,6 +1007,7 @@ const fleetDispatchApp = (() => {
     field('driver1', 'Include for Driver 1', input('checkbox'));
     field('driver2', 'Include for Driver 2', input('checkbox'));
     const remove = button('Remove stop', () => {
+      zipLookup.reset();
       group.remove();
       contact.remove();
       numberStops(kind);
@@ -1101,6 +1152,7 @@ const fleetDispatchApp = (() => {
   }
 
   useSavedLocation(form.elements.relayLocation, location => {
+    relayZipLookup.reset();
     for (const [key, name] of Object.entries(relayAddressFields)) form.elements[name].value = location[key];
   });
 
@@ -1214,6 +1266,7 @@ const fleetDispatchApp = (() => {
 
   function installEditor(row = null, fromContract = false) {
     cancelRouteEstimate();
+    resetEditorZips();
     const data = row?.details ?? {};
     edit = {
       row: fromContract ? null : row,
@@ -1364,6 +1417,7 @@ const fleetDispatchApp = (() => {
       }
       paintAssignment();
       paintDriverPay();
+      updateEditorZips();
       void routeEstimate();
       ratePhotoStatus.textContent = filled ? 'Review the filled fields and add any missing details. The original photo saves with the load.'
         : 'No empty fields could be filled. You can enter the details and save the original photo.';
@@ -2083,7 +2137,10 @@ const fleetDispatchApp = (() => {
   }
 
   function repaintLease() {
-    if (edit && editorVisible()) paintEditor();
+    if (edit && editorVisible()) {
+      paintEditor();
+      updateEditorZips();
+    }
     progressView?.paint();
   }
 
@@ -2232,6 +2289,8 @@ const fleetDispatchApp = (() => {
 
   function reset() {
     cancelRouteEstimate();
+    resetEditorZips();
+    locationZipLookup.reset();
     watchLoad(null);
     if (state) {
       if (state.channel) void state.client.removeChannel(state.channel);
