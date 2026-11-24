@@ -37,7 +37,7 @@ const officeTools = (() => {
   function renderTools() {
     for (const tab of tabs) {
       const key = tab.dataset.officeTool;
-      const available = key === 'review-issue' || key === 'withholding-forms' ? Boolean(employee && !employee.password_required)
+      const available = key === 'review-issue' || key === 'hr' ? Boolean(employee && !employee.password_required)
         : key === 'profiles' ? employee?.office_can_manage_profiles
         : key === 'link-profiles' ? canLinkProfiles()
         : key === 'equipment' ? has('dispatch') || has('assets')
@@ -297,7 +297,7 @@ const officeTools = (() => {
     const admin = accountTypeFor(currentUser) === 'fleet';
     editing = { row,fleet,prefix,user:currentUser,admin };
     byId('officeProfileIdentity').textContent = displayName(row) + ' · ' + fleet + '-' + row.employee_id;
-    visible('officeProfileContractorTax',payrollContractorTax.canPrepare());
+    visible('officeProfileHrTaxForms',hrTaxForms.canManage());
     byId('officeProfileDesignation').value = row.office_is_official ? 'official' : 'unofficial';
     byId('officeProfileManage').checked = row.office_can_manage_profiles;
     byId('officeProfileLink').checked = Boolean(row.office_can_link_profiles);
@@ -403,12 +403,12 @@ const officeTools = (() => {
   });
 
   byId('officeProfileClose').addEventListener('click',()=>dialog.close());
-  byId('officeProfileContractorTax').addEventListener('click',() => {
+  byId('officeProfileHrTaxForms').addEventListener('click',() => {
     const selection = editing;
-    if (!selection || pending || !payrollContractorTax.canPrepare()) return;
+    if (!selection || pending || !hrTaxForms.canManage()) return;
+    const pageId = document.querySelector('.page.active')?.id;
     dialog.close();
-    void payrollTaxPreview.open({ fleet:selection.fleet, kind:'contractor_office', mode:'1099',
-      reference:selection.row.employee_id, name:displayName(selection.row) });
+    void hrTaxForms.open(selection.fleet,{kind:'office',number:selection.row.employee_id},() => showPage(pageId));
   });
   dialog.addEventListener('cancel',event=>{ if (pending) event.preventDefault(); });
   dialog.addEventListener('close',()=>{
@@ -541,7 +541,7 @@ const officeTools = (() => {
 
   const routes = {
     'link-profiles':openProfileLink,'review-issue':()=>openReviewIssue(),
-    'withholding-forms':()=>companyDriverTools.openDocuments('tax'),
+    hr:()=>hrTaxForms.open(employee.fleet_id),
     bol_payments:()=>fleetBolPayments.open(employee.fleet_id),
     dispatch:()=>showOfficeDispatch('current'),drivers:()=>showOfficeDispatch('drivers'),
     equipment:()=>showOfficeDispatch('equipment'),assets:()=>showOfficeDispatch('equipment'),

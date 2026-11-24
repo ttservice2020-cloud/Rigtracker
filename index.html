@@ -1238,7 +1238,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
      <button class="outline hidden" type="button" id="ownDriverSettlementsButton" onclick="showPage('spreadsheetPage')">Pay Settlements</button>
      <button class="outline hidden" type="button" id="ownOwnerEscrowButton" onclick="ownerEscrow.open()">Escrow</button>
      <button class="outline hidden" type="button" id="companyDriverPayButton" onclick="companyDriverTools.openSettlements()">Pay Settlements</button>
-     <button class="outline hidden" type="button" id="ownDriverTaxButton" onclick="companyDriverTools.openDocuments('tax')">Tax Information</button>
+     <button class="outline hidden" type="button" id="ownDriverTaxButton" onclick="companyDriverTools.openDocuments('tax')">My Tax Forms</button>
      <div class="employee-setup-actions hidden" id="companyDriverExtras">
       <button class="outline hidden" type="button" id="companyDriverClockButton" onclick="companyDriverTools.openClock()">Time Clock</button>
       <button class="outline" type="button" id="companyDriverMessagesButton" onclick="companyMessaging.open()">Messages</button>
@@ -1377,7 +1377,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
    <div id="companyDriverClockList"></div>
   </section>
   <section id="companyDriverAdminPage" class="page fleet-account-page">
-   <div class="page-head"><div><button class="back" type="button" onclick="companyDriverTools.backAdmin()">← Back</button><h1 id="companyDriverAdminTitle">Driver Profile</h1></div><div class="dispatch-actions"><button class="outline hidden" id="companyDriverEscrowButton" type="button">Escrow</button><button class="outline hidden" id="companyDriverReviewIssue" type="button">File a Review Issue</button></div></div>
+   <div class="page-head"><div><button class="back" type="button" onclick="companyDriverTools.backAdmin()">← Back</button><h1 id="companyDriverAdminTitle">Driver Profile</h1></div><div class="dispatch-actions"><button class="outline hidden" id="companyDriverHrTaxForms" type="button">HR Tax Forms</button><button class="outline hidden" id="companyDriverEscrowButton" type="button">Escrow</button><button class="outline hidden" id="companyDriverReviewIssue" type="button">File a Review Issue</button></div></div>
    <p id="companyDriverAdminStatus" class="muted" role="status"></p>
    <div id="companyDriverAdminContent" class="hidden">
     <section class="panel company-driver-summary hidden" id="companyDriverAdminSummary" aria-label="Driver quick reference">
@@ -1409,7 +1409,6 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
     <nav class="company-driver-record-nav" aria-label="Driver profile sections">
      <button class="outline" type="button" data-company-driver-section="documents" aria-controls="companyDriverAdminDocuments" aria-pressed="false">Documents</button>
      <button class="outline" type="button" data-company-driver-section="pay_settlements" aria-controls="companyDriverAdminSettlements" aria-pressed="false">Pay Settlements</button>
-     <button class="outline" type="button" data-company-driver-section="tax" aria-controls="companyDriverAdminTax" aria-pressed="false">Tax Information</button>
      <button class="outline" type="button" data-company-driver-section="bols" aria-controls="companyDriverAdminBols" aria-pressed="false">BOLs</button>
      <button class="outline" type="button" data-company-driver-section="company" aria-controls="companyDriverAdminCompany" aria-pressed="true">Company File</button>
      <button class="outline" type="button" data-company-driver-section="messages" aria-controls="companyDriverAdminMessages" aria-pressed="false">Messages</button>
@@ -1467,12 +1466,6 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
     <section class="panel hidden" id="companyDriverAdminPayScale">
      <h2>Pay Scale</h2>
      <div data-driver-tracking="pay_scale"></div>
-    </section>
-    <section class="panel hidden" id="companyDriverAdminTax">
-     <h2>Tax Information</h2>
-     <button class="outline hidden" id="companyDriverPayrollTax" type="button">Withholding Elections</button>
-     <button class="outline hidden" id="companyDriverContractorTax" type="button">Prepare 1099-NEC</button>
-     <div data-driver-profile-files="tax"></div>
     </section>
     <section class="panel hidden" id="companyDriverAdminPayStatus">
      <h2>Pay Status</h2>
@@ -1710,9 +1703,8 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
    <section class="fleet-tools-group" data-office-group>
     <h2>People and Pay</h2>
     <div class="fleet-tools-grid">
-     <button type="button" class="card fleet-tool hidden" data-office-tool="withholding-forms">My Withholding Forms</button>
      <button type="button" class="card fleet-tool hidden" data-office-tool="profiles">Employee Profiles</button>
-     <button type="button" class="card fleet-tool hidden" data-office-tool="hr">HR <small>Coming later</small></button>
+     <button type="button" class="card fleet-tool hidden" data-office-tool="hr">HR</button>
      <button type="button" class="card fleet-tool hidden" data-office-tool="payroll" id="companyOfficePayrollButton"><span class="payroll-label">Payroll</span></button>
      <button type="button" class="card fleet-tool hidden" data-office-tool="settlements">Load Settlements</button>
      <button type="button" class="card fleet-tool hidden" data-office-tool="hourly">Hourly Time</button>
@@ -1731,6 +1723,22 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
    </section>
    <p id="officeNoTools" class="muted hidden">Ask your Fleet Admin to assign access to Office tools.</p>
   </div>
+ </section>
+ <section class="page fleet-account-page" id="hrTaxFormsPage">
+  <div class="page-head"><div><button class="back" id="hrTaxFormsBack" type="button">← Back</button><h1>HR</h1></div>
+   <div class="dispatch-actions"><button class="outline hidden" id="hrManageTabs" type="button">Manage HR Tabs</button><button class="outline hidden" id="hrOwnTaxForms" type="button">My Tax Forms</button></div></div>
+  <nav id="hrWorkspaceTabs" class="fleet-dashboard-nav hidden" aria-label="HR tabs"></nav>
+  <div id="hrTaxFormsPanel">
+   <p class="muted" id="hrTaxFormsStatus" role="status"></p>
+   <section class="panel hidden" id="hrTaxWorkerSelection">
+    <h2>Tax Forms</h2>
+    <div class="field"><label for="hrTaxWorker">Worker</label><select id="hrTaxWorker"></select></div>
+    <div class="dispatch-actions" id="hrTaxWorkerActions"></div>
+   </section>
+   <section class="panel hidden" id="hrIssuedTaxDocuments"></section>
+  </div>
+  <section class="panel hidden" id="hrCustomPanel" aria-labelledby="hrCustomTitle"><h2 id="hrCustomTitle"></h2><p id="hrCustomContent" style="white-space:pre-wrap;overflow-wrap:anywhere"></p></section>
+  <div id="hrFleetLinks" class="dispatch-actions hidden"><button class="outline" type="button" onclick="showFleetSection('profiles')">Employee Profiles</button><button class="outline" type="button" onclick="showFleetSection('policies')">Policies</button></div>
  </section>
  <section class="page fleet-account-page" id="officeProfilesPage">
   <div class="page-head"><div><button class="back" type="button" onclick="officeTools.openDashboard()">← Back to Dashboard</button><h1>Employee Profiles</h1></div></div>
@@ -1760,6 +1768,15 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
  <h2 id="driverInstallTitle">Install RigTracker Pro</h2>
  <p id="driverInstallSteps"></p>
  <form method="dialog"><button class="primary-btn" type="submit">Done</button></form>
+</dialog>
+<dialog class="office-profile-dialog" id="hrTabsDialog" aria-labelledby="hrTabsDialogTitle">
+ <div class="office-profile-heading"><h2 id="hrTabsDialogTitle">Manage HR Tabs</h2><button class="outline" type="button" id="hrTabsCancel">Close</button></div>
+ <form id="hrTabsForm">
+  <button class="outline" type="button" id="hrTabsAdd">Add Tab</button>
+  <fieldset class="dispatch-load-list" id="hrTabsEditorRows" style="border:0;margin:0;padding:0;min-width:0"></fieldset>
+  <p class="muted" id="hrTabsEditorStatus" role="status"></p>
+  <button class="primary-btn" type="submit" id="hrTabsSave">Save HR Tabs</button>
+ </form>
 </dialog>
 <dialog class="office-profile-dialog payroll-tax-dialog" id="payrollBolReviewDialog" aria-labelledby="payrollBolReviewTitle">
  <div class="page-head">
@@ -1838,7 +1855,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 </dialog>
 <dialog class="office-profile-dialog" id="officeProfileDialog" aria-labelledby="officeProfileTitle">
  <div class="office-profile-heading"><div><h2 id="officeProfileTitle">Edit Profile</h2><p class="muted" id="officeProfileIdentity"></p></div><button class="outline" type="button" id="officeProfileClose">Close</button></div>
- <button class="outline hidden" id="officeProfileContractorTax" type="button">Prepare 1099-NEC</button>
+ <button class="outline hidden" id="officeProfileHrTaxForms" type="button">HR Tax Forms</button>
  <form id="officeProfileHourlyRateForm" class="hidden">
   <h3>Hourly Pay</h3>
   <div class="dispatch-fields">
@@ -1905,20 +1922,21 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 <script src="./payroll-tax-rules.js?v=4"></script>
 <script src="./payroll-tax-deductions.js?v=2"></script>
 <script src="./payroll-tax-updates.js?v=1"></script>
-<script src="./payroll-tax-preview.js?v=15"></script>
-<script src="./company-driver-tools.js?v=settlement-remove-2"></script>
+<script src="./payroll-tax-preview.js?v=hr-tax-1"></script>
+<script src="./company-driver-tools.js?v=hr-tax-1"></script>
 <script src="./company-messages.js?v=driver-push-1"></script>
 <script src="./driver-paperwork.js?v=3"></script>
-<script src="./payroll-withholding-forms.js?v=2"></script>
-<script src="./payroll-contractor-tax.js?v=1"></script>
+<script src="./payroll-withholding-forms.js?v=hr-tax-1"></script>
+<script src="./payroll-contractor-tax.js?v=hr-tax-1"></script>
+<script src="./hr-tax-forms.js?v=1"></script>
 <script src="./driver-workflow.js?v=completed-bol-2"></script>
 <script src="./fleet-admin-driver.js?v=1"></script>
 <script src="./company-safety.js?v=1"></script>
 <script src="./driver-app.js?v=push-1"></script>
 <script src="./driver-notifications.js?v=1"></script>
 <script src="./fleet-bol-payments.js?v=paperwork-1"></script>
-<script src="./office-tools.js?v=contractor-tax-1"></script>
-<script src="./office-payroll.js?v=employee-hourly-rate-2"></script>
+<script src="./office-tools.js?v=hr-tax-1"></script>
+<script src="./office-payroll.js?v=hr-tax-1"></script>
 <script src="./owner-escrow.js?v=1"></script>
 <script src="./owner-settlement-records.js?v=owner-deductions-1"></script>
 <script src="./owner-settlement-import.js?v=preview-1"></script>
@@ -2133,6 +2151,7 @@ async function signOut(){
   ownerSettlementImport.reset();
   ownerEscrow.reset();
   payrollTaxPreview.reset();
+  hrTaxForms.reset();
   payrollTaxUpdates.reset();
   adminFleetId=null;
   fleetDispatchApp.reset();
@@ -2536,7 +2555,6 @@ async function loadUserData(){
 }
 const fleetSectionTitles={dashboard:'Fleet Admin Dashboard',dispatch:'Dispatch',settings:'Fleet Settings',profiles:'Employee Profiles',links:'Linked Profiles'};
 const fleetTools={
- "hr":{"title":"HR","status":"Onboarding and employment records are coming later.","links":["profiles","policies"]},
  "settlements":{"title":"Pay Settlements","status":"Fleet settlement entry and export are coming later."},
  "hourly":{"title":"Hourly Time","status":"Hourly employee and driver time tracking is coming later."},
  "policies":{"title":"Policies","status":"Company policies and acknowledgments are coming later."},
@@ -2604,6 +2622,7 @@ function showFleetSection(section,dispatchTab='current'){
  if(!currentUser||accountTypeFor(currentUser)!=='fleet')return;
  if(section==='messages')return companyMessaging.open();
  if(section==='payroll')return officePayroll.open(adminFleetId);
+ if(section==='hr')return hrTaxForms.open(adminFleetId);
  if(!Object.hasOwn(fleetSectionTitles,section)&&!Object.hasOwn(fleetTools,section))return;
  fleetSection=section;
  if(section==='links')resetFleetLinkForm();

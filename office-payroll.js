@@ -358,10 +358,10 @@ const officePayroll = (() => {
       identity.textContent = [data.fleet_id + '-' + person.employee_id, person.office_role].filter(Boolean).join(' · ');
       card.append(identity);
       const actions = element('div', '', 'dispatch-actions');
-      const taxEmployee = { kind:'office', reference:person.user_id, fleet:data.fleet_id, name:person.name };
       actions.append(action('Create Hourly Paycheck', () => createHourlyPaycheck(person), 'primary-btn'),
         action('Add Missed Shift', () => openShift(person)),
-        action('Tax Information', () => payrollTaxPreview.open(taxEmployee)));
+        action('HR Tax Forms', () => hrTaxForms.open(data.fleet_id,{kind:'office',reference:person.user_id},
+          () => showPage('officePayrollPage'))));
       card.append(actions);
       const days = daysFor(person, expanded);
       if (days.length) {

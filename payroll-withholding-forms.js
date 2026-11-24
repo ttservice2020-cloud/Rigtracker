@@ -131,7 +131,7 @@ const payrollWithholdingForms = (() => {
     status.setAttribute('role','status');
     const help = element('p', w9Only ? 'Upload the signed W-9 as a PDF or clear photo.'
       : context ? 'Open the signed form to verify its details.'
-      : 'Complete and sign the form that applies to your work, then upload it for payroll.', 'muted');
+      : 'Complete and sign the form that applies to your work, then upload it for HR.', 'muted');
     const tools = element('div', '', 'dispatch-actions');
     for (const kind of kinds.filter(kind => kind !== 'state')) {
       const blank = element('a', kind === 'w9' ? formLabels.w9 : 'IRS Form W-4');
@@ -165,12 +165,23 @@ const payrollWithholdingForms = (() => {
       const file = element('input');
       Object.assign(file,{type:'file',accept:Object.keys(extensions).join(','),required:true});
       fileLabel.append(file);
-      const save = element('button', context ? 'Add signed form' : 'Submit to payroll', 'primary-btn');
+      const save = element('button', context ? 'Add signed form' : 'Submit to HR', 'primary-btn');
       save.type = 'submit';
       const elections = w9Only ? null : electionFields();
-      type.addEventListener('change',() => elections?.sync(type.value === 'w4'));
-      uploadForm.append(fleetLabel, typeLabel, fileLabel, ...(elections ? [elections.panel] : []), save);
-      list.before(uploadForm);
+      const signedLabel = element('label','W-9 signed date (optional)','field');
+      const signed = element('input');
+      const now = new Date();
+      now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+      Object.assign(signed,{type:'date',min:'1900-01-01',max:now.toISOString().slice(0,10)});
+      signedLabel.append(signed);
+      function syncType() {
+        elections?.sync(type.value === 'w4');
+        signed.disabled = signedLabel.hidden = type.value !== 'w9';
+      }
+      type.addEventListener('change',syncType);
+      syncType();
+      uploadForm.append(fleetLabel, typeLabel, fileLabel,signedLabel,...(elections ? [elections.panel] : []),save);
+      if (!context?.readOnlyForms) list.before(uploadForm);
 
       async function refresh(message = '') {
         const entries = (await Promise.all(folders.map(async entry => {
@@ -183,8 +194,9 @@ const payrollWithholdingForms = (() => {
           const row = element('article', '', 'dispatch-load-row');
           const info = element('div');
           const label = formLabels[entry.kind];
-          info.append(element('strong',label),element('p',[entry.fleet,
-            entry.created_at && new Date(entry.created_at).toLocaleString(undefined,{dateStyle:'medium',timeStyle:'short'})].filter(Boolean).join(' · ')));
+          const signedOn = entry.signed_on && 'Signed ' + new Date(entry.signed_on + 'T00:00:00').toLocaleDateString(undefined,{dateStyle:'medium'});
+          const uploaded = entry.created_at && 'Uploaded ' + new Date(entry.created_at).toLocaleString(undefined,{dateStyle:'medium',timeStyle:'short'});
+          info.append(element('strong',label),element('p',[entry.fleet,signedOn,uploaded].filter(Boolean).join(' · ')));
           const actions = element('div', '', 'dispatch-actions');
           const name = label + '.' + entry.path.split('.').pop();
           actions.append(button('Open',() => openFile(bucket,entry.path,name)),
@@ -210,11 +222,12 @@ const payrollWithholdingForms = (() => {
         try {
           const path = [fleet.value,type.value,crypto.randomUUID()+'.'+extension].join('/');
           const values = elections?.values();
-          const {error} = await storage.upload(path,form,{upsert:false,...(values ? {metadata:{w4:values}} : {})});
+          const metadata = values ? {w4:values} : !signed.disabled && signed.value ? {signed_on:signed.value} : null;
+          const {error} = await storage.upload(path,form,{upsert:false,...(metadata ? {metadata} : {})});
           if (error) throw error;
           if (!active()) return;
-          file.value = '';
-          try { await refresh(context ? 'Signed form added.' : 'Signed form submitted to payroll.'); }
+          file.value = signed.value = '';
+          try { await refresh(context ? 'Signed form added.' : 'Signed form submitted to HR.'); }
           catch { if (active()) status.textContent = 'Form saved. Reopen this section to refresh the list.'; }
         } catch {
           if (active()) status.textContent = 'Could not upload the signed form. Try again.';

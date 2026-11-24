@@ -1,7 +1,7 @@
 const payrollContractorTax = (() => {
   const taxYear = 2026;
   const template = './tax-forms/1099-nec-2026-recipient.pdf';
-  const canPrepare = () => Boolean(currentUser && (accountTypeFor(currentUser) === 'fleet' || officeTools.has('payroll')));
+  const canPrepare = () => hrTaxForms.canManage();
 
   function element(tag, content, className) {
     const node = document.createElement(tag);
@@ -94,7 +94,8 @@ const payrollContractorTax = (() => {
     draw(values.payerZip,211,651,81);
     draw(values.payerTin,54,621,114);
     draw(values.recipientTin,176,621,116);
-    draw(values.recipientName,54,585,238);
+    draw(values.recipientName,54,values.recipientBusiness ? 588 : 585,238);
+    draw(values.recipientBusiness,54,578,238);
     draw(values.recipientStreet,54,554,186);
     draw(values.recipientUnit,248,554,44);
     draw(values.recipientCity,54,530,238);
@@ -130,7 +131,8 @@ const payrollContractorTax = (() => {
       group('Payer',field('payerName','Legal payer name'),field('payerPhone','Telephone number',{inputMode:'tel',maxLength:20}),
         field('payerTinType','Payer TIN type',{choices:tinKinds}),
         field('payerTin','Payer TIN',{type:'password',inputMode:'numeric',maxLength:11}),...address('payer')),
-      group('Recipient',field('recipientName','Legal recipient name from W-9'),...address('recipient'),
+      group('Recipient',field('recipientName','Legal recipient name from W-9'),
+        field('recipientBusiness','Business, LLC or DBA name from W-9 line 2 (optional)',{required:false}),...address('recipient'),
         field('recipientTinType','Recipient TIN type',{choices:[...tinKinds].reverse()}),
         field('recipientTin','Last four digits of recipient TIN',{type:'password',inputMode:'numeric',maxLength:4}),
         field('account','Account number (optional)',{required:false,maxLength:30})),
@@ -142,6 +144,7 @@ const payrollContractorTax = (() => {
       confirm,status,download
     );
     host.append(element('p','Use this form for payments made to an independent contractor during 2026. W-2 employee wages stay in payroll.','muted'),
+      element('p','Use the tax name and taxpayer ID shown on the signed W-9 that applies to those payments. Keep earlier W-9s for prior payments.','muted'),
       element('p','Enter the verified calendar-year payments from your records. The PDF is created on your device for the recipient. File separately with the IRS.','muted'),
       instructions,w9,form);
     form.addEventListener('submit',async event => {

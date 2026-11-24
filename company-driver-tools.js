@@ -74,8 +74,8 @@ const companyDriverTools = (() => {
 
   const profilePayCurrency = new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' });
   const profileFileBucket = 'fleet-driver-profile-files';
-  const fileTabs = { documents: 'documents', company: 'company', tax: 'tax' };
-  const profileRecordTabs = new Set(['documents','pay_settlements','tax']);
+  const fileTabs = { documents: 'documents', company: 'company' };
+  const profileRecordTabs = new Set(['documents','pay_settlements']);
   const sectionPermission = section => 'driver_' + (section === 'company' ? 'company_file' : section);
   const fileExtensions = { 'application/pdf': 'pdf', 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
 
@@ -337,19 +337,13 @@ const companyDriverTools = (() => {
         quickFact('Equipment', profile.equipment), quickFact('Dispatch availability', availability[profile.availability])
       );
       if (profile.linked) paintPresence(profile.presence || {});
-      const taxButton = byId('companyDriverPayrollTax');
-      const showTax = profile.company_driver && profile.linked && profile.profile_id && canManageTax();
-      taxButton.classList.toggle('hidden', !showTax);
-      taxButton.onclick = showTax ? () => payrollTaxPreview.open({
-        fleet:selection.fleet, kind:'driver', reference:profile.profile_id, name:name(profile)
-      }) : null;
-      const contractorTax = byId('companyDriverContractorTax');
-      const showContractorTax = profile.linked && profile.profile_id && payrollContractorTax.canPrepare();
-      contractorTax.classList.toggle('hidden',!showContractorTax);
-      contractorTax.onclick = showContractorTax ? () => payrollTaxPreview.open({
-        fleet:selection.fleet, kind:'contractor_driver', mode:'1099', reference:profile.profile_id, name:name(profile)
-      }) : null;
       const allowed = new Set(profile.tabs || []);
+      const taxButton = byId('companyDriverHrTaxForms');
+      const showTax = (profile.profile_id || selection.dispatchDriverId) && (allowed.has('driver_tax') || hrTaxForms.canManage());
+      taxButton.classList.toggle('hidden',!showTax);
+      taxButton.onclick = showTax ? () => hrTaxForms.open(selection.fleet,{
+        kind:'driver',reference:profile.profile_id,driverId:selection.dispatchDriverId
+      },() => showPage('companyDriverAdminPage')) : null;
       let recordsRestricted = false;
       for (const control of adminSections) {
         const section = control.dataset.companyDriverSection;
@@ -480,28 +474,41 @@ const companyDriverTools = (() => {
       return;
     }
     const folder = [selection.fleet, selection.dispatchDriverId, fileTabs[section]].join('/');
-    const bucket = supabaseClient.storage.from(profileFileBucket);
     selection.pending.add(section);
+    try {
+      if (await mountProfileFiles(container,() => sameAdmin(selection),folder,selection.owner)) {
+        selection.files.add(section);
+      }
+    } finally { selection.pending.delete(section); }
+  }
+
+  function mountIssuedTaxFiles(container,active,fleet,driver,canUpload) {
+    return mountProfileFiles(container,active,[fleet,driver,'tax'].join('/'),canUpload,true);
+  }
+
+  async function mountProfileFiles(container,active,folder,canUpload,tax = false) {
+    const bucket = supabaseClient.storage.from(profileFileBucket);
     container.replaceChildren(element('p', 'Loading files…', 'muted'));
     try {
       const { data, error } = await bucket.list(folder, { limit:100, sortBy:{ column:'created_at', order:'desc' } });
       if (error) throw error;
-      if (!sameAdmin(selection)) return;
+      if (!active()) return false;
       const files = data.filter(file => file.id);
       container.replaceChildren(...files.map(file => {
         const row = element('article', '', 'dispatch-load-row');
         const label = file.name.replace(/^[0-9a-f-]{36}-/i, '');
-        row.append(element('strong', label), profileFileActions(folder + '/' + file.name,label,section === 'tax'));
+        row.append(element('strong', label), profileFileActions(folder + '/' + file.name,label,tax));
         return row;
       }));
       if (!files.length) container.append(element('p', 'No files on record.', 'muted'));
-      if (selection.owner) {
+      if (canUpload) {
         const fileInput = element('input');
         fileInput.type = 'file';
         fileInput.accept = Object.keys(fileExtensions).join(',');
         fileInput.className = 'hidden';
-        const upload = button('Upload File', () => fileInput.click());
+        const upload = button(tax ? 'Upload Tax Document' : 'Upload File', () => fileInput.click());
         fileInput.addEventListener('change', async () => {
+          if (!active()) return;
           const file = fileInput.files[0];
           const extension = fileExtensions[file?.type];
           if (!extension || !file.size || file.size > 10485760) {
@@ -514,17 +521,18 @@ const companyDriverTools = (() => {
             const name = file.name.replace(/\.[^.]+$/, '').replace(/[^a-z0-9 ._-]/gi, '_').slice(0, 100) || 'Document';
             const { error } = await bucket.upload(folder + '/' + crypto.randomUUID() + '-' + name + '.' + extension, file);
             if (error) throw error;
-            if (sameAdmin(selection)) { showToast('File uploaded.'); await loadProfileFiles(selection, section); }
+            if (active()) { showToast('File uploaded.'); await mountProfileFiles(container,active,folder,canUpload,tax); }
           } catch (error) {
-            if (sameAdmin(selection)) showToast(error.message || 'Could not upload this file.');
+            if (active()) showToast(error.message || 'Could not upload this file.');
           } finally { upload.disabled = false; fileInput.value = ''; }
         });
         container.append(upload, fileInput);
       }
-      selection.files.add(section);
+      return true;
     } catch (error) {
-      if (sameAdmin(selection)) container.replaceChildren(element('p', error.message || 'Could not load these files.', 'muted'));
-    } finally { selection.pending.delete(section); }
+      if (active()) container.replaceChildren(element('p', error.message || 'Could not load these files.', 'muted'));
+      return false;
+    }
   }
 
   async function loadProfilePay(selection, section) {
@@ -844,7 +852,7 @@ const companyDriverTools = (() => {
     return refreshPay(true);
   }
 
-  async function openDocuments(section = 'documents') {
+  async function openDocuments(section = 'documents', backTo) {
     const user = currentUser;
     const tax = section === 'tax';
     const role = accountTypeFor(user);
@@ -859,9 +867,9 @@ const companyDriverTools = (() => {
     const back = byId('ownDriverDocumentsBack');
     const forms = byId('ownWithholdingForms');
     const office = role === 'employee';
-    back.textContent = office ? '← Back to Dashboard' : '← Back to Profile';
-    back.onclick = office ? () => officeTools.openDashboard() : () => showPage('rigTrackerProfilePage');
-    byId('ownDriverDocumentsTitle').textContent = office ? 'My Withholding Forms' : tax ? 'Tax Information' : 'Documents';
+    back.textContent = backTo ? '← Back to HR' : office ? '← Back to Dashboard' : '← Back to Profile';
+    back.onclick = backTo || (office ? () => officeTools.openDashboard() : () => showPage('rigTrackerProfilePage'));
+    byId('ownDriverDocumentsTitle').textContent = tax ? 'My Tax Forms' : 'Documents';
     list.replaceChildren();
     forms.replaceChildren();
     forms.classList.toggle('hidden', !tax);
@@ -1000,8 +1008,7 @@ const companyDriverTools = (() => {
     byId('companyPayDraft').replaceChildren(new Option('Generate a new settlement number', ''));
     clearPayForm();
     byId('companyDriverEscrowButton').classList.add('hidden');
-    byId('companyDriverPayrollTax').classList.add('hidden');
-    byId('companyDriverContractorTax').classList.add('hidden');
+    byId('companyDriverHrTaxForms').classList.add('hidden');
     showPage('companyDriverAdminPage');
     return loadOverview(view, initialProfile);
   }
@@ -1283,6 +1290,7 @@ const companyDriverTools = (() => {
       ? settlement.period_start + ' to ' + settlement.period_end : '';
     const taxContext = settlement.id && lines.length && canManageTax() ? {
       mode:'preview',kind:'settlement',reference:settlement.id,fleet:payroll?.fleet_id,user:currentUser,
+      hrReference:settlement.driver_profile_id,
       name:[settlement.driver,settlement.settlement_number].filter(Boolean).join(' · '),payPeriod,
       gross:missingBase ? null : settlement.total_pay,loads:statementLoads,loadCount:settlement.load_count,loadRevision:settlement.load_revision,
       lumperReimbursement:Math.round(statementLoads.reduce((sum,line) => sum + line.lumperReimbursement,0)*100)/100
@@ -1824,5 +1832,5 @@ const companyDriverTools = (() => {
   },24000);
   scheduleSettlementHour();
   document.addEventListener('visibilitychange', refreshSettlementHour);
-  return { openDocuments, openSettlements, openClock, openAdmin, openRoster, openPayroll, backPayroll, backAdmin, loadFormer, refresh, reset };
+  return { openDocuments, mountIssuedTaxFiles, openSettlements, openClock, openAdmin, openRoster, openPayroll, backPayroll, backAdmin, loadFormer, refresh, reset };
 })();
