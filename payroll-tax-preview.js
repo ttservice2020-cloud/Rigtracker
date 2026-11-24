@@ -1081,6 +1081,7 @@ const payrollTaxPreview = (() => {
         const complete = subtotal !== null;
         const statement = {
           ...(Number.isInteger(context.loadCount) ? {loadCount:context.loadCount,lumperTotal} : {}),
+          ...(Number.isInteger(context.loadRevision) ? {loadRevision:context.loadRevision} : {}),
           hours:hasAmount(value('workedHours')) ? value('workedHours') : null,
           hourlyRate:hasAmount(value('hourlyRate')) ? value('hourlyRate') : null,
           earnings:[{name:'Regular pay',amount:value('grossPay')},...earnings],

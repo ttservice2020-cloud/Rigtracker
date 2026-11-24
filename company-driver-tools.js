@@ -1231,7 +1231,7 @@ const companyDriverTools = (() => {
     row.append(element('strong','Signed BOL missing','settlement-missing-bol'));
   }
 
-  function showSettlementPreview(settlement, lines, status) {
+  function showSettlementPreview(settlement, lines, status, keepLoadsOpen) {
     const preview = byId('companyPayrollSettlementPreview');
     const statementLoads = lines.map(line => ({
       pro:(line.is_return ? 'B-' : 'A-') + line.pro_number,
@@ -1258,42 +1258,53 @@ const companyDriverTools = (() => {
       for (const [amount, title] of [[line.empty_mile_pay,'Empty-mile pay'],[line.stop_pay,'Stop pay'],[line.additional_pay,'Additional pay']]) {
         if (Number(amount)) row.append(element('span', title + ': ' + settlementCurrency.format(Number(amount))));
       }
+      if (activeStatement?.editable && line.load_id) {
+        const remove = button('Remove', control => removeStatementLoad(settlement.id, line.load_id, label, control));
+        remove.setAttribute('aria-label', 'Remove ' + label + ' from settlement');
+        remove.classList.add('remove-statement-load');
+        row.append(remove);
+      }
       return row;
     });
     const missingBase = lines.some(line => !line.base_pay_entered);
     const payPeriod = settlement.period_start && settlement.period_end
       ? settlement.period_start + ' to ' + settlement.period_end : '';
-    const taxContext = settlement.id && canManageTax() ? {
+    const taxContext = settlement.id && lines.length && canManageTax() ? {
       mode:'preview',kind:'settlement',reference:settlement.id,fleet:payroll?.fleet_id,user:currentUser,
       name:[settlement.driver,settlement.settlement_number].filter(Boolean).join(' · '),payPeriod,
-      gross:missingBase ? null : settlement.total_pay,loads:statementLoads,loadCount:settlement.load_count,
+      gross:missingBase ? null : settlement.total_pay,loads:statementLoads,loadCount:settlement.load_count,loadRevision:settlement.load_revision,
       lumperReimbursement:Math.round(statementLoads.reduce((sum,line) => sum + line.lumperReimbursement,0)*100)/100
     } : null;
     const yearToDate = element('div','','settlement-year-to-date');
     if (taxContext) {
       yearToDate.textContent = 'Loading year-to-date pay…';
       taxContext.onRecorded = () => {
-        if (activeStatement?.id === settlement.id) activeStatement.editable = false;
+        if (activeStatement?.id === settlement.id) {
+          activeStatement.editable = false;
+          preview.querySelectorAll('.remove-statement-load').forEach(control => control.remove());
+          updateSettlementButton();
+        }
         void payrollTaxPreview.showSettlementYtd(yearToDate,taxContext);
       };
     }
     const breakdown = element('details');
+    breakdown.open = Boolean(keepLoadsOpen);
     breakdown.append(element('summary','Load pay details'),...rows);
     preview.replaceChildren(
       element('h3', 'Settlement ' + settlement.settlement_number + ' · ' + status),
       element('p', [settlement.driver, lines.length + ' completed load' + (lines.length === 1 ? '' : 's')].filter(Boolean).join(' · ')),
       ...(payPeriod ? [element('p','Pay period ' + payPeriod,'muted')] : []),
-      breakdown,
+      ...(rows.length ? [breakdown] : [element('p','This draft is empty. Choose a pay period and add loads to continue.','muted')]),
       element('strong', 'Known pay items: ' + settlementCurrency.format(Number(settlement.total_pay)), 'settlement-preview-total'),
       ...(missingBase ? [element('p', 'Confirm driver pay before issuing this statement. Hourly pay can be entered using hours and rate.', 'muted')] : []),
       ...(taxContext ? [button('Estimate Payroll Taxes',() => payrollTaxPreview.open(taxContext)),yearToDate] : []),
-      button(taxContext ? 'Print Load Details' : 'Print / Save as PDF', () => {
+      ...(rows.length ? [button(taxContext ? 'Print Load Details' : 'Print / Save as PDF', () => {
         if (!breakdown.open) {
           breakdown.open = true;
           window.addEventListener('afterprint',() => { breakdown.open = false; },{once:true});
         }
         window.print();
-      })
+      })] : [])
     );
     if (taxContext) void payrollTaxPreview.showSettlementYtd(yearToDate,taxContext);
     preview.classList.remove('hidden');
@@ -1301,7 +1312,7 @@ const companyDriverTools = (() => {
     preview.scrollIntoView?.({ block:'nearest' });
   }
 
-  async function openSavedSettlement(id) {
+  async function openSavedSettlement(id, keepLoadsOpen = false) {
     const user = currentUser;
     const fleet = payroll?.fleet_id;
     if (!fleet || !payrollRecordsActive(user, fleet)) return;
@@ -1323,7 +1334,7 @@ const companyDriverTools = (() => {
         byId('companyStatementStart').value = record.period_start;
         byId('companyStatementEnd').value = record.period_end;
       }
-      clearStatementLoadSelection();
+      if (!keepLoadsOpen) clearStatementLoadSelection();
       const picker = byId('companyPayrollDriver');
       if (record.driver_profile_id && picker.value !== record.driver_profile_id &&
         [...picker.options].some(option => option.value === record.driver_profile_id)) {
@@ -1332,7 +1343,8 @@ const companyDriverTools = (() => {
       } else if (settlementView?.loads) {
         paintSettlementLoads(settlementView,settlementView.loads);
       }
-      showSettlementPreview(record,record.lines,record.paid ? 'Paid' : record.sent_for_review ? 'Sent for review' : 'Draft saved');
+      showSettlementPreview(record,record.lines,record.paid ? 'Paid' : record.sent_for_review ? 'Sent for review' : 'Draft saved',keepLoadsOpen);
+      updateSettlementButton();
     } catch (error) {
       if (active()) preview.replaceChildren(element('p', error.message || 'Could not open this settlement.', 'muted'));
     }
@@ -1390,6 +1402,40 @@ const companyDriverTools = (() => {
       selection.saving = false;
       picker.disabled = false;
       if (settlementView === selection) {
+        updateSettlementButton();
+        refreshSettlementHour();
+      }
+    }
+  }
+
+  async function removeStatementLoad(id, loadId, label, control) {
+    const selection = settlementView;
+    const statement = activeStatement;
+    if (!selection || selection.saving || !activeSettlementView(selection) || statement?.id !== id || !statement.editable) return;
+    const { fleet, profileId, user } = selection;
+    const status = byId('companySettlementLoadStatus');
+    const picker = byId('companyPayrollDriver');
+    selection.saving = control.disabled = picker.disabled = true;
+    status.textContent = 'Removing ' + label + '…';
+    updateSettlementButton();
+    try {
+      const { error } = await supabaseClient.rpc('remove_company_statement_load', {
+        target_fleet:fleet, target_statement:id, target_load:loadId
+      });
+      if (error) throw error;
+      if (!payrollRecordsActive(user, fleet)) return;
+      if (activeStatement === statement) await openSavedSettlement(id,true);
+      if (activeSettlementView(selection)) {
+        status.textContent = label + ' removed from the settlement.';
+        void loadSettlementLoads(fleet,profileId,true);
+      }
+      void loadSavedSettlements(user,fleet);
+    } catch (error) {
+      if (activeSettlementView(selection)) status.textContent = error.message || 'Could not remove the load. Try again.';
+    } finally {
+      selection.saving = control.disabled = false;
+      if (settlementView === selection) {
+        picker.disabled = false;
         updateSettlementButton();
         refreshSettlementHour();
       }
