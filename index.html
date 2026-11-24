@@ -635,6 +635,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
         <p role="status">Could not load Dispatch records.</p>
         <button class="outline" type="button" id="dispatchReload">Try again</button>
        </div>
+       <div class="field hidden" id="dispatchLoadDriverFilterField"><label for="dispatchLoadDriverFilter">Assigned driver</label><select id="dispatchLoadDriverFilter"><option value="">All drivers</option></select></div>
        <section class="hidden dispatch-panel dispatch-detail" id="dispatchLoadDetail" aria-label="Load Details">
         <button class="back" id="dispatchDetailBack" type="button">← Back to loads</button>
         <header class="dispatch-detail-header">
@@ -989,7 +990,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
          <div class="fleet-equipment-units" id="fleetEquipmentList"></div>
         </section>
         <section class="panel hidden" id="fleetEquipmentDriverAssignments">
-         <h2>Driver Assignments</h2>
+         <h2>Driver Equipment Assignments</h2>
          <div class="field"><label for="fleetEquipmentDriverSearch">Find a driver</label><input id="fleetEquipmentDriverSearch" type="search" autocomplete="off"></div>
          <div class="dispatch-load-list" id="fleetEquipmentDriverList"></div>
         </section>
@@ -1907,15 +1908,20 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
   </div>
  </form>
 </dialog>
+<dialog class="office-profile-dialog" id="dispatchEquipmentAssignmentDialog" aria-labelledby="dispatchEquipmentAssignmentTitle">
+ <h2 id="dispatchEquipmentAssignmentTitle">Edit Truck &amp; Trailer</h2>
+ <p id="dispatchEquipmentAssignmentDriver" class="muted"></p>
+ <div id="dispatchEquipmentAssignmentBody"></div>
+</dialog>
 <div id="modal"><div class="modal-card"><h2 id="modalTitle"></h2><div id="modalBody"></div><button class="primary-btn" onclick="closeModal()">Close</button></div></div>
 
 <script src="./dispatch-progress.js?v=dispatch-board-2"></script>
 <script src="./dispatch-rate-confirmation.js?v=1"></script>
 <script src="./dispatch-route-miles.js?v=1"></script>
 <script src="./dispatch-zip-lookup.js?v=1"></script>
-<script src="./dispatch.js?v=address-zip-1"></script>
+<script src="./dispatch.js?v=driver-loads-1"></script>
 <script src="./linked-profiles.js?v=driver-push-1"></script>
-<script src="./fleet-equipment.js?v=profile-links-1"></script>
+<script src="./fleet-equipment.js?v=driver-loads-1"></script>
 <script src="./payroll-tax-jurisdictions.js?v=2"></script>
 <script src="./payroll-tax-new-york.js?v=2"></script>
 <script src="./payroll-tax-arkansas-low.js?v=1"></script>
@@ -1927,8 +1933,8 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 <script src="./payroll-tax-rules.js?v=4"></script>
 <script src="./payroll-tax-deductions.js?v=2"></script>
 <script src="./payroll-tax-updates.js?v=1"></script>
-<script src="./payroll-tax-preview.js?v=hr-tax-1"></script>
-<script src="./company-driver-tools.js?v=hr-tax-1"></script>
+<script src="./payroll-tax-preview.js?v=daily-pay-1"></script>
+<script src="./company-driver-tools.js?v=daily-pay-1"></script>
 <script src="./company-messages.js?v=driver-push-1"></script>
 <script src="./driver-paperwork.js?v=3"></script>
 <script src="./payroll-withholding-forms.js?v=hr-tax-1"></script>
@@ -1941,7 +1947,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 <script src="./driver-notifications.js?v=1"></script>
 <script src="./fleet-bol-payments.js?v=paperwork-1"></script>
 <script src="./office-tools.js?v=hr-tax-1"></script>
-<script src="./office-payroll.js?v=hr-tax-1"></script>
+<script src="./office-payroll.js?v=daily-pay-1"></script>
 <script src="./owner-escrow.js?v=1"></script>
 <script src="./owner-settlement-records.js?v=owner-deductions-1"></script>
 <script src="./owner-settlement-import.js?v=preview-1"></script>

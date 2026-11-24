@@ -297,7 +297,7 @@ const officePayroll = (() => {
     });
   }
 
-  function createHourlyPaycheck(person) {
+  function createPaycheck(person) {
     const shifts = person.shifts || [];
     const closed = new Map();
     const open = new Set();
@@ -358,7 +358,7 @@ const officePayroll = (() => {
       identity.textContent = [data.fleet_id + '-' + person.employee_id, person.office_role].filter(Boolean).join(' · ');
       card.append(identity);
       const actions = element('div', '', 'dispatch-actions');
-      actions.append(action('Create Hourly Paycheck', () => createHourlyPaycheck(person), 'primary-btn'),
+      actions.append(action('Create Paycheck', () => createPaycheck(person), 'primary-btn'),
         action('Add Missed Shift', () => openShift(person)),
         action('HR Tax Forms', () => hrTaxForms.open(data.fleet_id,{kind:'office',reference:person.user_id},
           () => showPage('officePayrollPage'))));

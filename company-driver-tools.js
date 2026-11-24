@@ -5,6 +5,7 @@ const companyDriverTools = (() => {
   const equipmentEditor = byId('companyDriverEquipmentEditor');
   const equipmentEdit = byId('companyDriverEquipmentEdit');
   const equipmentForm = byId('companyDriverEquipmentForm');
+  const assignmentDialog = byId('dispatchEquipmentAssignmentDialog');
   const equipmentSave = equipmentForm.querySelector('button[type=submit]');
   const equipmentCancel = byId('companyDriverEquipmentCancel');
   const trailerType = equipmentForm.elements.trailer_type;
@@ -16,6 +17,7 @@ const companyDriverTools = (() => {
     year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
   });
   let view;
+  let equipmentAssignment;
   let clockRequest;
   let payRequest;
   let adminRequest;
@@ -236,11 +238,33 @@ const companyDriverTools = (() => {
   }
 
   function closeEquipmentForm(restoreFocus = true) {
+    if (equipmentAssignment) {
+      assignmentDialog.close();
+      restoreEquipmentForm();
+      return;
+    }
     equipmentForm.classList.add('hidden');
     equipmentEdit.setAttribute('aria-expanded', 'false');
     showEquipmentError();
     if (restoreFocus) equipmentEdit.focus();
   }
+
+  function restoreEquipmentForm() {
+    if (!equipmentAssignment) return;
+    equipmentAssignment = null;
+    equipmentSave.disabled = equipmentCancel.disabled = false;
+    equipmentEditor.append(equipmentForm);
+    closeEquipmentForm(false);
+    byId('dispatchEquipmentAssignmentDriver').textContent = '';
+  }
+
+  function activeEquipment(selection) {
+    if (equipmentAssignment === selection) return assignmentDialog.open && currentUser === selection.user;
+    return sameAdmin(selection);
+  }
+
+  assignmentDialog.addEventListener('cancel',event => { if (equipmentSave.disabled) event.preventDefault(); });
+  assignmentDialog.addEventListener('close',() => { if (!assignmentDialog.open) restoreEquipmentForm(); });
 
   equipmentEdit.addEventListener('click', () => {
     if (!view?.profile.can_edit_equipment || equipmentSave.disabled) return;
@@ -260,10 +284,10 @@ const companyDriverTools = (() => {
     showEquipmentError();
   });
   byId('companyDriverEquipmentSearch').addEventListener('click', () => {
-    const selection = view;
+    const selection = equipmentAssignment || view;
     if (!selection?.profile.can_edit_equipment || equipmentSave.disabled) return;
     void fleetEquipment.openPicker(selection.fleet, unit => {
-      if (!sameAdmin(selection)) return;
+      if (!activeEquipment(selection)) return;
       equipmentForm.elements.namedItem(unit.equipment_type + '_number').value = unit.unit_number;
       if (unit.equipment_type === 'trailer') {
         trailerType.value = 'fleet';
@@ -276,7 +300,7 @@ const companyDriverTools = (() => {
 
   equipmentForm.addEventListener('submit', async event => {
     event.preventDefault();
-    const selection = view;
+    const selection = equipmentAssignment || view;
     if (!selection?.profile.can_edit_equipment || !selection.dispatchDriverId || equipmentSave.disabled) return;
     const { truck_number, trailer_number = '', trailer_type, bobtail } = Object.fromEntries(new FormData(equipmentForm));
     if (trailer_number.trim() && trailer_number.trim().toLowerCase() !== 'bobtail' && !trailer_type) {
@@ -295,15 +319,16 @@ const companyDriverTools = (() => {
         expected_trailer_type: assigned_trailer_type ?? null
       });
       if (error) throw error;
-      if (!sameAdmin(selection)) return;
+      if (!activeEquipment(selection)) return;
       selection.profile = profile;
-      paintQuickReference(profile);
+      if (selection === equipmentAssignment) void fleetDispatchApp.reload();
+      else paintQuickReference(profile);
       closeEquipmentForm();
       showToast('Truck and trailer saved.');
     } catch (error) {
-      if (sameAdmin(selection)) showEquipmentError(error.message || 'Could not save the truck and trailer.');
+      if (activeEquipment(selection)) showEquipmentError(error.message || 'Could not save the truck and trailer.');
     } finally {
-      if (sameAdmin(selection)) equipmentSave.disabled = equipmentCancel.disabled = false;
+      if (activeEquipment(selection)) equipmentSave.disabled = equipmentCancel.disabled = false;
     }
   });
 
@@ -379,9 +404,18 @@ const companyDriverTools = (() => {
     try {
       const profile = await profileRequest('overview', fleet, { roster_driver: driver.id });
       if (!current()) return;
-      const open = openAdmin(profile, fromEquipment ? 'equipment' : 'dispatch', profile, fleet);
-      if (fromEquipment && profile.can_edit_equipment) equipmentEdit.click();
-      return open;
+      if (!fromEquipment) return openAdmin(profile,'dispatch',profile,fleet);
+      if (!profile.can_edit_equipment) return showToast('You do not have access to edit this equipment assignment.');
+      if (assignmentDialog.open) return;
+      equipmentAssignment = {user,fleet,profile,dispatchDriverId:driver.id};
+      byId('dispatchEquipmentAssignmentDriver').textContent = driver.name;
+      byId('dispatchEquipmentAssignmentBody').append(equipmentForm);
+      equipmentSave.disabled = equipmentCancel.disabled = false;
+      showEquipmentError();
+      fillEquipmentForm(profile);
+      equipmentForm.classList.remove('hidden');
+      assignmentDialog.showModal();
+      byId('companyDriverTruckNumber').focus();
     } catch (error) {
       if (current()) showToast(error.message || 'Could not open the driver profile.');
     } finally { if (rosterRequest === request) rosterRequest = null; }
@@ -1319,7 +1353,7 @@ const companyDriverTools = (() => {
       ...(rows.length ? [breakdown] : [element('p','This draft is empty. Choose a pay period and add loads to continue.','muted')]),
       element('strong', 'Known pay items: ' + settlementCurrency.format(Number(settlement.total_pay)), 'settlement-preview-total'),
       ...(missingBase ? [element('p', 'Confirm driver pay before issuing this statement. Hourly pay can be entered using hours and rate.', 'muted')] : []),
-      ...(taxContext ? [button('Estimate Payroll Taxes',() => payrollTaxPreview.open(taxContext)),yearToDate] : []),
+      ...(taxContext ? [button('Pay & Taxes',() => payrollTaxPreview.open(taxContext)),yearToDate] : []),
       ...(rows.length ? [button(taxContext ? 'Print Load Details' : 'Print / Save as PDF', () => {
         if (!breakdown.open) {
           breakdown.open = true;
@@ -1792,6 +1826,7 @@ const companyDriverTools = (() => {
   }
 
   function reset() {
+    if (equipmentAssignment) closeEquipmentForm(false);
     byId('payrollBolReviewDialog').close();
     view = null; payroll = null; payrollOrigin = null; payrollRequest = null;
     fuelRequest = null; payrollSection = null;

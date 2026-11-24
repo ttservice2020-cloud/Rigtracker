@@ -80,7 +80,10 @@ const fleetEquipment = (() => {
       const text = element('div');
       text.append(element('strong', row.name), element('p',
         'Truck ' + (row.assigned_truck_number || '—') + ' · Trailer ' + (row.assigned_trailer_number || '—'), 'muted'));
-      card.append(text, button('Edit Assignment', () => selection.editDriver(row)));
+      const actions = element('div','','dispatch-actions');
+      if (selection.viewDriverLoads) actions.append(button('View Loads', () => selection.viewDriverLoads(row)));
+      actions.append(button('Edit Truck & Trailer', () => selection.editDriver(row)));
+      card.append(text,actions);
       return card;
     });
     byId('fleetEquipmentDriverList').replaceChildren(...(cards.length ? cards : [element('p', 'No drivers found.', 'muted')]));
@@ -479,8 +482,8 @@ const fleetEquipment = (() => {
     } finally { scope.loading = false; }
   }
 
-  async function open(fleet, drivers, editDriver, canMaintain) {
-    const scope = workspace = { user: currentUser, fleet, rows: [], drivers, editDriver, canMaintain };
+  async function open(fleet, drivers, editDriver, canMaintain, viewDriverLoads) {
+    const scope = workspace = { user: currentUser, fleet, rows: [], drivers, editDriver, canMaintain, viewDriverLoads };
     record.classList.add('hidden');
     byId('fleetEquipmentDriverAssignments').classList.toggle('hidden', !editDriver);
     byId('fleetEquipmentSearch').value = byId('fleetEquipmentDriverSearch').value = '';

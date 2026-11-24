@@ -52,6 +52,7 @@ const fleetDispatchApp = (() => {
   const ratePhotoStatus = byId('dispatchRatePhotoStatus');
   const loadedMiles = form.elements.loadedMiles;
   const routeStatus = byId('dispatchRouteMilesStatus');
+  const loadDriverFilter = byId('dispatchLoadDriverFilter');
   const militaryTime = value => progressEnabled ? dispatchProgress.time(value) : value;
   const militaryPattern = '(?:[01][0-9]|2[0-3]):?[0-5][0-9]';
 
@@ -284,13 +285,14 @@ const fleetDispatchApp = (() => {
       if (selected && focus) node.focus();
     }
     toggle('dispatch-panel-create', showEditor);
+    toggle('dispatchLoadDriverFilterField',view === 'list' && ['current','history'].includes(tab));
     byId('dispatch-panel-create').setAttribute('aria-labelledby', 'dispatch-tab-' + (showEditor ? tab : 'create'));
     byId('dispatchWorkspace').dataset.board = String(tab === 'current' && view === 'list');
     if (view === 'list' && (tab === 'current' || tab === 'day')) paintLoads();
     if (tab === 'equipment' && view === 'list') {
       const { fleetId, drivers, access } = state;
       const editDriver = access.dispatch ? driver => companyDriverTools.openRoster(driver, fleetId, true) : null;
-      void fleetEquipment.open(fleetId, drivers, editDriver, access.maintenance);
+      void fleetEquipment.open(fleetId, drivers, editDriver, access.maintenance, access.dispatch ? showDriverLoads : null);
     }
     if (tab === 'activity' && view === 'list') {
       paintDriverUpdates();
@@ -348,6 +350,38 @@ const fleetDispatchApp = (() => {
       return [driver].filter(Boolean);
     }
     return [load.driver_id, load.second_driver_id].filter(Boolean);
+  }
+
+  function assignmentDriverIds(load) {
+    const active = displayedDriverIds(load);
+    const relay = load.progress?.relay;
+    if (load.status === 'completed') return [...active,relay?.dropDriverId,relay?.departDriverId,relay?.resumeDriverId].filter(Boolean);
+    if (progressEnabled && !active.length && relay?.droppedAt) active.push(dispatchProgress.relayDriverId(load));
+    return active.filter(id => id && load.progress?.driverResponses?.[id]?.decision !== 'rejected');
+  }
+
+  function showDriverLoads(driver) {
+    if (!state?.access.dispatch || !driver?.id) return;
+    state.loadDriver = driver.id;
+    byId('dispatchLoadSearch').value = '';
+    byId('dispatchWatchedOnly').checked = false;
+    const watch = byId('dispatchSelectWatched');
+    watch.setAttribute('aria-pressed','false');
+    watch.textContent = 'Select watched loads';
+    selectTab('current');
+    loadDriverFilter.focus();
+  }
+
+  function paintLoadDriverFilter() {
+    const driver = state.drivers.find(row => row.id === state.loadDriver);
+    if (!driver && state.loaded) state.loadDriver = '';
+    const choices = [['','All drivers'],...state.drivers.map(row => [row.id,row.name + (row.link_active === false ? ' (unlinked)' : '')])];
+    if (choices.length !== loadDriverFilter.options.length || choices.some(([id,name],index) =>
+      loadDriverFilter.options[index].value !== id || loadDriverFilter.options[index].text !== name)) {
+      loadDriverFilter.replaceChildren(...choices.map(([id,name]) => new Option(name,id)));
+    }
+    loadDriverFilter.value = driver?.id || '';
+    return driver;
   }
 
   function loadDrivers(load) {
@@ -635,19 +669,21 @@ const fleetDispatchApp = (() => {
     if (canWatch) showWatchButton(byId('dispatchDetailWatch'), open);
     const search = byId('dispatchLoadSearch').value.trim().toLowerCase();
     const onlyWatched = byId('dispatchWatchedOnly').checked;
-    const current = state.loads.filter(load => load.status === 'current' && (!onlyWatched || state.watchedLoads.has(load.id)));
+    const driver = paintLoadDriverFilter();
+    const assigned = load => !driver || assignmentDriverIds(load).includes(driver.id);
+    const current = state.loads.filter(load => load.status === 'current' && assigned(load) && (!onlyWatched || state.watchedLoads.has(load.id)));
     const urgency = load => load.progress?.breakdown?.active ? 2 : load.progress?.traffic?.active ? 1 : 0;
     const compareAlerts = (a, b) => urgency(b) - urgency(a);
     const matching = current.filter(load => matchesLoad(load, search));
-    const drafts = state.loads.filter(load => load.status === 'draft' && !load.return_of && matchesLoad(load, search));
+    const drafts = state.loads.filter(load => load.status === 'draft' && !load.return_of && assigned(load) && matchesLoad(load, search));
     const contracts = state.loads.filter(load => load.status === 'contract');
     const completedAt = load => load.progress?.completedAt || load.updated_at;
-    const history = state.loads.filter(load => load.status === 'completed')
+    const history = state.loads.filter(load => load.status === 'completed' && assigned(load))
       .sort((a, b) => Date.parse(completedAt(b)) - Date.parse(completedAt(a)));
 
     const queueLabel = onlyWatched ? 'watched' : 'active';
     byId('dispatchRailStatus').textContent = state.loaded
-      ? (current.length ? current.length + ' ' + queueLabel : 'No ' + queueLabel + ' loads')
+      ? (current.length ? current.length + ' ' + queueLabel : 'No ' + queueLabel + ' loads') + (driver ? ' · ' + driver.name : '')
       : (state.failed ? 'Loads unavailable' : 'Loading loads…');
     current.sort(compareAlerts);
     byId('dispatchRailList').replaceChildren(...current.map(load => {
@@ -678,7 +714,7 @@ const fleetDispatchApp = (() => {
       return row;
     }));
     byId('dispatchCurrentEmpty').textContent = matching.length || !state.loaded
-      ? '' : (search ? 'No loads match your search.' : 'No ' + queueLabel + ' loads.');
+      ? '' : (search ? 'No loads match your search.' : 'No ' + queueLabel + ' loads' + (driver ? ' for ' + driver.name : '') + '.');
     if (progressEnabled && !byId('dispatch-panel-current').classList.contains('hidden')) paintBoard(matching);
     if (progressEnabled) paintDay();
     if (progressEnabled) checkWatchedHolds();
@@ -686,7 +722,7 @@ const fleetDispatchApp = (() => {
     byId('dispatchDraftList').replaceChildren(...drafts.map(load => loadRow(load, 'Open Draft', () => openLoad(load))));
     byId('dispatchContractEmpty').textContent = contracts.length || !state.loaded ? '' : 'No contract loads.';
     byId('dispatchContractList').replaceChildren(...contracts.map(load => loadRow(load, 'Use Contract', () => openLoad(load, true))));
-    byId('dispatchHistoryEmpty').textContent = history.length || !state.loaded ? '' : 'No completed loads.';
+    byId('dispatchHistoryEmpty').textContent = history.length || !state.loaded ? '' : 'No completed loads' + (driver ? ' for ' + driver.name : '') + '.';
     toggle('dispatchHistoryTable', history.length > 0);
     byId('dispatchHistoryList').replaceChildren(...history.map(load => {
       const row = element('tr');
@@ -720,8 +756,7 @@ const fleetDispatchApp = (() => {
     const filter = byId('dispatchDriverFilter').value;
     const assignments = new Map();
     for (const load of state.loads.filter(entry => entry.status === 'current')) {
-      for (const id of displayedDriverIds(load)) {
-        if (load.progress?.driverResponses?.[id]?.decision === 'rejected') continue;
+      for (const id of assignmentDriverIds(load)) {
         if (!assignments.has(id)) assignments.set(id, []);
         assignments.get(id).push(proLabel(load.pro_number));
       }
@@ -738,7 +773,15 @@ const fleetDispatchApp = (() => {
       const label = active ? 'On a load · ' + active.join(', ') : availability === 'available' ? 'Available' : 'Off duty';
       const profile = button(driver.name, () => companyDriverTools.openRoster(driver, state.fleetId));
       profile.className = 'link-btn company-driver-profile-link';
-      info.append(profile);
+      if (state.access.dispatch) {
+        const loads = button(driver.name, () => showDriverLoads(driver));
+        loads.className = profile.className;
+        loads.setAttribute('aria-label','View loads for ' + driver.name);
+        info.append(loads);
+        profile.className = 'outline';
+        profile.textContent = 'Driver Profile';
+        profile.setAttribute('aria-label','Driver Profile for ' + driver.name);
+      } else info.append(profile);
       info.append(element('p', label));
       if (driver.equipment) info.append(element('p', driver.equipment));
       if (driver.driver_type) {
@@ -746,6 +789,7 @@ const fleetDispatchApp = (() => {
         info.append(element('p', [type, payLabels[driver.pay_method]].filter(Boolean).join(' · ')));
       }
       const actions = element('div', '', 'dispatch-actions');
+      if (state.access.dispatch) actions.append(profile);
       if (state.access.paySettings && byId('dispatchPayProfileForm')) actions.append(button('Edit Pay Profile', () => editPayProfile(driver)));
       row.append(info, actions);
       if (!active && state.access.drivers) {
@@ -1963,6 +2007,11 @@ const fleetDispatchApp = (() => {
   });
   byId('dispatchReload').addEventListener('click', refresh);
   byId('dispatchLoadSearch').addEventListener('input', paintLoads);
+  loadDriverFilter.addEventListener('change', () => {
+    if (!state?.access.dispatch) return;
+    state.loadDriver = loadDriverFilter.value;
+    paintLoads();
+  });
   byId('dispatchWatchedOnly').addEventListener('change', paintLoads);
   byId('dispatchSelectWatched').addEventListener('click', event => {
     const control = event.currentTarget;
@@ -2313,6 +2362,7 @@ const fleetDispatchApp = (() => {
     paintLocations();
     toggle('dispatchPayProfile', false);
     byId('dispatchLoadSearch').value = '';
+    loadDriverFilter.replaceChildren(new Option('All drivers',''));
     byId('dispatchWatchedOnly').checked = false;
     byId('dispatchSelectWatched').textContent = 'Select watched loads';
     byId('dispatchSelectWatched').setAttribute('aria-pressed', 'false');

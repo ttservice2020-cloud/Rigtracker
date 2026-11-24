@@ -468,9 +468,9 @@ const payrollTaxPreview = (() => {
     return section;
   }
 
-  function statementLoadTable(loads) {
+  function statementLoadTable(loads, showPay = true) {
     const table = element('table','','payroll-statement-loads');
-    const labels = ['PRO','Delivered','Origin','Destination','Load pay'];
+    const labels = ['PRO','Delivered','Origin','Destination',...(showPay ? ['Load pay'] : [])];
     table.setAttribute('role','table');
     const header = table.createTHead();
     header.setAttribute('role','rowgroup');
@@ -487,8 +487,8 @@ const payrollTaxPreview = (() => {
     for (const load of loads) {
       const row = body.insertRow();
       row.setAttribute('role','row');
-      const values = [load.pro,load.delivered || '—',load.origin,load.destination,
-        hasAmount(load.pay) ? currency.format(load.pay) : '—'];
+      const values = [load.pro,load.delivered || '—',load.origin,load.destination];
+      if (showPay) values.push(hasAmount(load.pay) ? currency.format(load.pay) : '—');
       values.forEach((value,index) => {
         const cell = row.insertCell();
         cell.setAttribute('role','cell');
@@ -507,9 +507,18 @@ const payrollTaxPreview = (() => {
     return table;
   }
 
+  function additionalPayFromLoads(loads = []) {
+    const amounts = new Map();
+    for (const load of loads) {
+      for (const item of load.otherPay || []) amounts.set(item.name,money((amounts.get(item.name) || 0) + item.amount));
+    }
+    return [...amounts].map(([name,amount]) => ({name,amount}));
+  }
+
   function statementPages(name, date, details, amounts, totals, state, paid) {
     const statement = element('section','','payroll-statement');
     const loads = Array.isArray(details.loads) ? details.loads : [];
+    const daily = hasAmount(details.paidDays);
     const firstPageLimit = 8;
     const continuationLimit = 16;
     const continuationPages = [];
@@ -529,22 +538,18 @@ const payrollTaxPreview = (() => {
     const hours = element('dl','','payroll-tax-results');
     for (const [label,value] of [
       ['Hours worked',hasAmount(details.hours) ? details.hours.toLocaleString('en-US') : ''],
-      ['Hourly rate',hasAmount(details.hourlyRate) ? currency.format(details.hourlyRate) : '']
+      ['Hourly rate',hasAmount(details.hourlyRate) ? currency.format(details.hourlyRate) : ''],
+      ['Days paid',daily ? details.paidDays.toLocaleString('en-US') : ''],
+      ['Daily rate',daily && hasAmount(details.dailyRate) ? currency.format(details.dailyRate) : '']
     ]) {
       if (value) hours.append(element('dt',label),element('dd',value));
     }
     if (hours.children.length) pay.append(hours);
     if (loads.length) {
-      pay.append(element('h3','Loads in this statement'),statementLoadTable(loads.slice(0,firstPageLimit)));
+      pay.append(element('h3','Loads in this statement'),statementLoadTable(loads.slice(0,firstPageLimit),!daily));
     }
-    const additionalLoadPay = new Map();
-    for (const load of loads) {
-      for (const item of load.otherPay || []) {
-        additionalLoadPay.set(item.name,money((additionalLoadPay.get(item.name) || 0) + item.amount));
-      }
-    }
-    if (additionalLoadPay.size) pay.append(...estimateSection('Included in load pay',
-      [...additionalLoadPay].map(([name,amount]) => ({name,amount}))));
+    const additionalLoadPay = daily ? [] : additionalPayFromLoads(loads);
+    if (additionalLoadPay.length) pay.append(...estimateSection('Included in load pay',additionalLoadPay));
     if (details.draft && details.lumperTotal>0) pay.append(...estimateSection('Reimbursement to review',[
       {name:'Driver-paid lumper fee',amount:details.lumperTotal}
     ]));
@@ -571,7 +576,7 @@ const payrollTaxPreview = (() => {
     taxes.append(ytd);
     statement.append(pay,...continuationPages.map((loads,index) => {
       const page = sheet(index+2,'Loads in this Statement');
-      page.append(statementLoadTable(loads));
+      page.append(statementLoadTable(loads,!daily));
       return page;
     }),taxes);
     return statement;
@@ -947,7 +952,7 @@ const payrollTaxPreview = (() => {
   }
 
   function showPreview(context,date,saved) {
-    title.textContent = context.hourlyPay ? 'Create Hourly Paycheck' : 'Payroll Tax Estimate';
+    title.textContent = context.hourlyPay ? 'Create Paycheck' : 'Pay & Taxes';
     const payDate = field('payDate','Pay date',{ type:'date',value:date });
     const payDateInput = payDate.querySelector('input');
     const summary = saved ? [payrollTaxRules.states[saved.settings.state][0],
@@ -990,8 +995,18 @@ const payrollTaxPreview = (() => {
     const rate = field('hourlyRate',context.hourlyPay ? 'Hourly rate ($)' : 'Hourly rate (optional)',{
       required:false,value:context.hourlyRate
     });
+    const basis = field('payBasis','Pay basis',{
+      choices:[['regular','Hourly or entered gross'],['daily','Daily rate']],value:context.payBasis || 'regular'
+    });
+    const days = field('paidDays','Days paid',{required:false,max:366,value:context.paidDays});
+    const dayRate = field('dailyRate','Daily rate ($)',{required:false,value:context.dailyRate});
     const hoursInput = hours.querySelector('input');
     const rateInput = rate.querySelector('input');
+    const basisInput = basis.querySelector('select');
+    const daysInput = days.querySelector('input');
+    const dayRateInput = dayRate.querySelector('input');
+    const dailyMode = () => basisInput.value === 'daily';
+    const loadExtras = additionalPayFromLoads(context.loads);
     function hourlyGross() {
       const payHours = hoursInput.valueAsNumber;
       const hourlyRate = rateInput.valueAsNumber;
@@ -1001,6 +1016,11 @@ const payrollTaxPreview = (() => {
     function updateGross(value = hourlyGross()) {
       grossInput.value = value;
       context.gross = grossInput.value;
+    }
+    function updateDailyGross() {
+      const amount = money(daysInput.valueAsNumber * dayRateInput.valueAsNumber);
+      grossInput.value = daysInput.validity.valid && dayRateInput.validity.valid && hasAmount(amount) &&
+        amount <= Number(grossInput.max) ? amount.toFixed(2) : '';
     }
     const useHours = button('Use Hours × Rate',() => {
       if (!hoursInput.reportValidity() || !rateInput.reportValidity()) return;
@@ -1013,9 +1033,28 @@ const payrollTaxPreview = (() => {
       updateGross(gross);
       clearResult();
     });
-    if (context.grossFromHours) updateGross();
-    const checkFields = fieldset(context.hourlyPay ? 'Hours and rate' : 'Hours and rate (optional)',
-      ...(context.hourlyNote ? [element('p',context.hourlyNote,'muted')] : []),grid(hours,rate),useHours);
+    const hourlyNote = element('p',context.hourlyNote,'muted');
+    const dailyNote = element('p','Saved stop, empty-mile, and additional pay are added separately.','muted');
+    function syncPayBasis() {
+      const daily = dailyMode();
+      visible(rate,!daily);
+      visible(days,daily);
+      visible(dayRate,daily);
+      useHours.hidden = useHours.disabled = daily;
+      hourlyNote.hidden = daily || !context.hourlyNote;
+      dailyNote.hidden = !daily || !loadExtras.length;
+      grossInput.readOnly = daily;
+      if (daily) updateDailyGross();
+      else if (context.grossFromHours) updateGross();
+      else grossInput.value = context.gross ?? '';
+    }
+    syncPayBasis();
+    basisInput.addEventListener('change',() => {
+      context.payBasis = basisInput.value;
+      syncPayBasis();
+      clearResult();
+    });
+    const checkFields = fieldset('Regular pay',hourlyNote,dailyNote,grid(basis,hours,rate,days,dayRate),useHours);
     const reference = context.kind === 'office'
       ? field('paymentReference','Payment reference',{type:'text',required:false,value:context.paymentReference}) : null;
     const historyNote = element('p','','muted');
@@ -1069,13 +1108,10 @@ const payrollTaxPreview = (() => {
     const year = Number(date.slice(0,4));
     form.append(element('p',context.hourlyPay ? 'Review regular gross pay and enter overtime, bonuses, and adjustments under Pay items.'
       : 'Estimate for W-2 pay. Enter only confirmed deductions and taxable wages.', 'muted'),
-      ...(context.hourlyPay ? [checkFields] : []),
-      ...(context.kind === 'settlement' ? [element('p',context.gross != null
-        ? 'The settlement total is prefilled. If you itemize pay below, enter just the regular portion in Regular gross pay.'
-        : 'Enter verified regular gross pay or use the hours and rate for an hourly driver.','muted')] : []),
+      checkFields,
       grid(amount,...(periodStart ? [periodStart] : []),...(massachusettsDeduction ? [massachusettsDeduction] : []),field('socialSecurityYtd','YTD Social Security wages before this check'),
         field('medicareYtd','YTD Medicare wages before this check')),
-      ...(context.hourlyPay ? [] : [checkFields]),...(lumperTreatment ? [lumperTreatment] : []),foundingTotals,payItems.details,payrollDeductions.details,wageDetails,reviewedIncome,otherTaxes.details,
+      ...(lumperTreatment ? [lumperTreatment] : []),foundingTotals,payItems.details,payrollDeductions.details,wageDetails,reviewedIncome,otherTaxes.details,
       garnishments.details,unemploymentFields(saved.settings.state,year),calculate);
     body.append(historyControls,form,result);
 
@@ -1137,13 +1173,17 @@ const payrollTaxPreview = (() => {
     form.elements.sutaState.addEventListener('change',() => void refreshHistory({resetState:true}));
     void refreshHistory();
     form.addEventListener('input',event => {
-      if (event.target === grossInput) {
+      if (event.target === daysInput || event.target === dayRateInput) {
+        context.paidDays = daysInput.value;
+        context.dailyRate = dayRateInput.value;
+        updateDailyGross();
+      } else if (event.target === grossInput && !dailyMode()) {
         context.gross = grossInput.value;
         context.grossFromHours = grossInput.value === '';
       } else if (event.target === hoursInput || event.target === rateInput) {
         context.workedHours = hoursInput.value;
         context.hourlyRate = rateInput.value;
-        if (context.grossFromHours) updateGross();
+        if (!dailyMode() && context.grossFromHours) updateGross();
       }
       clearResult();
     });
@@ -1155,17 +1195,25 @@ const payrollTaxPreview = (() => {
         message('Choose a valid pay date before calculating.',true);
         return;
       }
-      if (grossInput.value === '' && context.grossFromHours) updateGross();
+      const daily = dailyMode();
+      if (daily) updateDailyGross();
+      else if (grossInput.value === '' && context.grossFromHours) updateGross();
       if (!grossInput.reportValidity()) return;
       if (grossInput.value === '') {
-        message('Enter hours worked and an hourly rate, or enter the verified regular gross pay for this check.',true);
-        (context.hourlyPay && hoursInput.value === '' ? hoursInput :
-          context.hourlyPay && rateInput.value === '' ? rateInput : grossInput).focus();
+        if (daily) {
+          message('Enter days paid and a daily rate that produce a valid gross amount.',true);
+          (daysInput.value === '' ? daysInput : dayRateInput).focus();
+        } else {
+          message('Enter hours worked and an hourly rate, or enter the verified regular gross pay for this check.',true);
+          (context.hourlyPay && hoursInput.value === '' ? hoursInput :
+            context.hourlyPay && rateInput.value === '' ? rateInput : grossInput).focus();
+        }
         return;
       }
       const value = key => form.elements[key].valueAsNumber;
       try {
         const earnings = payItems.read();
+        if (daily) earnings.unshift(...loadExtras.map(item => ({...item,type:'otherRegular'})));
         if (lumperTreatment) earnings.push({
           type:form.elements.lumperTreatment.value,name:'Lumper reimbursement',amount:lumperTotal
         });
@@ -1199,8 +1247,9 @@ const payrollTaxPreview = (() => {
           ...(Number.isInteger(context.loadRevision) ? {loadRevision:context.loadRevision} : {}),
           ...(context.hourlyPay ? {payPeriod:context.payPeriod} : {}),
           hours:hasAmount(value('workedHours')) ? value('workedHours') : null,
-          hourlyRate:hasAmount(value('hourlyRate')) ? value('hourlyRate') : null,
-          earnings:[{name:'Regular pay',amount:value('grossPay')},...earnings],
+          hourlyRate:!daily && hasAmount(value('hourlyRate')) ? value('hourlyRate') : null,
+          ...(daily ? {paidDays:value('paidDays'),dailyRate:value('dailyRate')} : {}),
+          earnings:[{name:daily ? 'Daily pay' : 'Regular pay',amount:value('grossPay')},...earnings],
           deductions:deductionsForStatement.map(({name,amount}) => ({name,amount})),
           taxes:employee.filter(row => row.amount !== 0 || row.type !== 'local').map(({name,amount}) => ({name,amount})),
           taxTotal
@@ -1322,7 +1371,7 @@ const payrollTaxPreview = (() => {
     session = context;
     const date = today();
     body.replaceChildren();
-    title.textContent = options.hourlyPay ? 'Create Hourly Paycheck' : options.mode === 'preview' ? 'Payroll Tax Estimate' : 'Withholding Forms & Elections';
+    title.textContent = options.hourlyPay ? 'Create Paycheck' : options.mode === 'preview' ? 'Pay & Taxes' : 'Withholding Forms & Elections';
     if (!dialog.open) dialog.showModal();
     if (options.mode === '1099') return showContractorTax(context);
     if (options.mode === 'preview') return loadPreview(context,date);
