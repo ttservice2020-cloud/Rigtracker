@@ -45,9 +45,12 @@ const fleetDispatchApp = (() => {
   let selectedTab = 'current';
   let progressView;
   let lease;
+  let routeRequest;
   const progressEnabled = typeof dispatchProgress !== 'undefined' && Boolean(byId('dispatchLoadDetail'));
   const ratePhoto = byId('dispatchRatePhoto');
   const ratePhotoStatus = byId('dispatchRatePhotoStatus');
+  const loadedMiles = form.elements.loadedMiles;
+  const routeStatus = byId('dispatchRouteMilesStatus');
   const militaryTime = value => progressEnabled ? dispatchProgress.time(value) : value;
   const militaryPattern = '(?:[01][0-9]|2[0-3]):?[0-5][0-9]';
 
@@ -1029,7 +1032,7 @@ const fleetDispatchApp = (() => {
   function paintEditor() {
     const status = edit.row?.status;
     const readOnly = edit.row && !canEditLoad(edit.row.id);
-    byId('dispatchLoadFields').disabled = readOnly || edit.saving;
+    byId('dispatchLoadFields').disabled = readOnly || edit.saving || edit.waitingForRoute;
     paintLeaseStatus('dispatchEditorLock', readOnly ? edit.row.id : null);
     byId('dispatchFormHeading').textContent = status === 'draft' ? 'Edit draft'
       : status === 'completed' ? 'Edit completed load' : status === 'current' ? 'Edit load' : 'New load';
@@ -1042,7 +1045,7 @@ const fleetDispatchApp = (() => {
     toggle('dispatchComplete', status === 'current');
     byId('dispatchSubmit').textContent = status === 'current' || status === 'completed' ? 'Save Changes' : 'Submit';
     for (const id of ['dispatchSubmit', 'dispatchSaveDraft', 'dispatchSaveContract', 'dispatchComplete', 'dispatchNewLoad']) {
-      byId(id).disabled = edit.saving || (id !== 'dispatchNewLoad' && Boolean(readOnly));
+      byId(id).disabled = edit.saving || edit.waitingForRoute || (id !== 'dispatchNewLoad' && Boolean(readOnly));
     }
     const progress = getLoad(edit.row?.id)?.progress;
     byId('dispatchComplete').disabled ||= Boolean(progress?.breakdown?.active || progress?.traffic?.active);
@@ -1101,6 +1104,97 @@ const fleetDispatchApp = (() => {
     for (const [key, name] of Object.entries(relayAddressFields)) form.elements[name].value = location[key];
   });
 
+  function routeZips() {
+    const entries = Object.entries(stops).flatMap(([kind,container]) => [...container.children].map(group => ({
+      kind, zip:group.querySelector('[data-stop-field=zip]').value,
+      first:group.querySelector('[data-stop-field=driver1]').checked,
+      second:group.querySelector('[data-stop-field=driver2]').checked
+    })));
+    let itinerary = entries.map(stop => stop.zip);
+    if (relayFields.some(name => form.elements[name].value.trim())) {
+      const assigned = entries.some(stop => stop.second);
+      const beforeRelay = stop => stop.second && !stop.first ? false : (assigned && stop.first && !stop.second) || stop.kind === 'pickup';
+      itinerary = [...entries.filter(beforeRelay).map(stop => stop.zip), form.elements.relayZip.value,
+        ...entries.filter(stop => !beforeRelay(stop)).map(stop => stop.zip)];
+    }
+    const zips = itinerary.map(dispatchRouteMiles.zipCode);
+    return zips.length >= 2 && zips.every(Boolean) ? zips.filter((zip,index) => zip !== zips[index-1]) : null;
+  }
+
+  function routeMessage(text, estimated = false) {
+    routeStatus.textContent = text;
+    toggle('dispatchRouteAttribution',estimated);
+  }
+
+  function cancelRouteEstimate() {
+    routeRequest?.controller.abort();
+    routeRequest = null;
+  }
+
+  function trackManualMiles() {
+    cancelRouteEstimate();
+    edit.routeMilesZips = '';
+    edit.routeAttempt = null;
+    edit.autoRouteMiles = loadedMiles.value === '' && !loadedMiles.validity.badInput;
+    routeMessage(edit.autoRouteMiles ? '' : 'Manual route miles.');
+  }
+
+  function routeEstimate(force = false) {
+    const draft = edit;
+    if (!state?.access.dispatch || !draft || draft.saving || (draft.row && !canEditLoad(draft.row.id))) return;
+    if (!force && !draft.autoRouteMiles && !routeRequest) return;
+    const zips = routeZips();
+    const key = zips?.join(',') || '';
+    if (routeRequest?.key === key) return routeRequest.promise;
+    cancelRouteEstimate();
+    if (!force && !draft.autoRouteMiles) {
+      routeMessage(loadedMiles.value ? 'Manual route miles.' : '');
+      return;
+    }
+    if (draft.routeMilesZips && draft.routeMilesZips !== key) {
+      draft.routeMilesZips = '';
+      loadedMiles.value = '';
+      paintAssignment();
+      paintDriverPay();
+    }
+    if (!zips || zips.length === 1) {
+      draft.routeAttempt = null;
+      routeMessage(zips ? 'All stops share a ZIP. Enter the local route miles.' : 'Enter ZIPs for all stops to estimate loaded miles.');
+      return;
+    }
+    if (!force && (draft.routeMilesZips === key || draft.routeAttempt === key)) return;
+    const controller = new AbortController();
+    const request = { key, draft, controller };
+    routeRequest = request;
+    draft.routeAttempt = key;
+    routeMessage('Estimating road miles…');
+    const timeout = setTimeout(() => controller.abort(),8500);
+    request.promise = (async () => {
+      try {
+        if (!force) await dispatchRouteMiles.delay(650,controller.signal);
+        const miles = await dispatchRouteMiles.estimate(zips,controller.signal);
+        if (edit !== draft || routeRequest !== request || controller.signal.aborted) return;
+        if (draft.row && !canEditLoad(draft.row.id)) {
+          draft.routeAttempt = null;
+          routeMessage('Reopen the load to try the mileage estimate again.');
+          return;
+        }
+        loadedMiles.value = miles.toFixed(1);
+        draft.routeMilesZips = key;
+        draft.autoRouteMiles = true;
+        routeMessage('ZIP-center driving estimate. You can edit these miles.',true);
+        markEdited();
+      } catch (error) {
+        if (edit !== draft || routeRequest !== request) return;
+        routeMessage(error.name === 'Error' && error.message ? error.message : 'Could not estimate this route. Enter miles or try again.');
+      } finally {
+        clearTimeout(timeout);
+        if (routeRequest === request) routeRequest = null;
+      }
+    })();
+    return request.promise;
+  }
+
   function fillDriverEquipment(refreshTruck = false, refreshTrailer = false) {
     const driver = state.drivers.find(row => row.id === form.elements.driver1.value && row.link_active !== false);
     const truck = form.elements.truckNumber;
@@ -1119,6 +1213,7 @@ const fleetDispatchApp = (() => {
   }
 
   function installEditor(row = null, fromContract = false) {
+    cancelRouteEstimate();
     const data = row?.details ?? {};
     edit = {
       row: fromContract ? null : row,
@@ -1134,8 +1229,12 @@ const fleetDispatchApp = (() => {
       const field = form.elements[key];
       if (field.type === 'checkbox') field.checked = data[key] === field.value;
       else if (key === 'trailerPickupMode') field.value = data[key] === 'bobtail' ? 'bobtail' : 'trailer';
-      else if (typeof data[key] === 'string') field.value = data[key];
+      else if (typeof data[key] === 'string' || (key === 'loadedMiles' && Number.isFinite(data[key]))) field.value = data[key];
     }
+    edit.routeMilesZips = loadedMiles.value && data.routeMilesZips || '';
+    edit.autoRouteMiles = row?.status !== 'completed' && (Boolean(edit.routeMilesZips) || !loadedMiles.value);
+    if (edit.routeMilesZips) routeMessage('ZIP-center driving estimate. You can edit these miles.',true);
+    else routeMessage(loadedMiles.value ? '' : 'Enter ZIPs for all stops to estimate loaded miles.');
     const assignment = fromContract ? lastContractAssignment(row) || row : row;
     paintDriverOptions();
     form.elements.driver1.value = assignment?.driver_id ?? '';
@@ -1174,7 +1273,7 @@ const fleetDispatchApp = (() => {
   }
 
   function canOpenLoad() {
-    return !edit.saving && (!edit.dirty || window.confirm('Discard unsaved changes to this load?'));
+    return !edit.saving && !edit.waitingForRoute && (!edit.dirty || window.confirm('Discard unsaved changes to this load?'));
   }
 
   function openLoad(load, fromContract = false) {
@@ -1224,6 +1323,7 @@ const fleetDispatchApp = (() => {
     paintAssignment();
     paintDriverPay();
     if (!edit.failed) void reservePro();
+    void routeEstimate();
   }
 
   ratePhoto.addEventListener('change', async () => {
@@ -1254,7 +1354,9 @@ const fleetDispatchApp = (() => {
         if (field.value && field.validity.valid) filled += 1;
         else field.value = '';
       };
+      const hadMiles = Boolean(loadedMiles.value);
       for (const [key, value] of Object.entries(data.fields)) apply(form.elements.namedItem(key), value);
+      if (!hadMiles && loadedMiles.value) trackManualMiles();
       for (const kind of ['pickup', 'receiver']) {
         for (const [key, value] of Object.entries(data[kind])) {
           apply(stops[kind].firstElementChild?.querySelector('[data-stop-field="' + key + '"]'), value);
@@ -1262,6 +1364,7 @@ const fleetDispatchApp = (() => {
       }
       paintAssignment();
       paintDriverPay();
+      void routeEstimate();
       ratePhotoStatus.textContent = filled ? 'Review the filled fields and add any missing details. The original photo saves with the load.'
         : 'No empty fields could be filled. You can enter the details and save the original photo.';
     } catch {
@@ -1294,7 +1397,7 @@ const fleetDispatchApp = (() => {
   async function saveLoad(status) {
     const scope = state;
     const draft = edit;
-    if (!scope?.access.dispatch || draft.saving) return;
+    if (!scope?.access.dispatch || draft.saving || draft.waitingForRoute) return;
     const wasCompleted = draft.row?.status === 'completed';
     if (wasCompleted) status = 'completed';
     if (draft.row && !canEditLoad(draft.row.id)) return;
@@ -1306,8 +1409,20 @@ const fleetDispatchApp = (() => {
       const field = form.elements.namedItem(name);
       if (field && !field.reportValidity()) return;
     }
+    const pendingRoute = routeEstimate();
+    if (pendingRoute) {
+      draft.waitingForRoute = true;
+      paintEditor();
+      await pendingRoute;
+      draft.waitingForRoute = false;
+      if (state !== scope || edit !== draft) return;
+      paintEditor();
+      if (draft.row && !canEditLoad(draft.row.id)) return;
+    }
     const data = new FormData(form);
     const details = { ...draft.row?.details, ...Object.fromEntries(formDetails.map(key => [key, data.get(key)?.trim() ?? ''])) };
+    if (draft.routeMilesZips && details.loadedMiles) details.routeMilesZips = draft.routeMilesZips;
+    else delete details.routeMilesZips;
     if (draft.truckFromDriver) details.truckFromDriver = 'yes';
     else delete details.truckFromDriver;
     if (draft.trailerFromDriver) details.trailerFromDriver = 'yes';
@@ -1749,6 +1864,7 @@ const fleetDispatchApp = (() => {
 
   form.addEventListener('input', event => {
     const name = event.target.name;
+    if (name === 'loadedMiles') trackManualMiles();
     if (name === 'driver1' && (!edit.row || edit.row.status === 'draft')) fillDriverEquipment();
     if (name === 'truckNumber') {
       delete edit.autoTruck;
@@ -1783,6 +1899,7 @@ const fleetDispatchApp = (() => {
     });
   }
   byId('dispatchProRetry').addEventListener('click', () => { void reservePro(); });
+  byId('dispatchEstimateRouteMiles').addEventListener('click', () => { void routeEstimate(true); });
   byId('dispatchComplete').addEventListener('click', () => { void saveLoad('completed'); });
   byId('dispatchNewLoad').addEventListener('click', () => {
     if (canOpenLoad()) {
@@ -2114,6 +2231,7 @@ const fleetDispatchApp = (() => {
   }
 
   function reset() {
+    cancelRouteEstimate();
     watchLoad(null);
     if (state) {
       if (state.channel) void state.client.removeChannel(state.channel);

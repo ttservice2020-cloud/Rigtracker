@@ -827,7 +827,10 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
           <div id="dispatchReceivers"></div>
           <div class="dispatch-actions"><button class="outline" type="button" data-dispatch-add-stop="receiver">Add another receiver</button></div>
           <div class="panel">
-           <div class="field"><label for="dispatchLoadedMiles">Route loaded miles</label><input id="dispatchLoadedMiles" name="loadedMiles" type="number" min="0" step="0.1" inputmode="decimal"></div>
+           <div class="field"><label for="dispatchLoadedMiles">Route loaded miles</label><input id="dispatchLoadedMiles" name="loadedMiles" type="number" min="0" step="0.1" inputmode="decimal" aria-describedby="dispatchRouteMilesStatus"></div>
+           <div class="dispatch-actions"><button type="button" class="outline" id="dispatchEstimateRouteMiles">Estimate from ZIPs</button></div>
+           <p class="muted dispatch-compact" id="dispatchRouteMilesStatus" role="status"></p>
+           <small class="muted hidden" id="dispatchRouteAttribution"><a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap contributors</a> · <a href="https://www.openstreetmap.org/fixthemap" target="_blank" rel="noopener">Fix the map</a></small>
           </div>
           <details class="panel" id="dispatchRelayDetails">
            <summary>Split Load Details</summary>
@@ -1908,7 +1911,8 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 
 <script src="./dispatch-progress.js?v=dispatch-board-2"></script>
 <script src="./dispatch-rate-confirmation.js?v=1"></script>
-<script src="./dispatch.js?v=dispatch-board-2"></script>
+<script src="./dispatch-route-miles.js?v=1"></script>
+<script src="./dispatch.js?v=zip-route-miles-1"></script>
 <script src="./linked-profiles.js?v=driver-push-1"></script>
 <script src="./fleet-equipment.js?v=profile-links-1"></script>
 <script src="./payroll-tax-jurisdictions.js?v=2"></script>
