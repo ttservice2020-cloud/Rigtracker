@@ -34,7 +34,7 @@ const officeTools = (() => {
   function renderTools() {
     for (const tab of tabs) {
       const key = tab.dataset.officeTool;
-      const available = key === 'review-issue' ? Boolean(employee && !employee.password_required)
+      const available = key === 'review-issue' || key === 'withholding-forms' ? Boolean(employee && !employee.password_required)
         : key === 'profiles' ? employee?.office_can_manage_profiles
         : key === 'link-profiles' ? canLinkProfiles()
         : key === 'equipment' ? has('dispatch') || has('assets')
@@ -455,6 +455,7 @@ const officeTools = (() => {
 
   const routes = {
     'link-profiles':openProfileLink,'review-issue':()=>openReviewIssue(),
+    'withholding-forms':()=>companyDriverTools.openDocuments('tax'),
     bol_payments:()=>fleetBolPayments.open(employee.fleet_id),
     dispatch:()=>showOfficeDispatch('current'),drivers:()=>showOfficeDispatch('drivers'),
     equipment:()=>showOfficeDispatch('equipment'),assets:()=>showOfficeDispatch('equipment'),

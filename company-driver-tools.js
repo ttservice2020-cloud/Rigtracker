@@ -458,6 +458,14 @@ const companyDriverTools = (() => {
     } catch (error) { showToast(error.message || 'Could not open the file.'); }
   }
 
+  function profileFileActions(path, name, tax = false) {
+    if (!tax) return button('Open', () => openProfileFile(path));
+    const actions = element('div', '', 'dispatch-actions');
+    actions.append(button('Open', () => payrollWithholdingForms.openFile(profileFileBucket,path,name)),
+      button('Download', () => payrollWithholdingForms.openFile(profileFileBucket,path,name,true)));
+    return actions;
+  }
+
   async function loadProfileFiles(selection, section) {
     if (selection.pending.has(section)) return;
     const container = document.querySelector('[data-driver-profile-files="' + fileTabs[section] + '"]');
@@ -477,7 +485,7 @@ const companyDriverTools = (() => {
       container.replaceChildren(...files.map(file => {
         const row = element('article', '', 'dispatch-load-row');
         const label = file.name.replace(/^[0-9a-f-]{36}-/i, '');
-        row.append(element('strong', label), button('Open', () => openProfileFile(folder + '/' + file.name)));
+        row.append(element('strong', label), profileFileActions(folder + '/' + file.name,label,section === 'tax'));
         return row;
       }));
       if (!files.length) container.append(element('p', 'No files on record.', 'muted'));
@@ -832,8 +840,9 @@ const companyDriverTools = (() => {
 
   async function openDocuments(section = 'documents') {
     const user = currentUser;
-    if (!user || !['driver','company'].includes(accountTypeFor(user))) return;
     const tax = section === 'tax';
+    const role = accountTypeFor(user);
+    if (!user || (!['driver','company'].includes(role) && !(tax && role === 'employee'))) return;
     const category = tax ? 'tax' : 'documents';
     const request = {};
     ownDocumentsRequest = request;
@@ -841,10 +850,21 @@ const companyDriverTools = (() => {
       byId('ownDriverDocumentsPage').classList.contains('active');
     const status = byId('ownDriverDocumentStatus');
     const list = byId('ownDriverDocumentList');
-    byId('ownDriverDocumentsTitle').textContent = tax ? 'Tax Information' : 'Documents';
+    const back = byId('ownDriverDocumentsBack');
+    const forms = byId('ownWithholdingForms');
+    const office = role === 'employee';
+    back.textContent = office ? '← Back to Dashboard' : '← Back to Profile';
+    back.onclick = office ? () => officeTools.openDashboard() : () => showPage('rigTrackerProfilePage');
+    byId('ownDriverDocumentsTitle').textContent = office ? 'My Withholding Forms' : tax ? 'Tax Information' : 'Documents';
     list.replaceChildren();
+    forms.replaceChildren();
+    forms.classList.toggle('hidden', !(tax && (role === 'company' || office)));
+    byId('ownDriverRecordsPanel').classList.toggle('hidden', office);
+    byId('ownDriverFleetTaxHeading').classList.toggle('hidden', !tax || office);
     status.textContent = tax ? 'Loading your tax documents…' : 'Loading your documents…';
     showPage('ownDriverDocumentsPage');
+    if (!forms.classList.contains('hidden')) void payrollWithholdingForms.mount(forms, active);
+    if (office) return;
     try {
       const { data: links, error } = await supabaseClient.from('rigtracker_fleet_links')
         .select('fleet_id,dispatch_driver_id').eq('profile_user_id', user.id).is('unlinked_at', null);
@@ -863,7 +883,7 @@ const companyDriverTools = (() => {
         const row = element('article', '', 'dispatch-load-row');
         const info = element('div');
         info.append(element('strong', file.name.replace(/^[0-9a-f-]{36}-/i, '')), element('p', file.fleet));
-        row.append(info, button('Open', () => openProfileFile(file.path)));
+        row.append(info, profileFileActions(file.path,info.firstChild.textContent,tax));
         return row;
       }));
       status.textContent = files.length ? '' : tax ? 'No tax documents are on your profile yet.' : 'No documents are on your profile yet.';
@@ -1725,6 +1745,7 @@ const companyDriverTools = (() => {
     payrollQueueSignature = null;
     savedSettlementsRequest = null; settlementPreviewRequest = null; ownDocumentsRequest = null;
     byId('ownDriverDocumentList').replaceChildren();
+    byId('ownWithholdingForms').replaceChildren();
     byId('ownDriverDocumentStatus').textContent = '';
     byId('companyPayrollDriver').replaceChildren();
     byId('companyPayrollOpenDriver').onclick = null;

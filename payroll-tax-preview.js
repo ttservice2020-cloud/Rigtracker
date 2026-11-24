@@ -262,6 +262,7 @@ const payrollTaxPreview = (() => {
     const actions = element('div', '', 'dispatch-actions');
     actions.append(save);
     if (context.mode === 'preview') actions.append(button('Back to Estimate', () => showPreview(context,date,saved)));
+    const forms = element('section', '', 'payroll-tax-group withholding-forms');
 
     form.append(
       grid(field('effective','Elections effective on',{ type:'date',value:date }),
@@ -277,6 +278,7 @@ const payrollTaxPreview = (() => {
       element('p',context.name,'payroll-tax-person'),
       element('p',saved ? 'Loaded elections effective ' + saved.effective_on + '. Choose the date these settings take effect.'
         : 'Copy the withholding elections from the employee’s current forms.', 'muted'),
+      forms,
       form
     );
     if (context.kind !== 'office') {
@@ -305,6 +307,20 @@ const payrollTaxPreview = (() => {
       visible(federalExtra,isCurrent || isLegacy);
       visible(federalYear,mode === 'exempt');
     }
+
+    void payrollWithholdingForms.mount(forms, () => active(context) && forms.isConnected, context, elections => {
+      const exempt = elections.filingStatus === 'exempt';
+      inputs.federalForm.value = exempt ? 'exempt' : 'current';
+      syncFederal();
+      if (exempt) inputs.federalExemptYear.value = elections.exemptYear;
+      else {
+        inputs.filingStatus.value = elections.filingStatus;
+        inputs.multipleJobs.checked = elections.multipleJobs;
+        for (const name of ['credits','otherIncome','deductions','federalExtra']) inputs[name].value = elections[name];
+      }
+      message('Federal elections loaded. Verify them against the signed form and save with the correct effective date.');
+      form.scrollIntoView({block:'start'});
+    });
 
     function syncLocal() {
       visible(localLabel,inputs.locality.value === 'unverified');

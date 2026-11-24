@@ -296,7 +296,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 </style>
 <link rel="stylesheet" href="./dispatch.css?v=dispatch-board-2">
 <link rel="stylesheet" href="./driver-app.css?v=profile-records-1">
-<link rel="stylesheet" href="./office-tools.css?v=statement-layout-2">
+<link rel="stylesheet" href="./office-tools.css?v=withholding-forms-1">
 </head>
 <body>
 <header class="brandbar hidden" id="appHeader">
@@ -1356,8 +1356,10 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
    </form>
   </section>
   <section id="ownDriverDocumentsPage" class="page fleet-account-page">
-   <div class="page-head"><div><button class="back" type="button" onclick="showPage('rigTrackerProfilePage')">← Back to Profile</button><h1 id="ownDriverDocumentsTitle">Documents</h1></div></div>
-   <section class="panel" aria-labelledby="ownDriverDocumentsTitle">
+   <div class="page-head"><div><button class="back" id="ownDriverDocumentsBack" type="button">← Back to Profile</button><h1 id="ownDriverDocumentsTitle">Documents</h1></div></div>
+   <section class="panel hidden" id="ownWithholdingForms" aria-label="Withholding forms"></section>
+   <section class="panel" id="ownDriverRecordsPanel" aria-labelledby="ownDriverDocumentsTitle">
+    <h2 class="hidden" id="ownDriverFleetTaxHeading">Tax documents from your fleet</h2>
     <p id="ownDriverDocumentStatus" class="muted" role="status"></p>
     <div id="ownDriverDocumentList" class="dispatch-load-list"></div>
    </section>
@@ -1707,6 +1709,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
    <section class="fleet-tools-group" data-office-group>
     <h2>People and Pay</h2>
     <div class="fleet-tools-grid">
+     <button type="button" class="card fleet-tool hidden" data-office-tool="withholding-forms">My Withholding Forms</button>
      <button type="button" class="card fleet-tool hidden" data-office-tool="profiles">Employee Profiles</button>
      <button type="button" class="card fleet-tool hidden" data-office-tool="hr">HR <small>Coming later</small></button>
      <button type="button" class="card fleet-tool hidden" data-office-tool="payroll" id="companyOfficePayrollButton"><span class="payroll-label">Payroll</span></button>
@@ -1891,17 +1894,18 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 <script src="./payroll-tax-rules.js?v=4"></script>
 <script src="./payroll-tax-deductions.js?v=2"></script>
 <script src="./payroll-tax-updates.js?v=1"></script>
-<script src="./payroll-tax-preview.js?v=9"></script>
-<script src="./company-driver-tools.js?v=statement-period-1"></script>
+<script src="./payroll-tax-preview.js?v=10"></script>
+<script src="./company-driver-tools.js?v=withholding-forms-1"></script>
 <script src="./company-messages.js?v=driver-push-1"></script>
-<script src="./driver-paperwork.js?v=2"></script>
+<script src="./driver-paperwork.js?v=3"></script>
+<script src="./payroll-withholding-forms.js?v=1"></script>
 <script src="./driver-workflow.js?v=completed-bol-2"></script>
 <script src="./fleet-admin-driver.js?v=1"></script>
 <script src="./company-safety.js?v=1"></script>
 <script src="./driver-app.js?v=push-1"></script>
 <script src="./driver-notifications.js?v=1"></script>
 <script src="./fleet-bol-payments.js?v=paperwork-1"></script>
-<script src="./office-tools.js?v=payroll-time-1"></script>
+<script src="./office-tools.js?v=withholding-forms-1"></script>
 <script src="./office-payroll.js?v=payroll-tax-2"></script>
 <script src="./owner-escrow.js?v=1"></script>
 <script src="./owner-settlement-records.js?v=owner-deductions-1"></script>

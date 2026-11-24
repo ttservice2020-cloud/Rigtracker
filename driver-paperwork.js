@@ -350,5 +350,5 @@ const driverPaperwork = (() => {
     }
   }
 
-  return { edit, upload, open, close };
+  return { edit, upload, open, close, loadPdfLibrary };
 })();
