@@ -297,6 +297,7 @@ const officeTools = (() => {
     const admin = accountTypeFor(currentUser) === 'fleet';
     editing = { row,fleet,prefix,user:currentUser,admin };
     byId('officeProfileIdentity').textContent = displayName(row) + ' · ' + fleet + '-' + row.employee_id;
+    visible('officeProfileContractorTax',payrollContractorTax.canPrepare());
     byId('officeProfileDesignation').value = row.office_is_official ? 'official' : 'unofficial';
     byId('officeProfileManage').checked = row.office_can_manage_profiles;
     byId('officeProfileLink').checked = Boolean(row.office_can_link_profiles);
@@ -402,6 +403,13 @@ const officeTools = (() => {
   });
 
   byId('officeProfileClose').addEventListener('click',()=>dialog.close());
+  byId('officeProfileContractorTax').addEventListener('click',() => {
+    const selection = editing;
+    if (!selection || pending || !payrollContractorTax.canPrepare()) return;
+    dialog.close();
+    void payrollTaxPreview.open({ fleet:selection.fleet, kind:'contractor_office', mode:'1099',
+      reference:selection.row.employee_id, name:displayName(selection.row) });
+  });
   dialog.addEventListener('cancel',event=>{ if (pending) event.preventDefault(); });
   dialog.addEventListener('close',()=>{
     editing = null;

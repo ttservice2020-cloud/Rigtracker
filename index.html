@@ -1471,6 +1471,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
     <section class="panel hidden" id="companyDriverAdminTax">
      <h2>Tax Information</h2>
      <button class="outline hidden" id="companyDriverPayrollTax" type="button">Withholding Elections</button>
+     <button class="outline hidden" id="companyDriverContractorTax" type="button">Prepare 1099-NEC</button>
      <div data-driver-profile-files="tax"></div>
     </section>
     <section class="panel hidden" id="companyDriverAdminPayStatus">
@@ -1837,6 +1838,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 </dialog>
 <dialog class="office-profile-dialog" id="officeProfileDialog" aria-labelledby="officeProfileTitle">
  <div class="office-profile-heading"><div><h2 id="officeProfileTitle">Edit Profile</h2><p class="muted" id="officeProfileIdentity"></p></div><button class="outline" type="button" id="officeProfileClose">Close</button></div>
+ <button class="outline hidden" id="officeProfileContractorTax" type="button">Prepare 1099-NEC</button>
  <form id="officeProfileHourlyRateForm" class="hidden">
   <h3>Hourly Pay</h3>
   <div class="dispatch-fields">
@@ -1903,18 +1905,19 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 <script src="./payroll-tax-rules.js?v=4"></script>
 <script src="./payroll-tax-deductions.js?v=2"></script>
 <script src="./payroll-tax-updates.js?v=1"></script>
-<script src="./payroll-tax-preview.js?v=14"></script>
-<script src="./company-driver-tools.js?v=settlement-remove-1"></script>
+<script src="./payroll-tax-preview.js?v=15"></script>
+<script src="./company-driver-tools.js?v=settlement-remove-2"></script>
 <script src="./company-messages.js?v=driver-push-1"></script>
 <script src="./driver-paperwork.js?v=3"></script>
-<script src="./payroll-withholding-forms.js?v=1"></script>
+<script src="./payroll-withholding-forms.js?v=2"></script>
+<script src="./payroll-contractor-tax.js?v=1"></script>
 <script src="./driver-workflow.js?v=completed-bol-2"></script>
 <script src="./fleet-admin-driver.js?v=1"></script>
 <script src="./company-safety.js?v=1"></script>
 <script src="./driver-app.js?v=push-1"></script>
 <script src="./driver-notifications.js?v=1"></script>
 <script src="./fleet-bol-payments.js?v=paperwork-1"></script>
-<script src="./office-tools.js?v=employee-hourly-rate-1"></script>
+<script src="./office-tools.js?v=contractor-tax-1"></script>
 <script src="./office-payroll.js?v=employee-hourly-rate-2"></script>
 <script src="./owner-escrow.js?v=1"></script>
 <script src="./owner-settlement-records.js?v=owner-deductions-1"></script>

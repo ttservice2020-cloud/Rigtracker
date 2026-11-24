@@ -277,6 +277,8 @@ const payrollTaxPreview = (() => {
     );
     body.replaceChildren(
       element('p',context.name,'payroll-tax-person'),
+      ...(payrollContractorTax.canPrepare() ? [button('Prepare 1099-NEC', () =>
+        showContractorTax(context, () => showSettings(context,date,saved)))] : []),
       element('p',saved ? 'Loaded elections effective ' + saved.effective_on + '. Choose the date these settings take effect.'
         : 'Copy the withholding elections from the employee’s current forms.', 'muted'),
       forms,
@@ -1322,12 +1324,14 @@ const payrollTaxPreview = (() => {
 
   async function open(options) {
     if (!currentUser || !options.fleet || !options.reference) return;
+    if (options.mode === '1099' && !payrollContractorTax.canPrepare()) return;
     const context = { ...options,user:currentUser };
     session = context;
     const date = today();
     body.replaceChildren();
     title.textContent = options.hourlyPay ? 'Create Hourly Paycheck' : options.mode === 'preview' ? 'Payroll Tax Estimate' : 'Tax Information';
     if (!dialog.open) dialog.showModal();
+    if (options.mode === '1099') return showContractorTax(context);
     if (options.mode === 'preview') return loadPreview(context,date);
     message('Loading tax elections…');
     try {
@@ -1338,6 +1342,15 @@ const payrollTaxPreview = (() => {
     } catch (error) {
       if (active(context)) message(error.message || 'Could not load tax elections.',true);
     }
+  }
+
+  function showContractorTax(context, back) {
+    title.textContent = 'Prepare 1099-NEC';
+    message('');
+    const container = element('div');
+    body.replaceChildren(element('p',context.name,'payroll-tax-person'),
+      ...(back ? [button('Back to Tax Information',back)] : []),container);
+    payrollContractorTax.mount(container, () => active(context) && container.isConnected, {...context,mode:'1099'});
   }
 
   function reset() {

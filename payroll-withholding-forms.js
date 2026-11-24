@@ -1,6 +1,6 @@
 const payrollWithholdingForms = (() => {
   const bucket = 'payroll-withholding-forms';
-  const formLabels = { w4: 'Federal Form W-4', state: 'State withholding form' };
+  const formLabels = { w4: 'Federal Form W-4', state: 'State withholding form', w9: 'IRS Form W-9' };
   const extensions = { 'application/pdf':'pdf', 'image/jpeg':'jpg', 'image/png':'png', 'image/webp':'webp' };
 
   function element(tag, text, className) {
@@ -123,17 +123,24 @@ const payrollWithholdingForms = (() => {
   }
 
   async function mount(host, active, context, applyElections) {
-    const heading = element('h3', context ? 'Withholding forms on file' : 'Submit a withholding form');
-    const status = element('p', 'Loading withholding forms…', 'muted');
+    const w9Only = context?.mode === '1099' || (!context && accountTypeFor(currentUser) === 'driver');
+    const includeW9 = w9Only || !context || payrollContractorTax.canPrepare();
+    const kinds = w9Only ? ['w9'] : includeW9 ? ['w4','state','w9'] : ['w4','state'];
+    const heading = element('h3', w9Only ? 'Contractor W-9' : context ? 'Tax forms on file' : 'Submit a tax form');
+    const status = element('p', 'Loading tax forms…', 'muted');
     status.setAttribute('role','status');
-    const help = element('p', context ? 'Open the signed form to verify the elections before saving them.'
-      : 'Complete and sign Form W-4, then upload a PDF or a clear photo for payroll. Upload your state form separately if payroll asks for one.', 'muted');
+    const help = element('p', w9Only ? 'Upload the signed W-9 as a PDF or clear photo.'
+      : context ? 'Open the signed form to verify its details.'
+      : 'Complete and sign the form that applies to your work, then upload it for payroll.', 'muted');
     const tools = element('div', '', 'dispatch-actions');
-    const blank = element('a', 'IRS Form W-4');
-    blank.href = 'https://www.irs.gov/pub/irs-pdf/fw4.pdf';
-    blank.target = '_blank';
-    blank.rel = 'noopener';
-    tools.append(blank, button('Download sample W-4', sampleW4));
+    for (const kind of kinds.filter(kind => kind !== 'state')) {
+      const blank = element('a', kind === 'w9' ? formLabels.w9 : 'IRS Form W-4');
+      blank.href = 'https://www.irs.gov/pub/irs-pdf/f' + kind + '.pdf';
+      blank.target = '_blank';
+      blank.rel = 'noopener';
+      tools.append(blank);
+    }
+    if (!w9Only) tools.append(button('Download sample W-4', sampleW4));
     const list = element('div', '', 'dispatch-load-list withholding-form-list');
     host.replaceChildren(heading, help, tools, status, list);
     try {
@@ -151,24 +158,25 @@ const payrollWithholdingForms = (() => {
       fleetLabel.hidden = folders.length === 1;
       const typeLabel = element('label', 'Form type', 'field');
       const type = element('select');
-      type.append(...Object.entries(formLabels).map(([key,label]) => new Option(label,key)));
+      type.append(...kinds.map(kind => new Option(formLabels[kind],kind)));
       typeLabel.append(type);
+      typeLabel.hidden = w9Only;
       const fileLabel = element('label', 'Signed form', 'field');
       const file = element('input');
       Object.assign(file,{type:'file',accept:Object.keys(extensions).join(','),required:true});
       fileLabel.append(file);
       const save = element('button', context ? 'Add signed form' : 'Submit to payroll', 'primary-btn');
       save.type = 'submit';
-      const elections = electionFields();
-      type.addEventListener('change',() => elections.sync(type.value === 'w4'));
-      uploadForm.append(fleetLabel, typeLabel, fileLabel, elections.panel, save);
+      const elections = w9Only ? null : electionFields();
+      type.addEventListener('change',() => elections?.sync(type.value === 'w4'));
+      uploadForm.append(fleetLabel, typeLabel, fileLabel, ...(elections ? [elections.panel] : []), save);
       list.before(uploadForm);
 
       async function refresh(message = '') {
         const entries = (await Promise.all(folders.map(async entry => {
           const { data,error } = await supabaseClient.rpc('payroll_withholding_submissions',{target_folder:entry.folder});
           if (error) throw error;
-          return data.map(item => ({...item,fleet:entry.fleet}));
+          return data.filter(item => kinds.includes(item.kind)).map(item => ({...item,fleet:entry.fleet}));
         }))).flat().sort((a,b) => Date.parse(b.created_at)-Date.parse(a.created_at));
         if (!active()) return;
         list.replaceChildren(...entries.map(entry => {
@@ -181,11 +189,11 @@ const payrollWithholdingForms = (() => {
           const name = label + '.' + entry.path.split('.').pop();
           actions.append(button('Open',() => openFile(bucket,entry.path,name)),
             button('Download',() => openFile(bucket,entry.path,name,true)));
-          if (applyElections && entry.elections) actions.append(button('Use W-4 elections',() => applyElections(entry.elections)));
+          if (applyElections && entry.kind === 'w4' && entry.elections) actions.append(button('Use W-4 elections',() => applyElections(entry.elections)));
           row.append(info,actions);
           return row;
         }));
-        status.textContent = message || (entries.length ? '' : 'No withholding forms are on file.');
+        status.textContent = message || (entries.length ? '' : w9Only ? 'No W-9 is on file.' : 'No withholding forms are on file.');
       }
 
       uploadForm.addEventListener('submit', async event => {
@@ -201,7 +209,7 @@ const payrollWithholdingForms = (() => {
         status.textContent = 'Uploading signed form…';
         try {
           const path = [fleet.value,type.value,crypto.randomUUID()+'.'+extension].join('/');
-          const values = elections.values();
+          const values = elections?.values();
           const {error} = await storage.upload(path,form,{upsert:false,...(values ? {metadata:{w4:values}} : {})});
           if (error) throw error;
           if (!active()) return;

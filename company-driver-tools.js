@@ -343,6 +343,12 @@ const companyDriverTools = (() => {
       taxButton.onclick = showTax ? () => payrollTaxPreview.open({
         fleet:selection.fleet, kind:'driver', reference:profile.profile_id, name:name(profile)
       }) : null;
+      const contractorTax = byId('companyDriverContractorTax');
+      const showContractorTax = profile.linked && profile.profile_id && payrollContractorTax.canPrepare();
+      contractorTax.classList.toggle('hidden',!showContractorTax);
+      contractorTax.onclick = showContractorTax ? () => payrollTaxPreview.open({
+        fleet:selection.fleet, kind:'contractor_driver', mode:'1099', reference:profile.profile_id, name:name(profile)
+      }) : null;
       const allowed = new Set(profile.tabs || []);
       let recordsRestricted = false;
       for (const control of adminSections) {
@@ -858,7 +864,7 @@ const companyDriverTools = (() => {
     byId('ownDriverDocumentsTitle').textContent = office ? 'My Withholding Forms' : tax ? 'Tax Information' : 'Documents';
     list.replaceChildren();
     forms.replaceChildren();
-    forms.classList.toggle('hidden', !(tax && (role === 'company' || office)));
+    forms.classList.toggle('hidden', !tax);
     byId('ownDriverRecordsPanel').classList.toggle('hidden', office);
     byId('ownDriverFleetTaxHeading').classList.toggle('hidden', !tax || office);
     status.textContent = tax ? 'Loading your tax documents…' : 'Loading your documents…';
@@ -995,6 +1001,7 @@ const companyDriverTools = (() => {
     clearPayForm();
     byId('companyDriverEscrowButton').classList.add('hidden');
     byId('companyDriverPayrollTax').classList.add('hidden');
+    byId('companyDriverContractorTax').classList.add('hidden');
     showPage('companyDriverAdminPage');
     return loadOverview(view, initialProfile);
   }
@@ -1154,7 +1161,7 @@ const companyDriverTools = (() => {
   }
 
   function syncStatementPeriodControls() {
-    const locked = Boolean(settlementView?.saving || (activeStatement?.editable && activeStatement.periodStart));
+    const locked = Boolean(settlementView?.saving || activeStatement?.removing || (activeStatement?.editable && activeStatement.periodStart));
     byId('companyStatementStart').disabled = byId('companyStatementEnd').disabled = locked;
   }
 
@@ -1164,7 +1171,7 @@ const companyDriverTools = (() => {
   }
 
   function updateSettlementButton() {
-    byId('companyPayrollCreateSettlement').disabled = Boolean(settlementView?.saving) ||
+    byId('companyPayrollCreateSettlement').disabled = Boolean(settlementView?.saving || activeStatement?.removing) ||
       !statementPeriod() || !checkedSettlementIds().length;
     syncStatementPeriodControls();
   }
@@ -1231,8 +1238,11 @@ const companyDriverTools = (() => {
     row.append(element('strong','Signed BOL missing','settlement-missing-bol'));
   }
 
-  function showSettlementPreview(settlement, lines, status, keepLoadsOpen) {
+  function showSettlementPreview(settlement, lines, status, notice) {
     const preview = byId('companyPayrollSettlementPreview');
+    const removalStatus = element('p',notice,'muted');
+    removalStatus.setAttribute('role','status');
+    const editable = activeStatement?.editable;
     const statementLoads = lines.map(line => ({
       pro:(line.is_return ? 'B-' : 'A-') + line.pro_number,
       origin:settlementStopPlace(line.pickup),
@@ -1249,7 +1259,9 @@ const companyDriverTools = (() => {
       const row = element('div', '', 'settlement-preview-line');
       const miles = [line.loaded_miles != null ? Number(line.loaded_miles).toLocaleString() + ' loaded mi' : '',
         line.empty_miles != null ? Number(line.empty_miles).toLocaleString() + ' empty mi' : ''].filter(Boolean).join(' · ');
-      row.append(element('strong', label), element('span',statementLoads[index].delivered,'muted'),
+      const heading = element('div','','dispatch-actions');
+      heading.append(element('strong',label));
+      row.append(heading, element('span',statementLoads[index].delivered,'muted'),
         settlementRoute(statementLoads[index]),element('span', miles || 'Miles not recorded'),
         element('span', 'Pay scale: ' + payScaleLabel(line.pay_scale)));
       if (line.has_signed_bol === false) markMissingBol(row);
@@ -1258,11 +1270,11 @@ const companyDriverTools = (() => {
       for (const [amount, title] of [[line.empty_mile_pay,'Empty-mile pay'],[line.stop_pay,'Stop pay'],[line.additional_pay,'Additional pay']]) {
         if (Number(amount)) row.append(element('span', title + ': ' + settlementCurrency.format(Number(amount))));
       }
-      if (activeStatement?.editable && line.load_id) {
-        const remove = button('Remove', control => removeStatementLoad(settlement.id, line.load_id, label, control));
+      if (editable && line.load_id) {
+        const remove = button('Remove Load', () => removeStatementLoad(settlement.id,line.load_id,label,removalStatus));
         remove.setAttribute('aria-label', 'Remove ' + label + ' from settlement');
         remove.classList.add('remove-statement-load');
-        row.append(remove);
+        heading.append(remove);
       }
       return row;
     });
@@ -1288,12 +1300,14 @@ const companyDriverTools = (() => {
       };
     }
     const breakdown = element('details');
-    breakdown.open = Boolean(keepLoadsOpen);
-    breakdown.append(element('summary','Load pay details'),...rows);
+    breakdown.open = Boolean(editable);
+    breakdown.append(element('summary',editable ? 'Loads on this draft' : 'Load pay details'),...rows);
     preview.replaceChildren(
       element('h3', 'Settlement ' + settlement.settlement_number + ' · ' + status),
       element('p', [settlement.driver, lines.length + ' completed load' + (lines.length === 1 ? '' : 's')].filter(Boolean).join(' · ')),
       ...(payPeriod ? [element('p','Pay period ' + payPeriod,'muted')] : []),
+      removalStatus,
+      ...(!editable && rows.length ? [element('p','Loads are locked once a statement has been sent or paid.','muted')] : []),
       ...(rows.length ? [breakdown] : [element('p','This draft is empty. Choose a pay period and add loads to continue.','muted')]),
       element('strong', 'Known pay items: ' + settlementCurrency.format(Number(settlement.total_pay)), 'settlement-preview-total'),
       ...(missingBase ? [element('p', 'Confirm driver pay before issuing this statement. Hourly pay can be entered using hours and rate.', 'muted')] : []),
@@ -1312,10 +1326,10 @@ const companyDriverTools = (() => {
     preview.scrollIntoView?.({ block:'nearest' });
   }
 
-  async function openSavedSettlement(id, keepLoadsOpen = false) {
+  async function openSavedSettlement(id, removalNotice = '') {
     const user = currentUser;
     const fleet = payroll?.fleet_id;
-    if (!fleet || !payrollRecordsActive(user, fleet)) return;
+    if (!fleet || !payrollRecordsActive(user, fleet) || (activeStatement?.removing && !removalNotice)) return;
     const request = {};
     settlementPreviewRequest = request;
     const active = () => settlementPreviewRequest === request && payrollRecordsActive(user, fleet);
@@ -1334,7 +1348,7 @@ const companyDriverTools = (() => {
         byId('companyStatementStart').value = record.period_start;
         byId('companyStatementEnd').value = record.period_end;
       }
-      if (!keepLoadsOpen) clearStatementLoadSelection();
+      if (!removalNotice) clearStatementLoadSelection();
       const picker = byId('companyPayrollDriver');
       if (record.driver_profile_id && picker.value !== record.driver_profile_id &&
         [...picker.options].some(option => option.value === record.driver_profile_id)) {
@@ -1343,7 +1357,7 @@ const companyDriverTools = (() => {
       } else if (settlementView?.loads) {
         paintSettlementLoads(settlementView,settlementView.loads);
       }
-      showSettlementPreview(record,record.lines,record.paid ? 'Paid' : record.sent_for_review ? 'Sent for review' : 'Draft saved',keepLoadsOpen);
+      showSettlementPreview(record,record.lines,record.paid ? 'Paid' : record.sent_for_review ? 'Sent for review' : 'Draft saved',removalNotice);
       updateSettlementButton();
     } catch (error) {
       if (active()) preview.replaceChildren(element('p', error.message || 'Could not open this settlement.', 'muted'));
@@ -1372,7 +1386,7 @@ const companyDriverTools = (() => {
 
   async function createSettlementPreview() {
     const selection = settlementView;
-    if (!selection || selection.saving || !activeSettlementView(selection)) return;
+    if (!selection || selection.saving || activeStatement?.removing || !activeSettlementView(selection)) return;
     const ids = checkedSettlementIds();
     const period = statementPeriod();
     if (!ids.length || !period) return;
@@ -1408,14 +1422,16 @@ const companyDriverTools = (() => {
     }
   }
 
-  async function removeStatementLoad(id, loadId, label, control) {
-    const selection = settlementView;
+  async function removeStatementLoad(id, loadId, label, status) {
     const statement = activeStatement;
-    if (!selection || selection.saving || !activeSettlementView(selection) || statement?.id !== id || !statement.editable) return;
-    const { fleet, profileId, user } = selection;
-    const status = byId('companySettlementLoadStatus');
+    const user = currentUser;
+    const fleet = payroll?.fleet_id;
+    if (!fleet || !payrollRecordsActive(user,fleet) || settlementView?.saving || statement?.removing ||
+      statement?.id !== id || !statement.editable) return;
     const picker = byId('companyPayrollDriver');
-    selection.saving = control.disabled = picker.disabled = true;
+    const controls = byId('companyPayrollSettlementPreview').querySelectorAll('.remove-statement-load');
+    statement.removing = picker.disabled = true;
+    for (const control of controls) control.disabled = true;
     status.textContent = 'Removing ' + label + '…';
     updateSettlementButton();
     try {
@@ -1424,17 +1440,17 @@ const companyDriverTools = (() => {
       });
       if (error) throw error;
       if (!payrollRecordsActive(user, fleet)) return;
-      if (activeStatement === statement) await openSavedSettlement(id,true);
-      if (activeSettlementView(selection)) {
-        status.textContent = label + ' removed from the settlement.';
-        void loadSettlementLoads(fleet,profileId,true);
-      }
+      if (activeStatement === statement) await openSavedSettlement(id,label + ' removed from the settlement.');
+      if (picker.value) void loadSettlementLoads(fleet,picker.value,true);
       void loadSavedSettlements(user,fleet);
     } catch (error) {
-      if (activeSettlementView(selection)) status.textContent = error.message || 'Could not remove the load. Try again.';
+      if (activeStatement === statement && payrollRecordsActive(user,fleet)) {
+        status.textContent = error.message || 'Could not remove the load. Try again.';
+      }
     } finally {
-      selection.saving = control.disabled = false;
-      if (settlementView === selection) {
+      statement.removing = false;
+      for (const control of controls) control.disabled = false;
+      if (payrollRecordsActive(user,fleet)) {
         picker.disabled = false;
         updateSettlementButton();
         refreshSettlementHour();
@@ -1451,7 +1467,7 @@ const companyDriverTools = (() => {
   }
 
   function resetStatementPreview() {
-    if (settlementView?.saving) return;
+    if (settlementView?.saving || activeStatement?.removing) return;
     activeStatement = null;
     settlementPreviewRequest = null;
     byId('companyPayrollNewStatement').classList.add('hidden');
