@@ -461,17 +461,35 @@ const payrollTaxPreview = (() => {
 
   function statementLoadTable(loads) {
     const table = element('table','','payroll-statement-loads');
-    const head = table.createTHead().insertRow();
-    for (const caption of ['PRO','Delivered','Origin','Destination','Load pay']) {
+    const labels = ['PRO','Delivered','Origin','Destination','Load pay'];
+    table.setAttribute('role','table');
+    const header = table.createTHead();
+    header.setAttribute('role','rowgroup');
+    const head = header.insertRow();
+    head.setAttribute('role','row');
+    for (const caption of labels) {
       const cell = element('th',caption);
       cell.scope = 'col';
+      cell.setAttribute('role','columnheader');
       head.append(cell);
     }
     const body = table.createTBody();
+    body.setAttribute('role','rowgroup');
     for (const load of loads) {
       const row = body.insertRow();
-      for (const amount of [load.pro,load.delivered || '—',load.origin,load.destination,
-        hasAmount(load.pay) ? currency.format(load.pay) : '—']) row.insertCell().textContent = amount;
+      row.setAttribute('role','row');
+      const values = [load.pro,load.delivered || '—',load.origin,load.destination,
+        hasAmount(load.pay) ? currency.format(load.pay) : '—'];
+      values.forEach((value,index) => {
+        const cell = row.insertCell();
+        cell.setAttribute('role','cell');
+        if (index) {
+          const label = element('span',labels[index],'payroll-load-label');
+          label.setAttribute('aria-hidden','true');
+          cell.append(label);
+        }
+        cell.append(element('span',value));
+      });
       if (load.hasBol === false) {
         row.dataset.missingBol = 'true';
         row.cells[0].append(element('strong','Signed BOL missing','settlement-missing-bol'));
