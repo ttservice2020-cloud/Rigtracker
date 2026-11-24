@@ -2,6 +2,9 @@ const officeTools = (() => {
   const byId = id => document.getElementById(id);
   const dialog = byId('officeProfileDialog');
   const accessForm = byId('officeProfileAccessForm');
+  const rateForm = byId('officeProfileHourlyRateForm');
+  const rateStatus = byId('officeProfileHourlyRateStatus');
+  const rateSave = rateForm.querySelector('button[type=submit]');
   const passwordForm = byId('officeProfilePasswordForm');
   const temporaryPassword = byId('officeProfileTemporaryPassword');
   const tabs = [...document.querySelectorAll('[data-office-tool]')];
@@ -223,6 +226,72 @@ const officeTools = (() => {
   }
   byId('officeProfileDesignation').addEventListener('change',updateEditAccess);
 
+  async function hourlyRateRpc(selection, action, change = {}) {
+    const { data, error } = await supabaseClient.rpc('manage_office_hourly_rates', {
+      action, target_fleet: selection.fleet, employee_number: selection.row.employee_id, ...change
+    });
+    if (error) throw error;
+    return data;
+  }
+
+  const isEditing = selection => editing === selection && currentUser === selection.user;
+
+  function showRateForDate() {
+    if (!editing?.rates) return;
+    const date = rateForm.elements.effective_on.value;
+    const rate = editing.rates.find(row => row.effective_on <= date);
+    rateForm.elements.hourly_rate.value = rate ? Number(rate.hourly_rate).toFixed(2) : '';
+    rateStatus.textContent = rate ? 'Rate effective from ' + rate.effective_on + '.' : 'No hourly rate saved for this date.';
+  }
+
+  async function loadHourlyRates(selection) {
+    selection.rates = null;
+    rateSave.disabled = true;
+    rateStatus.textContent = 'Loading hourly rates…';
+    try {
+      const rates = await hourlyRateRpc(selection, 'list');
+      if (!isEditing(selection)) return;
+      selection.rates = rates;
+      showRateForDate();
+      rateSave.disabled = pending;
+    } catch (error) {
+      if (isEditing(selection)) rateStatus.textContent = error.message || 'Could not load hourly rates.';
+    }
+  }
+
+  function clearRateForm() {
+    rateForm.reset();
+    rateStatus.textContent = '';
+    rateForm.classList.add('hidden');
+  }
+
+  rateForm.elements.effective_on.addEventListener('change', showRateForDate);
+  rateForm.addEventListener('submit', async event => {
+    event.preventDefault();
+    const selection = editing;
+    if (!selection?.rates || pending || !rateForm.reportValidity()) return;
+    const { effective_on, hourly_rate } = Object.fromEntries(new FormData(rateForm));
+    const existing = selection.rates.find(row => row.effective_on === effective_on);
+    setBusy(true);
+    rateStatus.textContent = 'Saving hourly rate…';
+    try {
+      const saved = await hourlyRateRpc(selection, 'save', {
+        rate_date: effective_on, rate_amount: hourly_rate, expected_revision: existing?.revision ?? null
+      });
+      if (!isEditing(selection)) return;
+      selection.rates = [saved, ...selection.rates.filter(row => row.effective_on !== effective_on)]
+        .sort((a,b) => b.effective_on.localeCompare(a.effective_on));
+      showRateForDate();
+      rateStatus.textContent = 'Hourly rate saved. Effective from ' + saved.effective_on + '.';
+    } catch (error) {
+      if (!isEditing(selection)) return;
+      if (error.code === '40001') await loadHourlyRates(selection);
+      if (isEditing(selection)) rateStatus.textContent = error.message || 'Could not save the hourly rate.';
+    } finally {
+      setBusy(false);
+    }
+  });
+
   function editProfile(row,fleet,prefix) {
     if (pending) return;
     const admin = accountTypeFor(currentUser) === 'fleet';
@@ -249,6 +318,12 @@ const officeTools = (() => {
     byId('officeProfileDriverTabOptions').replaceChildren(...(admin ? options(driverTabLabels) : []));
     visible('officeProfileDriverTabFields',admin);
     passwordForm.reset();
+    clearRateForm();
+    if (admin || has('payroll')) {
+      rateForm.classList.remove('hidden');
+      rateForm.elements.effective_on.value = todayForZone(preferredZone);
+      void loadHourlyRates(editing);
+    }
     byId('officeProfileStatus').textContent = row.password_required ? 'A temporary password is required at sign-in.' : '';
     updateEditAccess();
     dialog.showModal();
@@ -258,6 +333,8 @@ const officeTools = (() => {
     pending = value;
     const controls = [byId('officeProfileClose'),accessForm.querySelector('button[type=submit]'),passwordForm.querySelector('button[type=submit]')];
     for (const control of controls) control.disabled = value;
+    rateSave.disabled = value || !editing?.rates;
+    rateForm.elements.effective_on.disabled = rateForm.elements.hourly_rate.disabled = value;
   }
 
   async function saveChange(work, success) {
@@ -329,6 +406,7 @@ const officeTools = (() => {
   dialog.addEventListener('close',()=>{
     editing = null;
     passwordForm.reset();
+    clearRateForm();
     byId('officeProfileStatus').textContent = '';
   });
 
@@ -483,6 +561,7 @@ const officeTools = (() => {
     byId('officeClockWidget').classList.add('hidden');
     if (dialog.open) dialog.close();
     passwordForm.reset();
+    clearRateForm();
     for (const id of ['officeProfilesRows','officeHourlyRows','officeProfilePermissionOptions']) byId(id).replaceChildren();
     visible('officeDashboardTools',false);
     renderTools();

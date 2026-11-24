@@ -65,11 +65,27 @@ const officePayroll = (() => {
         params: { from: byId('officePayrollFrom').value, to: byId('officePayrollTo').value }
       });
       if (error) throw error;
-      if (user !== currentUser || request !== token || !byId('officePayrollPage').classList.contains('active')) return;
+      const active = () => user === currentUser && request === token && byId('officePayrollPage').classList.contains('active');
+      if (!active()) return;
+      const people = result?.employees || [];
+      let rateLoadFailed = false;
+      if (people.length) {
+        try {
+          const { data: rates, error: rateError } = await supabaseClient.rpc('manage_office_hourly_rates', {
+            action: 'list', target_fleet: result.fleet_id
+          });
+          if (rateError) throw rateError;
+          const byEmployee = new Map(people.map(person => [person.employee_id, []]));
+          for (const rate of rates) byEmployee.get(rate.employee_id)?.push(rate);
+          for (const person of people) person.hourlyRates = byEmployee.get(person.employee_id);
+        } catch {
+          rateLoadFailed = true;
+        }
+      }
+      if (!active()) return;
       data = result;
       fleet = result?.fleet_id || fleet;
       payrollTaxUpdates.buttonFor(fleet,byId('officePayrollTaxUpdates'));
-      const people = result?.employees || [];
       const picker = byId('officePayrollEmployee');
       const selected = picker.value;
       picker.replaceChildren(new Option('All Hourly Employees', ''), ...people.map(person =>
@@ -78,6 +94,7 @@ const officePayroll = (() => {
       paint(expanded);
       status.textContent = savedShift ? 'Shift saved for ' + payrollDateLabel(savedShift.date) + '.'
         : people.length ? '' : 'No hourly employees or shifts for this period.';
+      if (rateLoadFailed) status.textContent = (status.textContent + ' Could not load profile rates. You can enter them manually.').trim();
       if (savedKey) {
         const day = [...host.querySelectorAll('.office-payroll-day')].find(row => row.dataset.payrollDay === savedKey);
         day?.scrollIntoView({ block:'nearest' });
@@ -189,12 +206,17 @@ const officePayroll = (() => {
     }
   });
 
+  function hourlyRateOn(person, date) {
+    const rate = person.hourlyRates?.find(row => row.effective_on <= date);
+    return rate ? Number(rate.hourly_rate) : null;
+  }
+
   function dailyPayForm(person, date, shifts, total, saved, headline) {
     const form = element('form', '', 'office-payroll-daily-pay');
     const label = element('label', 'Hourly rate ($)', 'field');
     const rate = element('input');
     Object.assign(rate, { type:'number', min:'0', max:'9999999.99', step:'0.01', placeholder:'Optional' });
-    rate.value = saved?.hourly_rate ?? '';
+    rate.value = saved?.hourly_rate ?? hourlyRateOn(person, date) ?? '';
     label.append(rate);
     const button = element('button', 'Save Day', 'outline');
     button.type = 'submit';
@@ -285,24 +307,31 @@ const officePayroll = (() => {
     }
     const seconds = [...closed.values()].reduce((sum, duration) => sum + duration, 0);
     const saved = new Map((person.payroll_days || []).map(day => [day.payroll_date, day]));
-    const matchedDays = [...closed].map(([date, duration]) => {
+    const paidDays = [...closed].map(([date, duration]) => {
       const day = saved.get(date);
-      return !open.has(date) && Number(day?.worked_seconds) === duration && day?.gross_pay != null && day.hourly_rate != null ? day : null;
+      if (!open.has(date) && Number(day?.worked_seconds) === duration && day?.gross_pay != null && day.hourly_rate != null) {
+        return { rate:Number(day.hourly_rate), cents:Math.round(Number(day.gross_pay) * 100) };
+      }
+      const rate = hourlyRateOn(person, date);
+      return rate == null ? null : { rate, cents:Math.round(Math.round(rate * 100) * duration / 3600) };
     });
-    const allPaySaved = matchedDays.length > 0 && matchedDays.every(Boolean);
-    const rates = new Set(allPaySaved ? matchedDays.map(day => Number(day.hourly_rate)) : []);
-    const gross = allPaySaved ? Math.round(matchedDays.reduce((sum, day) => sum + Number(day.gross_pay) * 100, 0)) / 100 : null;
+    const hasAllRates = paidDays.length > 0 && paidDays.every(Boolean);
+    const rates = new Set(hasAllRates ? paidDays.map(day => day.rate) : []);
+    const gross = hasAllRates ? paidDays.reduce((sum, day) => sum + day.cents, 0) / 100 : null;
     const startsOn = data.from || byId('officePayrollFrom').value;
     const endsOn = data.to || byId('officePayrollTo').value;
+    const hourlyRate = paidDays.length === 0 ? hourlyRateOn(person, endsOn)
+      : rates.size === 1 ? rates.values().next().value : null;
     const notes = [seconds ? 'Clocked hours from completed shifts are prefilled.' : 'Enter hours manually or add a missed shift in Office Payroll.'];
     if (open.size) notes.push('An open shift needs a clock-out time if it belongs in this check.');
-    if (rates.size > 1) notes.push('Regular gross pay uses the saved daily totals at their individual rates.');
-    if (!allPaySaved) notes.push('Enter the hourly rate and use Hours × Rate to calculate regular gross pay.');
+    if (rates.size > 1) notes.push('Regular gross pay uses each payroll day’s rate.');
+    if (!hasAllRates) notes.push(hourlyRate == null ? 'Enter the hourly rate and use Hours × Rate to calculate regular gross pay.'
+      : 'Enter hours and use Hours × Rate to calculate regular gross pay.');
     return payrollTaxPreview.open({
       kind:'office', mode:'preview', reference:person.user_id, fleet:data.fleet_id, name:person.name,
       hourlyPay:true, startsOn, endsOn, payPeriod:payrollDateLabel(startsOn) + ' to ' + payrollDateLabel(endsOn),
       workedHours:seconds ? Number((seconds / 3600).toFixed(4)) : null,
-      hourlyRate:rates.size === 1 ? rates.values().next().value : null,
+      hourlyRate,
       gross, hourlyNote:notes.join(' ')
     });
   }

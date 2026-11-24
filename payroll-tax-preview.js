@@ -812,30 +812,111 @@ const payrollTaxPreview = (() => {
     return details;
   }
 
-  function garnishmentFields() {
+  function garnishmentFields(onChange) {
     const details = element('details','','payroll-tax-group');
-    const category = field('garnishmentCategory','Garnishment calculation',{
-      value:'reviewed',choices:[['reviewed','Amount verified by payroll'],['ordinary','Ordinary debt · check federal limit'],
-        ['support','Child support or alimony · check federal limit']]
-    });
+    const list = element('div','','payroll-tax-local-list');
+    const orders = new Map();
+    let nextId = 0;
     const disposable = field('disposablePay','Disposable earnings after deductions required by law',{required:false});
-    const stateMax = field('stateGarnishmentMax','Stricter verified state limit (if applicable)',{required:false});
-    const otherFamily = field('garnishmentOtherFamily','Employee supports another spouse or child',{type:'checkbox'});
-    const overdue = field('garnishmentOverdue','This support is more than 12 weeks in arrears',{type:'checkbox'});
-    const select = category.querySelector('select');
-    function syncCategory() {
-      const compare = select.value !== 'reviewed';
-      visible(disposable,compare);
-      visible(stateMax,compare);
-      visible(otherFamily,select.value === 'support');
-      visible(overdue,select.value === 'support');
+    const combined = field('garnishmentCombined','Verified combined limit for this check ($)',{required:false});
+    const note = element('p','With multiple orders, verify their priority and combined limit. For ordinary debt orders, the federal limit applies to their total.','muted');
+    const value = wrapper => wrapper.querySelector('input').valueAsNumber;
+    const checked = wrapper => wrapper.querySelector('input').checked;
+    const add = button('Add Garnishment',() => addOrder(true));
+
+    function syncOrders() {
+      visible(disposable,[...orders.values()].some(order => order.needsEarnings()));
+      visible(combined,orders.size > 1);
+      note.hidden = orders.size < 2;
     }
-    select.addEventListener('change',syncCategory);
-    syncCategory();
+
+    function addOrder(removable = false) {
+      const key = 'garnishment' + nextId++;
+      const method = field(key + 'Method','Garnishment deduction type',{
+        value:'fixed',choices:[['fixed','Dollar amount'],['percentage','Percentage of disposable earnings']]
+      });
+      const amount = field(key + 'Amount','Reviewed garnishment amount',{required:false});
+      const rate = field(key + 'Rate','Ordered percentage (%)',{max:100,step:'0.0001',required:false});
+      const category = field(key + 'Category','Garnishment calculation',{
+        value:'reviewed',choices:[['reviewed','Amount verified by payroll'],['ordinary','Ordinary debt · check federal limit'],
+          ['support','Child support or alimony · check federal limit']]
+      });
+      const stateMax = field(key + 'StateMax','Stricter verified state limit (if applicable)',{required:false});
+      const otherFamily = field(key + 'OtherFamily','Employee supports another spouse or child',{type:'checkbox'});
+      const overdue = field(key + 'Overdue','This support is more than 12 weeks in arrears',{type:'checkbox'});
+      const select = category.querySelector('select');
+      const type = method.querySelector('select');
+      const fields = grid(method,amount,rate,category,stateMax,otherFamily,overdue);
+      const row = element('div','','payroll-tax-local-item');
+      row.append(fields);
+      if (removable) row.append(button('Remove Garnishment',() => {
+        orders.delete(row);
+        row.remove();
+        syncOrders();
+        add.focus();
+        onChange();
+      }));
+      orders.set(row,{
+        needsEarnings:() => type.value === 'percentage' || select.value !== 'reviewed',
+        read:periods => {
+          const percentage = type.value === 'percentage';
+          const entered = value(percentage ? rate : amount);
+          if (!Number.isFinite(entered)) {
+            if (percentage) throw new Error('Enter the percentage listed on the garnishment order.');
+            return null;
+          }
+          return garnishmentDeduction({ periods,category:select.value,entered,percentage,disposable:value(disposable),
+            stateMax:value(stateMax),otherFamily:checked(otherFamily),overdue:checked(overdue) });
+        }
+      });
+      function syncFields() {
+        const percentage = type.value === 'percentage';
+        const compare = select.value !== 'reviewed';
+        visible(amount,!percentage);
+        visible(rate,percentage);
+        visible(stateMax,compare);
+        visible(otherFamily,select.value === 'support');
+        visible(overdue,select.value === 'support');
+        syncOrders();
+      }
+      select.addEventListener('change',syncFields);
+      type.addEventListener('change',syncFields);
+      list.append(row);
+      syncFields();
+      if (removable) {
+        type.focus();
+        onChange();
+      }
+    }
+    addOrder();
+    details.addEventListener('invalid',() => { details.open = true; },true);
     details.append(element('summary','Garnishment (optional)'),
-      element('p','Enter the ordered deduction that applies to this check. For a federal limit check, use disposable earnings and confirm any lower state limit.','muted'),
-      grid(field('garnishment','Reviewed garnishment amount',{required:false}),category,disposable,stateMax,otherFamily,overdue));
-    return details;
+      element('p','For a percentage order, enter the ordered rate and verified disposable earnings, then choose the applicable limit check. Enter a lower state limit when it applies.','muted'),
+      list,add,grid(disposable,combined),note);
+    return {details,read:periods => {
+      const deductions = [...orders.values()].map(order => order.read(periods)).filter(Boolean);
+      if (deductions.length > 1) {
+        const ordinary = deductions.filter(order => order.category === 'ordinary');
+        const total = rows => money(rows.reduce((sum,order) => sum + order.amount,0));
+        if (ordinary.length > 1 && total(ordinary) > ordinary[0].federalLimit) {
+          throw new Error('The ordinary debt garnishments exceed the combined federal limit for this check (' +
+            currency.format(ordinary[0].federalLimit) + ').');
+        }
+        const verified = value(combined);
+        if (ordinary.length !== deductions.length && !Number.isFinite(verified)) {
+          throw new Error('Enter the verified combined limit for the garnishment orders on this check.');
+        }
+        if (Number.isFinite(verified) && total(deductions) > verified) {
+          throw new Error('The garnishments exceed the combined limit for this check (' + currency.format(verified) + ').');
+        }
+      }
+      return deductions.map(({amount,percent,category},index) => {
+        const name = deductions.length > 1 ? 'Garnishment ' + (index + 1)
+          : percent == null ? 'Reviewed garnishment' : 'Garnishment';
+        return {name:percent == null ? name : name + ' (' + percent + '%)',amount,
+          source:category === 'reviewed' ? undefined : payrollTaxDeductions.sources.garnishment};
+      });
+    }};
   }
 
   function estimateUnemployment(form,wageBases,year) {
@@ -861,18 +942,16 @@ const payrollTaxPreview = (() => {
     return deductions;
   }
 
-  function estimateGarnishment(form,periods) {
-    const inputs = form.elements;
-    const amount = inputs.garnishment.valueAsNumber;
-    if (!Number.isFinite(amount)) return null;
-    const category = inputs.garnishmentCategory.value;
-    if (category === 'reviewed') return {name:'Reviewed garnishment',amount};
-    const limit = payrollTaxDeductions.federalGarnishmentLimit(periods,inputs.disposablePay.valueAsNumber,category,
-      inputs.garnishmentOtherFamily.checked,inputs.garnishmentOverdue.checked);
-    const stateMax = inputs.stateGarnishmentMax.valueAsNumber;
+  function garnishmentDeduction({periods,category,entered,percentage,disposable,stateMax,otherFamily,overdue}) {
+    if (category === 'reviewed') {
+      if (percentage) throw new Error('Choose ordinary debt or child support or alimony to check a percentage garnishment.');
+      return {category,amount:entered};
+    }
+    const limit = payrollTaxDeductions.federalGarnishmentLimit(periods,disposable,category,otherFamily,overdue);
+    const amount = percentage ? payrollTaxRules.percentOfWages(disposable,entered) : entered;
     const maximum = Number.isNaN(stateMax) ? limit : Math.min(limit,stateMax);
-    if (amount > maximum) throw new Error('The entered garnishment exceeds the limit for this check (' + currency.format(maximum) + ').');
-    return {name:'Reviewed garnishment',amount,source:payrollTaxDeductions.sources.garnishment};
+    if (amount > maximum) throw new Error('The garnishment exceeds the limit for this check (' + currency.format(maximum) + ').');
+    return {category,amount,federalLimit:limit,percent:percentage ? entered : null};
   }
 
   function showPreview(context,date,saved) {
@@ -977,6 +1056,7 @@ const payrollTaxPreview = (() => {
     lumperSelect?.addEventListener('change',payItems.sync);
     const payrollDeductions = payrollDeductionFields(clearResult);
     const otherTaxes = otherTaxFields(clearResult);
+    const garnishments = garnishmentFields(clearResult);
     const year = Number(date.slice(0,4));
     form.append(element('p',context.hourlyPay ? 'Review regular gross pay and enter overtime, bonuses, and adjustments under Pay items.'
       : 'Estimate for W-2 pay. Enter only confirmed deductions and taxable wages.', 'muted'),
@@ -987,7 +1067,7 @@ const payrollTaxPreview = (() => {
       grid(amount,...(periodStart ? [periodStart] : []),...(massachusettsDeduction ? [massachusettsDeduction] : []),field('socialSecurityYtd','YTD Social Security wages before this check'),
         field('medicareYtd','YTD Medicare wages before this check')),
       ...(context.hourlyPay ? [] : [checkFields]),...(lumperTreatment ? [lumperTreatment] : []),foundingTotals,payItems.details,payrollDeductions.details,wageDetails,reviewedIncome,otherTaxes.details,
-      garnishmentFields(),unemploymentFields(saved.settings.state,year),calculate);
+      garnishments.details,unemploymentFields(saved.settings.state,year),calculate);
     body.append(historyControls,form,result);
 
     function showPaid(record) {
@@ -1088,8 +1168,7 @@ const payrollTaxPreview = (() => {
         }
         employee.push(...otherTaxes.read());
         employer.push(...estimateUnemployment(form,pay.wageBases,year));
-        const garnishment = estimateGarnishment(form,saved.settings.periods);
-        const deductionsForStatement = garnishment ? [...deductions,garnishment] : deductions;
+        const deductionsForStatement = [...deductions,...garnishments.read(saved.settings.periods)];
         const taxTotal = employee.every(row => row.amount !== null)
           ? money(employee.reduce((sum,row) => sum + row.amount,0)) : null;
         const subtotal = taxTotal === null ? null

@@ -1837,6 +1837,15 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 </dialog>
 <dialog class="office-profile-dialog" id="officeProfileDialog" aria-labelledby="officeProfileTitle">
  <div class="office-profile-heading"><div><h2 id="officeProfileTitle">Edit Profile</h2><p class="muted" id="officeProfileIdentity"></p></div><button class="outline" type="button" id="officeProfileClose">Close</button></div>
+ <form id="officeProfileHourlyRateForm" class="hidden">
+  <h3>Hourly Pay</h3>
+  <div class="dispatch-fields">
+   <div class="field"><label for="officeProfileHourlyRate">Hourly rate ($)</label><input id="officeProfileHourlyRate" name="hourly_rate" type="number" min="0" max="9999999.99" step="0.01" inputmode="decimal" required></div>
+   <div class="field"><label for="officeProfileRateDate">Effective date</label><input id="officeProfileRateDate" name="effective_on" type="date" required></div>
+  </div>
+  <p id="officeProfileHourlyRateStatus" role="status" class="muted"></p>
+  <button class="primary-btn" type="submit">Save Hourly Rate</button>
+ </form>
  <form id="officeProfileAccessForm">
   <div id="officeProfileDesignationFields">
    <div class="field"><label for="officeProfileDesignation">Designation</label><select id="officeProfileDesignation"><option value="unofficial">Unofficial</option><option value="official">Official</option></select></div>
@@ -1894,7 +1903,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 <script src="./payroll-tax-rules.js?v=4"></script>
 <script src="./payroll-tax-deductions.js?v=2"></script>
 <script src="./payroll-tax-updates.js?v=1"></script>
-<script src="./payroll-tax-preview.js?v=12"></script>
+<script src="./payroll-tax-preview.js?v=13"></script>
 <script src="./company-driver-tools.js?v=settlement-remove-1"></script>
 <script src="./company-messages.js?v=driver-push-1"></script>
 <script src="./driver-paperwork.js?v=3"></script>
@@ -1905,8 +1914,8 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 <script src="./driver-app.js?v=push-1"></script>
 <script src="./driver-notifications.js?v=1"></script>
 <script src="./fleet-bol-payments.js?v=paperwork-1"></script>
-<script src="./office-tools.js?v=withholding-forms-1"></script>
-<script src="./office-payroll.js?v=create-paycheck-1"></script>
+<script src="./office-tools.js?v=employee-hourly-rate-1"></script>
+<script src="./office-payroll.js?v=employee-hourly-rate-1"></script>
 <script src="./owner-escrow.js?v=1"></script>
 <script src="./owner-settlement-records.js?v=owner-deductions-1"></script>
 <script src="./owner-settlement-import.js?v=preview-1"></script>
