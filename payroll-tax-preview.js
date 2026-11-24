@@ -980,7 +980,9 @@ const payrollTaxPreview = (() => {
     }
 
     const form = element('form');
-    const amount = field('grossPay','Regular gross pay',{ value:context.gross });
+    const amount = field('grossPay','Regular gross pay',{ value:context.gross,required:false });
+    const grossInput = amount.querySelector('input');
+    context.grossFromHours ??= grossInput.value === '';
     const lumperTotal = context.lumperReimbursement || 0;
     const lumperTreatment = lumperTotal > 0 ? field('lumperTreatment',
       'Tax treatment for ' + currency.format(lumperTotal) + ' lumper reimbursement',{
@@ -993,18 +995,30 @@ const payrollTaxPreview = (() => {
     const rate = field('hourlyRate',context.hourlyPay ? 'Hourly rate ($)' : 'Hourly rate (optional)',{
       required:false,value:context.hourlyRate
     });
+    const hoursInput = hours.querySelector('input');
+    const rateInput = rate.querySelector('input');
+    function hourlyGross() {
+      const payHours = hoursInput.valueAsNumber;
+      const hourlyRate = rateInput.valueAsNumber;
+      return hoursInput.validity.valid && rateInput.validity.valid && hasAmount(payHours) && hasAmount(hourlyRate)
+        ? money(payHours * hourlyRate).toFixed(2) : '';
+    }
+    function updateGross(value = hourlyGross()) {
+      grossInput.value = value;
+      context.gross = grossInput.value;
+    }
     const useHours = button('Use Hours × Rate',() => {
-      if (!form.elements.workedHours.reportValidity() || !form.elements.hourlyRate.reportValidity()) return;
-      const payHours = form.elements.workedHours.valueAsNumber;
-      const hourlyRate = form.elements.hourlyRate.valueAsNumber;
-      if (!hasAmount(payHours) || !hasAmount(hourlyRate)) {
+      if (!hoursInput.reportValidity() || !rateInput.reportValidity()) return;
+      const gross = hourlyGross();
+      if (!gross) {
         message('Enter hours worked and the hourly rate.',true);
         return;
       }
-      form.elements.grossPay.value = money(payHours * hourlyRate).toFixed(2);
-      context.gross = form.elements.grossPay.value;
+      context.grossFromHours = true;
+      updateGross(gross);
       clearResult();
     });
+    if (context.grossFromHours) updateGross();
     const checkFields = fieldset(context.hourlyPay ? 'Hours and rate' : 'Hours and rate (optional)',
       ...(context.hourlyNote ? [element('p',context.hourlyNote,'muted')] : []),grid(hours,rate),useHours);
     const reference = context.kind === 'office'
@@ -1127,11 +1141,14 @@ const payrollTaxPreview = (() => {
     });
     form.elements.sutaState.addEventListener('change',() => void refreshHistory({resetState:true}));
     void refreshHistory();
-    form.addEventListener('input',() => {
-      context.gross = form.elements.grossPay.value;
-      if (context.hourlyPay) {
-        context.workedHours = form.elements.workedHours.value;
-        context.hourlyRate = form.elements.hourlyRate.value;
+    form.addEventListener('input',event => {
+      if (event.target === grossInput) {
+        context.gross = grossInput.value;
+        context.grossFromHours = grossInput.value === '';
+      } else if (event.target === hoursInput || event.target === rateInput) {
+        context.workedHours = hoursInput.value;
+        context.hourlyRate = rateInput.value;
+        if (context.grossFromHours) updateGross();
       }
       clearResult();
     });
@@ -1141,6 +1158,14 @@ const payrollTaxPreview = (() => {
       if (!active(context) || recording || form.hidden) return;
       if (payDateInput.value !== date) {
         message('Choose a valid pay date before calculating.',true);
+        return;
+      }
+      if (grossInput.value === '' && context.grossFromHours) updateGross();
+      if (!grossInput.reportValidity()) return;
+      if (grossInput.value === '') {
+        message('Enter hours worked and an hourly rate, or enter the verified regular gross pay for this check.',true);
+        (context.hourlyPay && hoursInput.value === '' ? hoursInput :
+          context.hourlyPay && rateInput.value === '' ? rateInput : grossInput).focus();
         return;
       }
       const value = key => form.elements[key].valueAsNumber;

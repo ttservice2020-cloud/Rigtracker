@@ -325,8 +325,7 @@ const officePayroll = (() => {
     const notes = [seconds ? 'Clocked hours from completed shifts are prefilled.' : 'Enter hours manually or add a missed shift in Office Payroll.'];
     if (open.size) notes.push('An open shift needs a clock-out time if it belongs in this check.');
     if (rates.size > 1) notes.push('Regular gross pay uses each payroll day’s rate.');
-    if (!hasAllRates) notes.push(hourlyRate == null ? 'Enter the hourly rate and use Hours × Rate to calculate regular gross pay.'
-      : 'Enter hours and use Hours × Rate to calculate regular gross pay.');
+    if (!hasAllRates) notes.push('Enter any missing hours or hourly rate to calculate regular gross pay.');
     return payrollTaxPreview.open({
       kind:'office', mode:'preview', reference:person.user_id, fleet:data.fleet_id, name:person.name,
       hourlyPay:true, startsOn, endsOn, payPeriod:payrollDateLabel(startsOn) + ' to ' + payrollDateLabel(endsOn),
