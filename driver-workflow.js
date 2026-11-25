@@ -26,6 +26,7 @@ const driverLoadWorkflow = (() => {
     ['commodity','Commodity',{maxLength:120}], ['weight','Weight',{inputMode:'decimal',maxLength:20}],
     ['pieces','Pieces',{inputMode:'numeric',maxLength:20}], ['bol','BOL number',{maxLength:100}]
   ];
+  const pickupInfoFields = [['pickupTrailer','Trailer number',{maxLength:40}],...pickupFields];
   let driverRead = null;
   let officeRead = null;
   let driverSnapshot = '';
@@ -419,7 +420,8 @@ const driverLoadWorkflow = (() => {
   function stopReport(stop) {
     const report = stop.progress?.driverReport;
     if (!report) return [];
-    const details = [report.bobtail ? 'Departed bobtail' : report.trailer && 'Trailer ' + report.trailer, report.commodity,
+    const trailer = report.trailer || report.pickedTrailer || (!report.droppedTrailer && report.pickupTrailer);
+    const details = [report.bobtail ? 'Departed bobtail' : trailer && 'Trailer ' + trailer, report.commodity,
       report.weight && 'Weight ' + report.weight, report.pieces && report.pieces + ' pieces',
       report.bol && 'BOL ' + report.bol,
       report.droppedTrailer && 'Dropped trailer ' + report.droppedTrailer,
@@ -480,8 +482,54 @@ const driverLoadWorkflow = (() => {
     const status = node('p', '', 'muted');
     status.setAttribute('role','status');
     const save = submitButton('Save Load Info');
-    const controls = fields(...pickupFreightInputs(report));
-    const latestReport = () => driverData.loads.find(row => row.id === load.id)?.stops.find(row => row.key === stop.key)?.progress?.driverReport || {};
+    const controls = fields(...pickupInfoFields.map(([name,label,options]) => input(label,name,options)));
+    const trailer = controls.querySelector('[name=pickupTrailer]');
+    const trailerWarning = node('p','','driver-trailer-alert');
+    trailerWarning.setAttribute('role','status');
+    const latestLoad = () => driverData.loads.find(row => row.id === load.id) || load;
+    const latestStop = () => latestLoad().stops.find(row => row.key === stop.key) || stop;
+    const latestReport = () => latestStop().progress?.driverReport || {};
+    const trailerRecorded = () => Boolean(report.bobtail || report.trailer || report.pickedTrailer || report.droppedTrailer);
+    const reportTrailer = () => report.bobtail ? 'Bobtail' : report.trailer || report.pickedTrailer ||
+      (report.droppedTrailer ? 'Bobtail' : report.pickupTrailer || '');
+    let trailerLookup;
+    let trailerLookupVersion = 0;
+    function validateTrailer() {
+      const current = latestLoad();
+      const pickup = latestStop();
+      const freight = current.freight;
+      const planned = freight?.trailerPickupStopId === pickup.key && freight.trailerPickupMode !== 'bobtail' && freight.trailerPickupNumber;
+      const active = current.status !== 'completed' && !pickup.progress?.completedAt;
+      const expected = planned || (active ? current.incomingTrailer : pickup.progress?.arrivalTrailer);
+      const entered = trailer.value.trim().toUpperCase();
+      const mismatch = !trailer.readOnly && Boolean(entered && expected && entered !== expected.trim().toUpperCase());
+      const note = mismatch ? 'Trailer number must match ' + expected + ' for this pickup.' : '';
+      trailer.setCustomValidity(note);
+      trailer.setAttribute('aria-invalid', String(mismatch));
+      trailer.dataset.outOfService = 'false';
+      trailerWarning.textContent = note;
+      clearTimeout(trailerLookup);
+      const version = ++trailerLookupVersion;
+      if (!mismatch && entered && !trailer.readOnly && current.status !== 'completed') {
+        const user = currentUser;
+        trailerLookup = setTimeout(async () => {
+          try {
+            const {data,error} = await supabaseClient.rpc('driver_trailer_status',{target_load:load.id,unit_numbers:[entered]});
+            if (!error && version === trailerLookupVersion && user === currentUser && editor.isConnected && data?.[entered] === true) {
+              trailer.dataset.outOfService = 'true';
+              trailerWarning.textContent = 'Trailer ' + entered + ' is out of service.';
+            }
+          } catch {}
+        },250);
+      }
+    }
+    function fillPickupInfo() {
+      for (const [name] of pickupFields) form.elements[name].value = report[name] ?? '';
+      trailer.readOnly = trailerRecorded();
+      trailer.value = reportTrailer();
+      validateTrailer();
+    }
+    trailer.addEventListener('input',validateTrailer);
     const count = node('p','','muted');
     const documentLimit = () => Math.max(0,20 - paperworkFiles(latestReport()).length);
     const upload = button('Upload Document',() => {
@@ -498,15 +546,17 @@ const driverLoadWorkflow = (() => {
     }
     const actions = node('div','','dispatch-actions');
     actions.append(upload,save);
-    form.append(controls,actions,count,status);
+    form.append(controls,trailerWarning,actions,count,status);
     editor.append(node('summary','Input Load Info'),form);
+    fillPickupInfo();
     editor.addEventListener('paperwork-change',updateDocuments);
+    editor.addEventListener('trailer-plan-change',validateTrailer);
     updateDocuments();
     editor.addEventListener('toggle', () => {
       if (editor.open) {
         if (pickupEditors.get(key) !== editor) {
           report = latestReport();
-          for (const [name] of pickupFields) form.elements[name].value = report[name] ?? '';
+          fillPickupInfo();
           status.textContent = '';
         }
         pickupEditors.set(key,editor);
@@ -518,7 +568,8 @@ const driverLoadWorkflow = (() => {
       event.preventDefault();
       const user = currentUser;
       if (!user || save.disabled || draft.saving) return;
-      const changes = Object.fromEntries(pickupFields.map(([name]) => [name,form.elements[name].value.trim()])
+      const changes = Object.fromEntries(pickupInfoFields.filter(([name]) => !form.elements[name].readOnly)
+        .map(([name]) => [name,form.elements[name].value.trim()])
         .filter(([name,value]) => value !== String(report[name] ?? '').trim()));
       if (!Object.keys(changes).length && !draft.files.length) { editor.open = false; return; }
       const expected = Object.fromEntries(Object.keys(changes).map(name => [name,report[name] ?? null]));
@@ -549,16 +600,21 @@ const driverLoadWorkflow = (() => {
           if (user !== currentUser) return;
           report = latestReport();
           const saved = [];
-          for (const [name,label] of pickupFields) {
+          for (const [name,label] of pickupInfoFields) {
             if (Object.hasOwn(changes,name)) saved.push(label + ' ' + (report[name] || 'blank'));
             else form.elements[name].value = report[name] ?? '';
           }
+          if (trailerRecorded()) trailer.value = reportTrailer();
           status.textContent = 'The pickup changed. Saved values: ' + saved.join(' · ') + '. Review your entries and save again.';
+        } else if (error.hint === 'pickup_trailer') {
+          trailer.setAttribute('aria-invalid','true');
+          trailer.focus();
         }
       } finally {
         draft.saving = save.disabled = false;
         updateDocuments();
         controls.querySelectorAll('input').forEach(field => { field.readOnly = false; });
+        trailer.readOnly = trailerRecorded();
       }
     });
     return editor;
@@ -615,7 +671,8 @@ const driverLoadWorkflow = (() => {
     const state = node('select');
     state.name = 'loaded_state';
     setOptions(state, [['loaded','Loaded'],['empty','Empty']], 'Select loaded or empty');
-    const trailer = input('Trailer number', 'trailer', { maxLength:40, value:load.incomingTrailer ?? '' });
+    const trailer = input('Trailer number', 'trailer', {maxLength:40,
+      value:load.incomingTrailer ?? stop.progress?.driverReport?.pickupTrailer ?? ''});
     const trailerNumber = trailer.querySelector('input');
     if (load.incomingTrailer != null) trailerNumber.dataset.incomingTrailer = load.incomingTrailer;
     const bobtail = input('Bobtail (leaving without a trailer)', 'bobtail', { type:'checkbox', value:'true' });
@@ -1296,6 +1353,11 @@ const driverLoadWorkflow = (() => {
       byId('driverLoadStops')?.replaceWith(showAllStops(load));
       if (inPickupEditor && focused.isConnected) focused.focus({preventScroll:true});
     }
+    if (freightChanged || previous.incomingTrailer !== load.incomingTrailer) {
+      for (const editor of byId('driverLoadStops')?.querySelectorAll('.driver-pickup-info[open]') || []) {
+        editor.dispatchEvent(new Event('trailer-plan-change'));
+      }
+    }
     if (stopsChanged) {
       const before = previous.stops.find(stop => !stop.progress?.completedAt);
       const after = load.stops.find(stop => !stop.progress?.completedAt);
@@ -1304,6 +1366,12 @@ const driverLoadWorkflow = (() => {
         paintProgressActions(load, actions);
       } else if (actions && after?.kind === 'pickup') {
         const departure = actions.querySelector('[data-trailer-departure]');
+        const savedTrailer = after.progress?.driverReport?.pickupTrailer;
+        if (departure && savedTrailer && load.incomingTrailer == null &&
+          departure.elements.trailer.value === (before.progress?.driverReport?.pickupTrailer ?? '')) {
+          departure.elements.trailer.value = savedTrailer;
+          departure.elements.trailer.dispatchEvent(new Event('input'));
+        }
         for (const [name] of pickupFields) {
           const input = departure?.elements[name];
           if (input && input.value === String(before.progress?.driverReport?.[name] ?? '')) {

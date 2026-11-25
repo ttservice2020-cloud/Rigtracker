@@ -76,8 +76,9 @@ const dispatchProgress = (() => {
   }
 
   function reportedFreight(report) {
+    const trailer = report.trailer || report.pickedTrailer || (!report.droppedTrailer && report.pickupTrailer);
     return [
-      report.bobtail ? 'Departed bobtail' : report.trailer && 'Trailer ' + report.trailer,
+      report.bobtail ? 'Departed bobtail' : trailer && 'Trailer ' + trailer,
       report.commodity,
       report.weight && 'Weight ' + report.weight,
       report.pieces && 'Pieces ' + report.pieces,
