@@ -648,6 +648,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
           <button class="outline hidden" id="dispatchDetailRateConfirmation" type="button">View Rate Confirmation</button>
           <button class="outline hidden" id="dispatchDetailMessage" type="button" aria-controls="dispatchMessageDrivers" aria-expanded="false">Message</button>
           <button class="outline" id="dispatchDetailEdit" type="button">Edit Load</button>
+          <button class="outline hidden" id="dispatchDetailAddInfo" type="button">Add Load Info</button>
           <button class="primary-btn hidden" id="dispatchReviewDeparture" type="button">Accept departure</button>
           <button class="outline" id="dispatchDetailComplete" type="button">Mark Completed</button>
          </div>
@@ -1913,13 +1914,32 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
  <p id="dispatchEquipmentAssignmentDriver" class="muted"></p>
  <div id="dispatchEquipmentAssignmentBody"></div>
 </dialog>
+<dialog class="office-profile-dialog" id="dispatchStopInfoDialog" aria-labelledby="dispatchStopInfoTitle">
+ <form id="dispatchStopInfoForm">
+  <h2 id="dispatchStopInfoTitle">Add Load Info</h2>
+  <p class="muted" id="dispatchStopInfoPro"></p>
+  <div class="field"><label for="dispatchStopInfoStop">Stop</label><select id="dispatchStopInfoStop" name="stop" required></select></div>
+  <div class="dispatch-fields">
+   <div class="field"><label for="dispatchStopInfoTrailer">Trailer number</label><input id="dispatchStopInfoTrailer" name="trailer" maxlength="40" data-dispatch-stop-info></div>
+   <div class="field"><label for="dispatchStopInfoCommodity">Commodity</label><input id="dispatchStopInfoCommodity" name="commodity" maxlength="120" data-dispatch-stop-info></div>
+   <div class="field"><label for="dispatchStopInfoWeight">Weight (lb)</label><input id="dispatchStopInfoWeight" name="weight" inputmode="decimal" pattern="[0-9]+([.][0-9]{1,2})?" maxlength="20" data-dispatch-stop-info></div>
+   <div class="field"><label for="dispatchStopInfoPieces">Pieces</label><input id="dispatchStopInfoPieces" name="pieces" inputmode="numeric" pattern="[0-9]+" maxlength="20" data-dispatch-stop-info></div>
+   <div class="field"><label for="dispatchStopInfoBol">BOL number</label><input id="dispatchStopInfoBol" name="bol" maxlength="100" data-dispatch-stop-info></div>
+  </div>
+  <p id="dispatchStopInfoError" role="alert" class="dispatch-form-issues hidden"></p>
+  <div class="dispatch-actions">
+   <button class="primary-btn" type="submit">Save Load Info</button>
+   <button class="outline" id="dispatchStopInfoCancel" type="button">Cancel</button>
+  </div>
+ </form>
+</dialog>
 <div id="modal"><div class="modal-card"><h2 id="modalTitle"></h2><div id="modalBody"></div><button class="primary-btn" onclick="closeModal()">Close</button></div></div>
 
-<script src="./dispatch-progress.js?v=dispatch-transit-1"></script>
+<script src="./dispatch-progress.js?v=dispatch-stop-info-1"></script>
 <script src="./dispatch-rate-confirmation.js?v=1"></script>
 <script src="./dispatch-route-miles.js?v=1"></script>
 <script src="./dispatch-zip-lookup.js?v=1"></script>
-<script src="./dispatch.js?v=dispatch-transit-1"></script>
+<script src="./dispatch.js?v=dispatch-stop-info-1"></script>
 <script src="./linked-profiles.js?v=driver-push-1"></script>
 <script src="./fleet-equipment.js?v=driver-loads-1"></script>
 <script src="./payroll-tax-jurisdictions.js?v=2"></script>

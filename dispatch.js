@@ -4,6 +4,9 @@ const fleetDispatchApp = (() => {
   const form = byId('dispatchLoadForm');
   const driverForm = byId('dispatchDriverForm');
   const locationForm = byId('dispatchLocationForm');
+  const stopInfoDialog = byId('dispatchStopInfoDialog');
+  const stopInfoForm = byId('dispatchStopInfoForm');
+  const stopInfoFields = [...stopInfoForm.querySelectorAll('[data-dispatch-stop-info]')];
   const tabs = [...byId('dispatchTabs').querySelectorAll('[role=tab]')];
   const stops = { pickup: byId('dispatchPickups'), receiver: byId('dispatchReceivers') };
   const stopContacts = { pickup: byId('dispatchShipperContacts'), receiver: byId('dispatchReceiverContacts') };
@@ -42,6 +45,7 @@ const fleetDispatchApp = (() => {
   const ownerAccess = { dispatch:true, drivers:true, equipment:true, maintenance:true, paySettings:true, messages:true };
   let state;
   let edit;
+  let stopInfoSession;
   let stopId = 0;
   let selectedTab = 'current';
   let progressView;
@@ -2118,6 +2122,99 @@ const fleetDispatchApp = (() => {
     }
   }
 
+  function showStopInfoError(message = '') {
+    byId('dispatchStopInfoError').textContent = message;
+    toggle('dispatchStopInfoError', Boolean(message));
+  }
+
+  function fillStopInfo() {
+    const stop = stopInfoSession.stops.find(({ key }) => key === stopInfoForm.elements.stop.value);
+    const report = stop.progress.driverReport || {};
+    const values = stopInfoSession.drafts.get(stop.key) || report;
+    for (const field of stopInfoFields) field.value = values[field.name] ?? '';
+    const trailer = stopInfoForm.elements.trailer;
+    trailer.readOnly = Boolean(report.bobtail || report.pickedTrailer);
+    trailer.placeholder = report.bobtail ? 'Bobtail' : report.pickedTrailer || '';
+    showStopInfoError();
+  }
+
+  function openStopInfo() {
+    const load = getLoad(progressView?.id());
+    if (!load || !canEditLoad(load.id) || !['current', 'completed'].includes(load.status)) return;
+    const { stops, next } = dispatchProgress.summarize(load);
+    if (!stops.length) return;
+    stopInfoSession = { load, stops, drafts: new Map(), saving: false };
+    byId('dispatchStopInfoPro').textContent = proLabel(load.pro_number);
+    const picker = stopInfoForm.elements.stop;
+    picker.replaceChildren(...stops.map(stop => {
+      const name = (stop.kind === 'pickup' ? 'Pickup ' : 'Delivery ') + (stop.index + 1);
+      return new Option([name, stop.company].filter(Boolean).join(' · '), stop.key);
+    }));
+    const recent = stops.findLast(stop => stop.progress.completedAt);
+    picker.value = (next?.progress.arrivalAt ? next : recent || next).key;
+    fillStopInfo();
+    stopInfoDialog.showModal();
+  }
+
+  function stopInfoValues() {
+    return Object.fromEntries(stopInfoFields.filter(field => !field.readOnly).map(field => [field.name, field.value.trim()]));
+  }
+
+  function setStopInfoSaving(saving) {
+    for (const field of stopInfoForm.elements) field.disabled = saving;
+    stopInfoForm.querySelector('[type=submit]').textContent = saving ? 'Saving…' : 'Save Load Info';
+  }
+
+  stopInfoForm.elements.stop.addEventListener('change', fillStopInfo);
+  stopInfoForm.addEventListener('input', event => {
+    if (event.target.matches('[data-dispatch-stop-info]')) {
+      stopInfoSession?.drafts.set(stopInfoForm.elements.stop.value, stopInfoValues());
+    }
+  });
+  byId('dispatchStopInfoCancel').addEventListener('click', () => stopInfoDialog.close());
+  stopInfoDialog.addEventListener('cancel', event => {
+    if (stopInfoSession?.saving) event.preventDefault();
+  });
+  stopInfoForm.addEventListener('submit', async event => {
+    event.preventDefault();
+    const session = stopInfoSession;
+    const scope = state;
+    if (!scope || !session || session.saving) return;
+    const { load } = session;
+    if (!canEditLoad(load.id)) {
+      showStopInfoError('Editing access is unavailable. Close and reopen Add Load Info to try again.');
+      return;
+    }
+    const target_stop = stopInfoForm.elements.stop.value;
+    const load_info = stopInfoValues();
+    session.saving = true;
+    setStopInfoSaving(true);
+    showStopInfoError();
+    try {
+      const { data, error } = await scope.client.rpc('save_dispatch_stop_info', {
+        target_load: load.id, target_stop, expected_updated_at: load.updated_at, editing_session: lease.token, load_info
+      });
+      if (state !== scope || stopInfoSession !== session) return;
+      if (error) throw error;
+      if (!data) throw new Error('Could not save load info. Try again.');
+      mergeLoad(data);
+      paintLoads();
+      progressView?.paint();
+      stopInfoDialog.close();
+      showToast('Load info saved.');
+    } catch (error) {
+      if (stopInfoSession !== session) return;
+      showStopInfoError(['22023', '40001', '55P03'].includes(error.code) ? error.message : 'Could not save load info. Try again.');
+      if (error.code === '40001') void refresh();
+      if (error.code === '55P03') void renewLease();
+    } finally {
+      if (stopInfoSession === session) {
+        session.saving = false;
+        setStopInfoSaving(false);
+      }
+    }
+  });
+
   async function acceptBoardDeparture(load) {
     const scope = state;
     if (!scope?.access.dispatch || load?.status !== 'current' || scope.boardReviews.has(load.id)) return;
@@ -2322,6 +2419,7 @@ const fleetDispatchApp = (() => {
   }
 
   if (progressEnabled) {
+    byId('dispatchDetailAddInfo').addEventListener('click', openStopInfo);
     progressView = dispatchProgress.bind({
       byId, toggle, element, button, getLoad, getLoads: () => state?.loads || [], getRouteNumber,
       loadDrivers, loadDriverContacts, displayedDriverIds, unassignedDriver, messageDriver, proLabel, describeRoute: route,
@@ -2341,6 +2439,9 @@ const fleetDispatchApp = (() => {
   }
 
   function reset() {
+    if (stopInfoDialog.open) stopInfoDialog.close();
+    stopInfoSession = null;
+    setStopInfoSaving(false);
     cancelRouteEstimate();
     resetEditorZips();
     locationZipLookup.reset();

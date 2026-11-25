@@ -488,6 +488,7 @@ const dispatchProgress = (() => {
       view.dataset.updated = String(hasUpdate(load.id));
       toggle('dispatchLiveUpdate', hasUpdate(load.id));
       toggle('dispatchDetailEdit', current || load.status === 'completed');
+      toggle('dispatchDetailAddInfo', Boolean(stops.length) && (current || load.status === 'completed'));
       toggle('dispatchDetailComplete', current);
       const review = byId('dispatchReviewDeparture');
       const { final, canReviewDeparture } = boardState(load);
@@ -504,6 +505,7 @@ const dispatchProgress = (() => {
       messageButton.title = reachable.length ? '' : 'No linked conversation or phone number on file.';
       if (reachable.length < 2) closeMessageDrivers();
       byId('dispatchDetailEdit').disabled = readOnly || Boolean(request);
+      byId('dispatchDetailAddInfo').disabled = readOnly || Boolean(request);
       byId('dispatchDetailComplete').disabled = readOnly || Boolean(request) || Boolean(breakdown?.active || traffic?.active);
       byId('dispatchLoadNoteList').replaceChildren(driverLoadWorkflow.loadNotes(load.progress?.loadNotes));
       for (const id of ['dispatchLoadNoteText', 'dispatchAddLoadNote', 'dispatchReportTraffic', 'dispatchClearTraffic']) {
@@ -574,6 +576,7 @@ const dispatchProgress = (() => {
         if (report) {
           const reported = reportedFreight(report);
           if (reported) entry.append(element('p', reported, 'muted'));
+          if (reported && report.dispatchEnteredAt) entry.append(element('small', 'Load info entered by dispatch', 'muted'));
           const label = stop.kind === 'pickup' ? 'BOL' : 'delivery paperwork';
           entry.append(...driverLoadWorkflow.paperworkButtons(report, label, button));
         }
