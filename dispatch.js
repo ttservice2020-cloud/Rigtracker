@@ -711,7 +711,7 @@ const fleetDispatchApp = (() => {
       row.append(element('small', number ? 'Route ' + number : 'Route not set', 'dispatch-rail-route'),
         drivers ? element('small', drivers) : unassignedDriver('small'),
         element('small', arrival, 'dispatch-rail-arrival'), badge);
-      const latest = latestDriverUpdate(load);
+      const latest = latestDriverUpdate(load, next);
       if (latest) row.append(element('small', latest.title));
       return row;
     }));
@@ -869,9 +869,11 @@ const fleetDispatchApp = (() => {
     return driverUpdates(load).filter(update => !known.has(update.key));
   }
 
-  function latestDriverUpdate(load) {
+  function latestDriverUpdate(load, next) {
     if (!progressEnabled || !state.watchedLoads.has(load.id)) return null;
-    return driverUpdates(load).sort((a, b) => b.time - a.time)[0];
+    const latest = driverUpdates(load).sort((a, b) => b.time - a.time)[0];
+    if (latest?.key.startsWith('arrive:') && latest.key !== 'arrive:' + next?.key) return null;
+    return latest;
   }
 
   function announceDriverUpdates(updates) {

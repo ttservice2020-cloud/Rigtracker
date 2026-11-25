@@ -2,6 +2,7 @@ const dispatchProgress = (() => {
   const minute = 60_000;
   const defaultWaitHours = 2;
   const formatters = new Map();
+  const milestones = ['Assigned', 'En Route to Pickup', 'At Pickup', 'In Transit', 'At Receiver', 'Complete'];
 
   function time(value) {
     const match = /^([01][0-9]|2[0-3]):?([0-5][0-9])$/.exec(value || '');
@@ -202,13 +203,12 @@ const dispatchProgress = (() => {
     const started = Boolean(load.progress?.enRouteAt || pickupDone || arrived);
     const stage = load.status === 'completed' ? 5 : !next ? 4 : next.kind === 'receiver'
       ? (arrived ? 4 : 3) : arrived ? 2 : pickupDone ? 3 : started ? 1 : 0;
-    let status = started ? ['In Progress', 'progress'] : ['Assigned', 'assigned'];
+    let status = started ? [milestones[stage], 'progress'] : [milestones[0], 'assigned'];
     if (load.status === 'completed') status = ['Complete', 'complete'];
     else if (!next) status = ['Stops Complete', 'complete'];
-    else if (arrived) status = arrivalIsLate(next, now) ? ['Checked In Late', 'late']
-      : [next.kind === 'pickup' ? 'At Pickup' : 'At Receiver', 'progress'];
-    else if (arrivalIsLate(next, now)) status = ['Late', 'late'];
-    else if (next.due - now <= 30 * minute) status = ['Warning', 'warning'];
+    else if (arrived && arrivalIsLate(next, now)) status = ['Checked In Late', 'late'];
+    else if (!arrived && arrivalIsLate(next, now)) status = ['Late', 'late'];
+    else if (!arrived && next.due - now <= 30 * minute) status = ['Warning', 'warning'];
     if (load.status === 'current' && load.progress?.relay?.droppedAt &&
         !load.progress.relay.departedAt && !load.progress.yardPickedUpAt) status = ['At Relay', 'progress'];
     if (load.progress?.breakdown?.active) status = ['Breakdown reported', 'breakdown'];
@@ -226,7 +226,6 @@ const dispatchProgress = (() => {
     const splitFacts = byId('dispatchSplitFacts');
     const splitDriver = element('select', '', 'dispatch-relay-driver');
     splitDriver.setAttribute('aria-label', 'Scheduled Driver 2');
-    const milestones = ['Assigned', 'En Route to Pickup', 'At Pickup', 'In Transit', 'At Receiver', 'Complete'];
     let activeId;
     let selectedStop;
     let request;
