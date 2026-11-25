@@ -60,6 +60,20 @@ const dispatchProgress = (() => {
 
   const appointment = stop => Number.isFinite(stop.due) ? clockText(stop.due, stop.zone) : 'Unscheduled';
 
+  function arrivalIsLate(stop, now) {
+    const arrival = Date.parse(stop.progress.arrivalAt);
+    return Number.isFinite(arrival) ? arrival > stop.due : now >= stop.due;
+  }
+
+  function lateArrivalIssue(stop, now) {
+    if (!(stop.due <= now) || !arrivalIsLate(stop, now)) return null;
+    return {
+      kind: 'late', title: stop.kind === 'pickup' ? 'Late to pickup' : 'Late to delivery',
+      start: stop.due, end: Date.parse(stop.progress.completedAt) || now, stop,
+      details: 'Scheduled ' + appointment(stop)
+    };
+  }
+
   function reportedFreight(report) {
     return [
       report.bobtail ? 'Departed bobtail' : report.trailer && 'Trailer ' + report.trailer,
@@ -75,11 +89,10 @@ const dispatchProgress = (() => {
   function facilityDeadline(stop) {
     const arrival = Date.parse(stop.progress.arrivalAt);
     if (!Number.isFinite(arrival)) return NaN;
-    const appointment = instantFor(stop.date, stop.from, stop.zone);
     const raw = stop.waitAlertHours;
     const hours = raw == null || raw === '' ? defaultWaitHours : Number(raw);
     const allowed = Number.isFinite(hours) && hours >= 0 ? hours : defaultWaitHours;
-    return Math.max(arrival, (Number.isFinite(appointment) ? appointment : arrival) + allowed * 60 * minute);
+    return Math.max(arrival, (Number.isFinite(stop.due) ? stop.due : arrival) + allowed * 60 * minute);
   }
 
   function facilityHold(stop, now) {
@@ -98,7 +111,7 @@ const dispatchProgress = (() => {
   }
 
   function boardState(load, now = Date.now()) {
-    const stops = stopsFor(load, false);
+    const stops = stopsFor(load);
     const next = stops.find(stop => !stop.progress.completedAt);
     const pending = stops.filter(({ progress }) => progress.completedAt && progress.driverReport?.at && !progress.boardReviewedAt);
     const held = next && facilityHold(next, now);
@@ -108,7 +121,10 @@ const dispatchProgress = (() => {
     const relay = load.progress?.relay;
     const atRelay = relay?.droppedAt && !relay.departedAt && !load.progress?.yardPickedUpAt;
     const final = Boolean(stops.length && !next && pending.length <= 1 && !atRelay);
-    return { next, pending: pending[0], final, atRelay, issues,
+    const canReviewDeparture = Boolean((pending.length || final) && !issues.length);
+    const late = next && lateArrivalIssue(next, now);
+    if (late) issues.push(late);
+    return { next, pending: pending[0], final, atRelay, issues, canReviewDeparture,
       column: issues.length ? 'issues' : pending.length || final || next?.progress.arrivalAt || atRelay ? 'working' : 'transit' };
   }
 
@@ -121,9 +137,14 @@ const dispatchProgress = (() => {
   function daySummary(load, day, { start, end }, now = Date.now()) {
     const within = value => value >= start && value < end;
     const overlaps = event => event.start < end && event.end >= start;
-    const stops = stopsFor(load, false);
-    const issues = stops.map(stop => facilityHold(stop, load.status === 'completed' ? Date.parse(load.progress?.completedAt || load.updated_at) : now))
-      .filter(event => event && overlaps(event));
+    const stops = stopsFor(load);
+    const completed = load.status === 'completed';
+    const through = completed ? Date.parse(load.progress?.completedAt || load.updated_at) : now;
+    const next = !completed && stops.find(stop => !stop.progress.completedAt);
+    const issues = stops.flatMap(stop => [
+      facilityHold(stop, through),
+      (stop === next || stop.progress.arrivalAt) && lateArrivalIssue(stop, through)
+    ]).filter(event => event && overlaps(event));
     for (const kind of ['traffic', 'breakdown']) {
       const event = incident(kind, load.progress?.[kind], now);
       if (overlaps(event)) issues.push(event);
@@ -135,7 +156,7 @@ const dispatchProgress = (() => {
         issues.push({ ...incident(kind, { reportedAt: note.at }, time), details: note.body });
       }
     }
-    const priority = { breakdown: 0, traffic: 1, hold: 2 };
+    const priority = { breakdown: 0, traffic: 1, hold: 2, late: 3 };
     issues.sort((a, b) => priority[a.kind] - priority[b.kind] || a.start - b.start);
     const worked = stops.some(stop => stop.date === day || within(Date.parse(stop.progress.arrivalAt)) ||
       within(Date.parse(stop.progress.completedAt))) || [load.assigned_at, load.progress?.completedAt,
@@ -184,9 +205,9 @@ const dispatchProgress = (() => {
     let status = started ? ['In Progress', 'progress'] : ['Assigned', 'assigned'];
     if (load.status === 'completed') status = ['Complete', 'complete'];
     else if (!next) status = ['Stops Complete', 'complete'];
-    else if (arrived) status = Date.parse(arrived) > next.due ? ['Checked In Late', 'late']
+    else if (arrived) status = arrivalIsLate(next, now) ? ['Checked In Late', 'late']
       : [next.kind === 'pickup' ? 'At Pickup' : 'At Receiver', 'progress'];
-    else if (next.due <= now) status = ['Late', 'late'];
+    else if (arrivalIsLate(next, now)) status = ['Late', 'late'];
     else if (next.due - now <= 30 * minute) status = ['Warning', 'warning'];
     if (load.status === 'current' && load.progress?.relay?.droppedAt &&
         !load.progress.relay.departedAt && !load.progress.yardPickedUpAt) status = ['At Relay', 'progress'];
@@ -470,8 +491,8 @@ const dispatchProgress = (() => {
       toggle('dispatchDetailEdit', current || load.status === 'completed');
       toggle('dispatchDetailComplete', current);
       const review = byId('dispatchReviewDeparture');
-      const { pending, final, issues } = boardState(load);
-      toggle('dispatchReviewDeparture', current && Boolean(pending || final) && !issues.length);
+      const { final, canReviewDeparture } = boardState(load);
+      toggle('dispatchReviewDeparture', current && canReviewDeparture);
       review.textContent = final ? 'Accept and complete' : 'Accept departure';
       review.disabled = readOnly || Boolean(request) || isReviewing(load.id);
       const drivers = loadDriverContacts(load);

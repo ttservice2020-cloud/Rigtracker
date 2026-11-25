@@ -511,7 +511,7 @@ const fleetDispatchApp = (() => {
       return row;
     }
 
-    const { issues, pending, next, final, atRelay } = board;
+    const { issues, pending, next, final, atRelay, canReviewDeparture } = board;
     const row = element('article', '', 'dispatch-load-row dispatch-board-card');
     row.dataset.boardLoad = load.id;
     row.dataset.updated = String(state.updates.has(load.id));
@@ -526,8 +526,10 @@ const fleetDispatchApp = (() => {
       row.append(issueBadge(issue));
       if (issue.details) row.append(element('p', issue.details));
     }
-    const stop = issues.find(issue => issue.stop)?.stop || pending || next;
-    if (stop) {
+    const displayedStops = new Set([issues.find(issue => issue.stop)?.stop || pending || next]);
+    if (canReviewDeparture && pending) displayedStops.add(pending);
+    for (const stop of displayedStops) {
+      if (!stop) continue;
       const kind = (stop.kind === 'pickup' ? 'Pickup' : 'Delivery') + ' ' + (stop.index + 1);
       row.append(element('p', [kind, stop.company].filter(Boolean).join(' · ')));
       if (stop.progress.arrivalAt) row.append(element('p', 'Arrived ' + dispatchProgress.recordedTime(stop.progress.arrivalAt, stop.zone)));
@@ -554,7 +556,7 @@ const fleetDispatchApp = (() => {
       watch.classList.add('dispatch-watch-button');
       showWatchButton(watch, load);
       actions.append(watch);
-    } else if (!issues.length && (pending || final)) {
+    } else if (canReviewDeparture) {
       const review = button(final ? 'Accept and complete' : 'Accept departure', () => void acceptBoardDeparture(load));
       review.className = 'primary-btn';
       review.disabled = state.boardReviews.has(load.id);
@@ -2117,8 +2119,8 @@ const fleetDispatchApp = (() => {
   async function acceptBoardDeparture(load) {
     const scope = state;
     if (!scope?.access.dispatch || load?.status !== 'current' || scope.boardReviews.has(load.id)) return;
-    const { pending, final, issues } = dispatchProgress.boardState(load);
-    if (issues.length || (!pending && !final)) return;
+    const { pending, canReviewDeparture } = dispatchProgress.boardState(load);
+    if (!canReviewDeparture) return;
     const openLease = lease?.id === load.id ? lease : null;
     if (openLease && !canEditLoad(load.id)) return;
     const target = openLease || { scope, id: load.id, token: crypto.randomUUID() };

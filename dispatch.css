@@ -22,6 +22,7 @@
 .dispatch-load-row[data-issue="breakdown"]{border-color:#ff6175;background:#391821}
 .dispatch-load-row[data-issue="traffic"]{border-color:#efbc43;background:#3e2d10}
 .dispatch-load-row[data-issue="hold"]{border-color:#a986f2;background:#2f2049}
+.dispatch-load-row[data-issue="late"]{border-color:#d86883;background:#301a25}
 .dispatch-board-card[data-issue="breakdown"]{animation:dispatch-breakdown-flash 1.7s ease-in-out infinite}
 .dispatch-board-card[data-issue="traffic"]{animation:dispatch-traffic-flash 1.7s ease-in-out infinite}
 .dispatch-board-card[data-issue="hold"]{animation:dispatch-hold-flash 1.7s ease-in-out infinite}
