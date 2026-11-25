@@ -573,14 +573,6 @@ const dispatchProgress = (() => {
           }
         }
         if (stop.progress.completedAt) entry.append(element('p', 'Departed ' + recordedTime(stop.progress.completedAt, stop.zone)));
-        const report = stop.progress.driverReport;
-        if (report) {
-          const reported = reportedFreight(report);
-          if (reported) entry.append(element('p', reported, 'muted'));
-          if (reported && report.dispatchEnteredAt) entry.append(element('small', 'Load info entered by dispatch', 'muted'));
-          const label = stop.kind === 'pickup' ? 'BOL' : 'delivery paperwork';
-          entry.append(...driverLoadWorkflow.paperworkButtons(report, label, button));
-        }
         return entry;
       });
       if (split && !contract) {
@@ -624,21 +616,42 @@ const dispatchProgress = (() => {
       docs.replaceChildren();
       if (details.rateConfirmation?.path) docs.append(button('View Rate Confirmation', () => openRateConfirmation(details.rateConfirmation)));
       else docs.append(element('p', 'Rate confirmation: Not uploaded', 'muted'));
-      for (const stop of stops) {
-        const report = stop.progress?.driverReport;
+      const inputRows = stops.map(stop => {
+        const report = stop.progress?.driverReport || {};
         const pickup = stop.kind === 'pickup';
-        const context = stop.company || (pickup ? 'Pickup ' : 'Delivery ') + (stop.index + 1);
-        const documents = driverLoadWorkflow.paperworkButtons(report, pickup ? 'signed pickup BOL' : 'signed delivery BOL', button, context);
-        docs.append(...documents);
-        if (pickup && !documents.length) docs.append(element('p', 'Pickup BOL: Not uploaded · ' + context, 'dispatch-document-missing'));
-        docs.append(element('p',driverLoadWorkflow.lumperCharge(report) + ' · ' + context,'muted'));
+        const context = [progressLabel(stop), stop.company].filter(Boolean).join(' · ');
+        const row = element('li', '', 'dispatch-detail-stop');
+        row.append(element('strong', context));
+        const trailer = report.bobtail ? 'Bobtail'
+          : report.trailer || report.pickedTrailer || (!report.droppedTrailer && report.pickupTrailer);
+        const trailerType = { fleet: 'Fleet', power_only: 'Power Only' }[report.trailerType || report.pickupTrailerType];
+        const fields = [
+          ['Trailer number', trailer], ['Trailer type', trailerType], ['Commodity', report.commodity],
+          ['Weight', report.weight && Number(report.weight).toLocaleString() + ' lb'],
+          ['Pieces', report.pieces], ['BOL number', report.bol],
+          ['Dropped trailer', report.droppedTrailer],
+          ['Picked-up trailer', [report.pickedTrailer, report.pickedTrailer && report.loadedState].filter(Boolean).join(' · ')]
+        ].filter(([, value]) => value || value === 0);
+        if (fields.length) {
+          const facts = element('dl', '', 'dispatch-detail-facts');
+          facts.append(...fields.map(([label, value]) => fact(label, value)));
+          row.append(facts);
+          if (report.dispatchEnteredAt) row.append(element('small', 'Load info entered by dispatch', 'muted'));
+        } else row.append(element('p', 'No load info entered yet.', 'muted'));
+        const documents = driverLoadWorkflow.paperworkButtons(report, pickup ? 'BOL' : 'Proof of Delivery', button);
+        row.append(...documents);
+        if (pickup && !documents.length) row.append(element('p', 'Signed BOL missing', 'dispatch-document-missing'));
+        row.append(element('p', driverLoadWorkflow.lumperCharge(report), 'muted'));
         if (current || load.status === 'completed') {
           const editFee = button('Edit Lumper Fee',() => editLumper(load,stop));
           editFee.setAttribute('aria-label','Edit lumper fee for ' + context);
           editFee.disabled = readOnly || Boolean(request);
-          docs.append(editFee);
+          row.append(editFee);
         }
-      }
+        return row;
+      });
+      byId('dispatchDetailDriverInput').replaceChildren(...inputRows);
+      toggle('dispatchDetailDriverInputPanel', Boolean(inputRows.length));
       history(load);
     }
 
@@ -681,9 +694,12 @@ const dispatchProgress = (() => {
 
     function show(id) {
       closeMessageDrivers();
-      if (activeId !== id) byId('dispatchLoadNoteText').value = '';
       if (!getLoad(id)) return;
-      if (activeId !== id) historyDate = '';
+      if (activeId !== id) {
+        byId('dispatchLoadNoteText').value = '';
+        byId('dispatchDetailFreightPanel').open = false;
+        historyDate = '';
+      }
       activeId = id;
       selectedStop = null;
       view.classList.remove('hidden');

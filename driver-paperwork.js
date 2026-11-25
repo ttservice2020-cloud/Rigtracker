@@ -98,12 +98,13 @@ const driverPaperwork = (() => {
     let scanning = false;
 
     function paint() {
-      gallery.replaceChildren(...draft.files.map(({ file, mime }, index) => {
+      gallery.replaceChildren(...draft.files.map(({ file, mime, scan }, index) => {
         const position = index + 1;
         const card = element('li', '', 'driver-paperwork-card');
-        const thumb = mime === 'application/pdf'
+        const thumb = mime === 'application/pdf' && !scan
           ? element('div', 'PDF', 'driver-paperwork-photo')
-          : photo(objectUrl(view, file), 'Photo ' + position + ' preview', 'Preview unavailable');
+          : photo(objectUrl(view, scan || file), 'Page ' + position + ' preview', 'Preview unavailable');
+        if (scan) thumb.firstElementChild.dataset.scan = '';
         card.append(thumb, element('p', position + '. ' + file.name));
         const remove = button('Remove', () => {
           draft.files.splice(index, 1);
@@ -117,7 +118,7 @@ const driverPaperwork = (() => {
         return card;
       }));
       const total = draft.files.length;
-      count.textContent = scanning ? 'Preparing scan…'
+      count.textContent = scanning ? 'Preparing PDF scan…'
         : total ? total + (total === 1 ? ' file selected' : ' files selected') : 'No files selected';
       add.disabled = take.disabled = Boolean(draft.saving) || scanning || total >= limit;
       done.disabled = scanning || Boolean(options.save && (draft.saving || !total));
@@ -142,7 +143,10 @@ const driverPaperwork = (() => {
         if (!selected.length) return;
         const errors = new Set();
         scanning = Boolean(options.scan);
-        if (scanning) update();
+        if (scanning) {
+          error.textContent = '';
+          update();
+        }
         for (const file of selected) {
           const mime = fileMime(file);
           if (!Object.hasOwn(extensionByMime, mime) || !file.size || file.size > maxBytes) {
@@ -156,16 +160,21 @@ const driverPaperwork = (() => {
               const url = URL.createObjectURL(file);
               try {
                 const scan = await scanPhoto(url);
-                entry = { file:new File([scan],file.name.replace(/\.[^.]+$/,'') + '-scan.jpg',{type:'image/jpeg'}),
-                  mime:'image/jpeg', scanned:true };
-              } catch {
-                errors.add('Could not scan ' + file.name + ' on this device. Its original is selected.');
+                const pdf = await buildPdf([{ mime, scan }]);
+                if (pdf.size > maxBytes) throw new Error('This PDF scan exceeds 10 MB.');
+                const name = file.name.replace(/\.[^.]+$/, '') + '-scan.pdf';
+                entry = { file: new File([pdf], name, { type: pdf.type }), mime: pdf.type, scan };
+              } catch (failure) {
+                errors.add('Could not scan ' + file.name + '. ' + (failure.message || '') +
+                  ' Try again or choose an existing PDF.');
+                continue;
               } finally { URL.revokeObjectURL(url); }
             }
             if (session !== view || !dialog.open) return;
             draft.files.push(entry);
           }
         }
+        if (session !== view || !dialog.open) return;
         scanning = false;
         error.textContent = [...errors].join(' ');
         update();
@@ -177,7 +186,7 @@ const driverPaperwork = (() => {
     files.multiple = true;
     const camera = filePicker('image/*');
     camera.setAttribute('capture', 'environment');
-    const take = button(options.scan ? 'Scan page' : 'Take photo', () => camera.click());
+    const take = button(options.scan ? 'Scan to PDF' : 'Take photo', () => camera.click());
     const add = button('Add photos or PDF', () => files.click());
     const actions = element('div', '', 'driver-paperwork-actions');
     actions.append(take, add, camera, files);
@@ -210,7 +219,7 @@ const driverPaperwork = (() => {
   }
 
   async function upload(loadId, userId, entry) {
-    entry.path ??= loadId + '/' + userId + '/' + crypto.randomUUID() + (entry.scanned ? '-scan' : '') + '.' + extensionByMime[entry.mime];
+    entry.path ??= loadId + '/' + userId + '/' + crypto.randomUUID() + (entry.scan ? '-scan' : '') + '.' + extensionByMime[entry.mime];
     if (!entry.uploaded) {
       const { error } = await supabaseClient.storage.from(bucket).upload(entry.path, entry.file, { contentType: entry.mime });
       if (error && String(error.statusCode ?? error.status) !== '409' && error.error !== 'Duplicate') throw error;
@@ -337,7 +346,7 @@ const driverPaperwork = (() => {
       const print = button('Print', printPhotos);
       if (photosOnly) actions.append(print);
       status.textContent = 'Preparing printable PDF…';
-      const pdf = await buildPdf(files);
+      const pdf = files.length === 1 && files[0].mime === 'application/pdf' ? files[0].original : await buildPdf(files);
       if (!current()) return;
       const pdfUrl = objectUrl(view, pdf);
       const download = element('a', 'Download PDF', 'outline driver-paperwork-download');
