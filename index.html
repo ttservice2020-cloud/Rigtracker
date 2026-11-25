@@ -297,8 +297,8 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 .driver-load-stops li[aria-current="step"]{border-color:#4c8dff;background:#13294a}
 #companySignupFields{border:0;padding:0;margin:0;min-inline-size:0}
 </style>
-<link rel="stylesheet" href="./dispatch.css?v=dispatch-late-1">
-<link rel="stylesheet" href="./driver-app.css?v=profile-records-1">
+<link rel="stylesheet" href="./dispatch.css?v=driver-input-1">
+<link rel="stylesheet" href="./driver-app.css?v=bol-pdf-1">
 <link rel="stylesheet" href="./office-tools.css?v=withholding-forms-1">
 </head>
 <body>
@@ -651,7 +651,6 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
           <button class="outline hidden" id="dispatchDetailRateConfirmation" type="button">View Rate Confirmation</button>
           <button class="outline hidden" id="dispatchDetailMessage" type="button" aria-controls="dispatchMessageDrivers" aria-expanded="false">Message</button>
           <button class="outline" id="dispatchDetailEdit" type="button">Edit Load</button>
-          <button class="outline hidden" id="dispatchDetailAddInfo" type="button">Add Load Info</button>
           <button class="primary-btn hidden" id="dispatchReviewDeparture" type="button">Accept departure</button>
           <button class="outline" id="dispatchDetailComplete" type="button">Mark Completed</button>
          </div>
@@ -709,13 +708,19 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
           <h3>Stops</h3>
           <ol id="dispatchDetailStops" class="dispatch-detail-stops"></ol>
          </section>
-         <section class="panel dispatch-freight-details" id="dispatchDetailFreightPanel">
-          <h3>Freight Details</h3>
-          <dl id="dispatchDetailFreight" class="dispatch-detail-facts"></dl>
-          <h4>Documents &amp; driver charges</h4>
-          <div id="dispatchDetailDocuments" class="dispatch-detail-documents"></div>
+         <section class="panel" id="dispatchDetailDriverInputPanel" aria-labelledby="dispatchDriverInputTitle">
+          <div class="dispatch-detail-title">
+           <h3 id="dispatchDriverInputTitle">Driver Input</h3>
+           <button class="outline hidden" id="dispatchDetailAddInfo" type="button">Edit Stop Info</button>
+          </div>
+          <ol id="dispatchDetailDriverInput" class="dispatch-detail-stops"></ol>
          </section>
         </div>
+        <details class="panel dispatch-freight-details" id="dispatchDetailFreightPanel">
+         <summary>Freight Details</summary>
+         <dl id="dispatchDetailFreight" class="dispatch-detail-facts"></dl>
+         <div id="dispatchDetailDocuments" class="dispatch-detail-documents"></div>
+        </details>
         <section class="panel hidden" id="dispatchDetailHistory">
          <h3>Route History</h3>
          <p class="muted" id="dispatchHistoryRoute"></p>
@@ -1938,7 +1943,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 </dialog>
 <div id="modal"><div class="modal-card"><h2 id="modalTitle"></h2><div id="modalBody"></div><button class="primary-btn" onclick="closeModal()">Close</button></div></div>
 
-<script src="./dispatch-progress.js?v=pickup-trailer-1"></script>
+<script src="./dispatch-progress.js?v=driver-input-1"></script>
 <script src="./dispatch-rate-confirmation.js?v=1"></script>
 <script src="./dispatch-route-miles.js?v=1"></script>
 <script src="./dispatch-zip-lookup.js?v=1"></script>
@@ -1959,11 +1964,11 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 <script src="./payroll-tax-preview.js?v=driver-1099-1"></script>
 <script src="./company-driver-tools.js?v=daily-pay-1"></script>
 <script src="./company-messages.js?v=driver-push-1"></script>
-<script src="./driver-paperwork.js?v=pickup-scan-1"></script>
+<script src="./driver-paperwork.js?v=bol-pdf-1"></script>
 <script src="./payroll-withholding-forms.js?v=hr-tax-1"></script>
 <script src="./payroll-contractor-tax.js?v=hr-tax-1"></script>
 <script src="./hr-tax-forms.js?v=driver-1099-1"></script>
-<script src="./driver-workflow.js?v=pickup-trailer-type-1"></script>
+<script src="./driver-workflow.js?v=driver-input-1"></script>
 <script src="./fleet-admin-driver.js?v=1"></script>
 <script src="./company-safety.js?v=1"></script>
 <script src="./driver-app.js?v=push-1"></script>

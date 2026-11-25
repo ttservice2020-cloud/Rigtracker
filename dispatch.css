@@ -28,7 +28,11 @@
 .dispatch-board-card[data-issue="hold"]{animation:dispatch-hold-flash 1.7s ease-in-out infinite}
 @keyframes dispatch-hold-flash{50%{background:#453068;box-shadow:inset 0 0 0 1px #c7acff}}
 @media(prefers-reduced-motion:reduce){.dispatch-board-card[data-issue],.dispatch-board-review[data-updated="true"]{animation:none}}
-.dispatch-freight-details{min-width:0}.dispatch-freight-details>h4{margin-bottom:8px}.dispatch-detail-documents{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.dispatch-document-missing{color:#ff5967;font-weight:700}.settlement-load-details{margin-top:12px;padding-top:10px;border-top:1px solid #2b4059}.settlement-load-details>summary{cursor:pointer;color:var(--accent-hover);font-weight:700}.settlement-load-facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:10px 0}.settlement-load-facts dt{font-size:12px;color:var(--muted)}.settlement-load-facts dd{margin:2px 0 0;overflow-wrap:anywhere}
+.dispatch-freight-details{min-width:0}
+.dispatch-freight-details>summary{cursor:pointer;font-size:1.125rem;font-weight:700}
+.dispatch-freight-details[open]>summary{margin-bottom:12px}
+.dispatch-detail-documents{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:12px}
+.dispatch-document-missing{color:#ff5967;font-weight:700}.settlement-load-details{margin-top:12px;padding-top:10px;border-top:1px solid #2b4059}.settlement-load-details>summary{cursor:pointer;color:var(--accent-hover);font-weight:700}.settlement-load-facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:10px 0}.settlement-load-facts dt{font-size:12px;color:var(--muted)}.settlement-load-facts dd{margin:2px 0 0;overflow-wrap:anywhere}
 .dispatch-rail-list button{display:grid;gap:3px;width:100%;text-align:left;padding:8px;border:1px solid #2b4059;border-radius:8px;background:#0e1927;color:var(--white);overflow-wrap:anywhere}
 .dispatch-rail-list button:hover,.dispatch-rail-list button:focus-visible{border-color:var(--accent)}
 .dispatch-rail-list small{color:var(--muted);font-size:12px}

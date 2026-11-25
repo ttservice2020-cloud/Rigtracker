@@ -404,12 +404,9 @@ const driverLoadWorkflow = (() => {
       const accepted = load.decision === 'accepted' && load.review !== 'denied' && (load.status === 'current' || load.review === 'pending');
       if (historical || accepted) {
         const canUpdate = historical || stop.progress?.completedAt || (stop.kind === 'pickup' && stop.progress?.arrivalAt);
-        if (canUpdate) {
-          if (stop.kind === 'pickup') row.append(pickupInfoEditor(load,stop));
-          else {
-            const upload = deliveryPaperworkButton(load,stop);
-            if (upload) row.append(upload);
-          }
+        if (canUpdate && stop.kind === 'delivery') {
+          const upload = deliveryPaperworkButton(load,stop);
+          if (upload) row.append(upload);
         }
       }
       list.append(row);
@@ -488,6 +485,16 @@ const driverLoadWorkflow = (() => {
     if (selected === load.id && departure?.dataset.stopKey === stop.key) departure.dispatchEvent(new Event('paperwork-change'));
   }
 
+  function paintDriverInput(load, panel) {
+    const historical = load.status === 'completed' && load.decision !== 'rejected';
+    const accepted = load.decision === 'accepted' && load.review !== 'denied' &&
+      (load.status === 'current' || load.review === 'pending');
+    const pickups = load.stops.filter(stop => stop.kind === 'pickup' &&
+      (historical || accepted && (stop.progress?.arrivalAt || stop.progress?.completedAt)));
+    panel.hidden = !pickups.length;
+    panel.replaceChildren(node('h2', 'Driver Input'), ...pickups.map(stop => pickupInfoEditor(load, stop)));
+  }
+
   function pickupInfoEditor(load, stop) {
     const key = JSON.stringify([load.id,stop.key]);
     const existing = pickupEditors.get(key);
@@ -564,12 +571,12 @@ const driverLoadWorkflow = (() => {
     trailerTypes.addEventListener('change',validateTrailer);
     const count = node('p','','muted');
     const documentLimit = () => Math.max(0,20 - paperworkFiles(latestReport()).length);
-    const upload = button('Upload Document',() => {
+    const upload = button('Scan or Upload BOL',() => {
       if (draft.saving) return;
       driverPaperwork.edit(draft,'Upload BOL',pro(load) + ' · ' + stop.info.company,() => {
         updateDocuments();
         updateDeparturePaperwork(load,stop);
-      },{limit:documentLimit(),scan:true,help:'Scan the BOL, then tap Done and save the load info.'});
+      },{limit:documentLimit(),scan:true,help:'Scan the BOL as a PDF, then tap Done and Save Load Info.'});
     });
     function updateDocuments() {
       const size = draft.files.length;
@@ -579,7 +586,8 @@ const driverLoadWorkflow = (() => {
     const actions = node('div','','dispatch-actions');
     actions.append(upload,save);
     form.append(controls,trailerWarning,actions,count,status);
-    editor.append(node('summary','Input Load Info'),form);
+    const company = stop.info.company || place(stop.info);
+    editor.append(node('summary', company ? 'Pickup Info & BOL · ' + company : 'Pickup Info & BOL'),form);
     fillPickupInfo();
     editor.addEventListener('paperwork-change',updateDocuments);
     editor.addEventListener('trailer-plan-change',validateTrailer);
@@ -1341,7 +1349,10 @@ const driverLoadWorkflow = (() => {
       next.control.focus();
     });
     activate(detailTab);
-    panel.append(tabs, ...views.map(entry => entry.view));
+    const driverInput = node('section', '', 'driver-input panel');
+    driverInput.id = 'driverLoadInput';
+    paintDriverInput(load, driverInput);
+    panel.append(tabs, driverInput, ...views.map(entry => entry.view));
   }
 
   function companyLoadUpdate(user, data, visible) {
@@ -1397,14 +1408,16 @@ const driverLoadWorkflow = (() => {
       }
     }
     const stopsChanged = JSON.stringify(previous.stops) !== JSON.stringify(load.stops);
-    if (stopsChanged || freightChanged) {
+    if (stopsChanged) {
       const focused = document.activeElement;
       const inPickupEditor = focused?.closest('.driver-pickup-info');
-      byId('driverLoadStops')?.replaceWith(showAllStops(load));
+      const driverInput = byId('driverLoadInput');
+      if (driverInput) paintDriverInput(load, driverInput);
       if (inPickupEditor && focused.isConnected) focused.focus({preventScroll:true});
     }
+    if (stopsChanged || freightChanged) byId('driverLoadStops')?.replaceWith(showAllStops(load));
     if (freightChanged || previous.incomingTrailer !== load.incomingTrailer) {
-      for (const editor of byId('driverLoadStops')?.querySelectorAll('.driver-pickup-info[open]') || []) {
+      for (const editor of byId('driverLoadInput')?.querySelectorAll('.driver-pickup-info[open]') || []) {
         editor.dispatchEvent(new Event('trailer-plan-change'));
       }
     }
