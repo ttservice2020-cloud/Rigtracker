@@ -95,6 +95,7 @@ const driverPaperwork = (() => {
     count.setAttribute('role', 'status');
     const error = element('p', '', 'driver-paperwork-error');
     error.setAttribute('role', 'alert');
+    let scanning = false;
 
     function paint() {
       gallery.replaceChildren(...draft.files.map(({ file, mime }, index) => {
@@ -111,14 +112,15 @@ const driverPaperwork = (() => {
           (gallery.children[Math.min(index, gallery.children.length - 1)]?.querySelector('button') || add).focus();
         });
         remove.setAttribute('aria-label', 'Remove ' + file.name);
-        remove.disabled = Boolean(draft.saving);
+        remove.disabled = Boolean(draft.saving) || scanning;
         card.append(remove);
         return card;
       }));
       const total = draft.files.length;
-      count.textContent = total ? total + (total === 1 ? ' file selected' : ' files selected') : 'No files selected';
-      add.disabled = take.disabled = Boolean(draft.saving) || total >= limit;
-      if (options.save) done.disabled = Boolean(draft.saving) || !total;
+      count.textContent = scanning ? 'Preparing scan…'
+        : total ? total + (total === 1 ? ' file selected' : ' files selected') : 'No files selected';
+      add.disabled = take.disabled = Boolean(draft.saving) || scanning || total >= limit;
+      done.disabled = scanning || Boolean(options.save && (draft.saving || !total));
     }
 
     function update() {
@@ -133,10 +135,15 @@ const driverPaperwork = (() => {
       picker.type = 'file';
       picker.accept = accept;
       picker.hidden = true;
-      picker.addEventListener('change', () => {
-        if (session !== view || !dialog.open || draft.saving) return;
+      picker.addEventListener('change', async () => {
+        if (session !== view || !dialog.open || draft.saving || scanning) return;
+        const selected = [...picker.files];
+        picker.value = '';
+        if (!selected.length) return;
         const errors = new Set();
-        for (const file of picker.files) {
+        scanning = Boolean(options.scan);
+        if (scanning) update();
+        for (const file of selected) {
           const mime = fileMime(file);
           if (!Object.hasOwn(extensionByMime, mime) || !file.size || file.size > maxBytes) {
             errors.add(file.name + ' must be a supported photo or PDF up to 10 MB.');
@@ -144,10 +151,22 @@ const driverPaperwork = (() => {
             errors.add('You can add up to ' + limit + (limit === 1 ? ' more file.' : ' more files.'));
             break;
           } else {
-            draft.files.push({ file, mime });
+            let entry = { file, mime };
+            if (options.scan && mime.startsWith('image/')) {
+              const url = URL.createObjectURL(file);
+              try {
+                const scan = await scanPhoto(url);
+                entry = { file:new File([scan],file.name.replace(/\.[^.]+$/,'') + '-scan.jpg',{type:'image/jpeg'}),
+                  mime:'image/jpeg', scanned:true };
+              } catch {
+                errors.add('Could not scan ' + file.name + ' on this device. Its original is selected.');
+              } finally { URL.revokeObjectURL(url); }
+            }
+            if (session !== view || !dialog.open) return;
+            draft.files.push(entry);
           }
         }
-        picker.value = '';
+        scanning = false;
         error.textContent = [...errors].join(' ');
         update();
       });
@@ -158,7 +177,7 @@ const driverPaperwork = (() => {
     files.multiple = true;
     const camera = filePicker('image/*');
     camera.setAttribute('capture', 'environment');
-    const take = button('Take photo', () => camera.click());
+    const take = button(options.scan ? 'Scan page' : 'Take photo', () => camera.click());
     const add = button('Add photos or PDF', () => files.click());
     const actions = element('div', '', 'driver-paperwork-actions');
     actions.append(take, add, camera, files);
@@ -184,14 +203,14 @@ const driverPaperwork = (() => {
       }
     }, 'primary-btn');
     footer.append(done);
-    view.body.append(actions, element('p', options.save
-      ? 'Choose files and save them to this completed load.' : 'Files are attached when you save the stop.', 'muted'),
+    view.body.append(actions, element('p', options.help || (options.save
+      ? 'Choose files and save them to this stop.' : 'Files are attached when you save the stop.'), 'muted'),
     count, error, gallery, footer);
     paint();
   }
 
   async function upload(loadId, userId, entry) {
-    entry.path ??= loadId + '/' + userId + '/' + crypto.randomUUID() + '.' + extensionByMime[entry.mime];
+    entry.path ??= loadId + '/' + userId + '/' + crypto.randomUUID() + (entry.scanned ? '-scan' : '') + '.' + extensionByMime[entry.mime];
     if (!entry.uploaded) {
       const { error } = await supabaseClient.storage.from(bucket).upload(entry.path, entry.file, { contentType: entry.mime });
       if (error && String(error.statusCode ?? error.status) !== '409' && error.error !== 'Duplicate') throw error;
@@ -299,7 +318,8 @@ const driverPaperwork = (() => {
         originalLink.download = fileNameBase + '-' + (index + 1) + '.' + extension;
         let scan = null;
         if (mime.startsWith('image/')) {
-          try { scan = await scanPhoto(url); } catch {}
+          if (path.endsWith('-scan.jpg')) scan = original;
+          else try { scan = await scanPhoto(url); } catch {}
           if (!current()) return;
           page.append(photo(scan ? objectUrl(view, scan) : url, 'Page ' + (index + 1),
             'This photo can be downloaded to view on your device.'));

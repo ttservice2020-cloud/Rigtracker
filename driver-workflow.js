@@ -21,6 +21,11 @@ const driverLoadWorkflow = (() => {
   let selected = null;
   let detailTab = 'progress';
   const paperworkDrafts = new Map();
+  const pickupEditors = new Map();
+  const pickupFields = [
+    ['commodity','Commodity',{maxLength:120}], ['weight','Weight',{inputMode:'decimal',maxLength:20}],
+    ['pieces','Pieces',{inputMode:'numeric',maxLength:20}], ['bol','BOL number',{maxLength:100}]
+  ];
   let driverRead = null;
   let officeRead = null;
   let driverSnapshot = '';
@@ -394,9 +399,17 @@ const driverLoadWorkflow = (() => {
         row.append(node('p', departed ? 'Arrived ' + time + ' · Departed ' + departed : 'Arrived ' + time, 'muted'));
       }
       row.append(...stopReport(stop));
-      if (load.status === 'completed' && load.decision !== 'rejected') {
-        const upload = completedPaperworkButton(load,stop);
-        if (upload) row.append(upload);
+      const historical = load.status === 'completed' && load.decision !== 'rejected';
+      const accepted = load.decision === 'accepted' && load.review !== 'denied' && (load.status === 'current' || load.review === 'pending');
+      if (historical || accepted) {
+        const canUpdate = historical || stop.progress?.completedAt || (stop.kind === 'pickup' && stop.progress?.arrivalAt);
+        if (canUpdate) {
+          if (stop.kind === 'pickup') row.append(pickupInfoEditor(load,stop));
+          else {
+            const upload = deliveryPaperworkButton(load,stop);
+            if (upload) row.append(upload);
+          }
+        }
       }
       list.append(row);
     }
@@ -435,10 +448,126 @@ const driverLoadWorkflow = (() => {
       ? report.documents : [report?.document].filter(Boolean);
   }
 
-  function completedPaperworkButton(load, stop) {
+  function pickupFreightInputs(report = {}) {
+    return pickupFields.map(([name,label,options]) => input(label,name,{...options,value:report[name] ?? ''}));
+  }
+
+  async function uploadPaperwork(loadId,user,files,progress = () => {}) {
+    const documents = [];
+    for (const [index, entry] of files.entries()) {
+      if (currentUser !== user) throw new Error('Sign in again to upload paperwork.');
+      progress('Uploading ' + (index + 1) + ' of ' + files.length + '…');
+      documents.push(await driverPaperwork.upload(loadId,user.id,entry));
+    }
+    if (currentUser !== user) throw new Error('Sign in again to attach your paperwork.');
+    return documents;
+  }
+
+  function updateDeparturePaperwork(load,stop) {
+    const departure = byId('driverLoadProgressActions')?.querySelector('[data-trailer-departure]');
+    if (selected === load.id && departure?.dataset.stopKey === stop.key) departure.dispatchEvent(new Event('paperwork-change'));
+  }
+
+  function pickupInfoEditor(load, stop) {
+    const key = JSON.stringify([load.id,stop.key]);
+    const existing = pickupEditors.get(key);
+    if (existing?.open) return existing;
+    const draft = paperworkDrafts.get(key) || {files:[],saving:false};
+    paperworkDrafts.set(key,draft);
+    let report = stop.progress?.driverReport || {};
+    const editor = node('details', '', 'driver-pickup-info');
+    const form = node('form');
+    const status = node('p', '', 'muted');
+    status.setAttribute('role','status');
+    const save = submitButton('Save Load Info');
+    const controls = fields(...pickupFreightInputs(report));
+    const latestReport = () => driverData.loads.find(row => row.id === load.id)?.stops.find(row => row.key === stop.key)?.progress?.driverReport || {};
+    const count = node('p','','muted');
+    const documentLimit = () => Math.max(0,20 - paperworkFiles(latestReport()).length);
+    const upload = button('Upload Document',() => {
+      if (draft.saving) return;
+      driverPaperwork.edit(draft,'Upload BOL',pro(load) + ' · ' + stop.info.company,() => {
+        updateDocuments();
+        updateDeparturePaperwork(load,stop);
+      },{limit:documentLimit(),scan:true,help:'Scan the BOL, then tap Done and save the load info.'});
+    });
+    function updateDocuments() {
+      const size = draft.files.length;
+      count.textContent = size ? size + (size === 1 ? ' file ready to attach' : ' files ready to attach') : '';
+      upload.disabled = draft.saving || !documentLimit() && !size;
+    }
+    const actions = node('div','','dispatch-actions');
+    actions.append(upload,save);
+    form.append(controls,actions,count,status);
+    editor.append(node('summary','Input Load Info'),form);
+    editor.addEventListener('paperwork-change',updateDocuments);
+    updateDocuments();
+    editor.addEventListener('toggle', () => {
+      if (editor.open) {
+        if (pickupEditors.get(key) !== editor) {
+          report = latestReport();
+          for (const [name] of pickupFields) form.elements[name].value = report[name] ?? '';
+          status.textContent = '';
+        }
+        pickupEditors.set(key,editor);
+        updateDocuments();
+      }
+      else if (pickupEditors.get(key) === editor) pickupEditors.delete(key);
+    });
+    form.addEventListener('submit', async event => {
+      event.preventDefault();
+      const user = currentUser;
+      if (!user || save.disabled || draft.saving) return;
+      const changes = Object.fromEntries(pickupFields.map(([name]) => [name,form.elements[name].value.trim()])
+        .filter(([name,value]) => value !== String(report[name] ?? '').trim()));
+      if (!Object.keys(changes).length && !draft.files.length) { editor.open = false; return; }
+      const expected = Object.fromEntries(Object.keys(changes).map(name => [name,report[name] ?? null]));
+      draft.saving = save.disabled = true;
+      updateDocuments();
+      controls.querySelectorAll('input').forEach(field => { field.readOnly = true; });
+      status.textContent = 'Saving load info…';
+      try {
+        const documents = await uploadPaperwork(load.id,user,draft.files,message => { status.textContent = message; });
+        status.textContent = 'Saving load info…';
+        const {error} = await supabaseClient.rpc('update_driver_stop_info',{
+          target_load:load.id,target_stop:stop.key,load_info:changes,expected_info:expected,documents
+        });
+        if (error) throw error;
+        if (user !== currentUser) return;
+        draft.files.length = 0;
+        updateDeparturePaperwork(load,stop);
+        pickupEditors.delete(key);
+        editor.open = false;
+        status.textContent = 'Load info saved.';
+        showToast('Load info saved.');
+        await refresh(false,false);
+      } catch (error) {
+        if (user !== currentUser) return;
+        status.textContent = error.message || 'Could not save load info. Try again.';
+        if (error.code === '40001') {
+          await refresh(false,false);
+          if (user !== currentUser) return;
+          report = latestReport();
+          const saved = [];
+          for (const [name,label] of pickupFields) {
+            if (Object.hasOwn(changes,name)) saved.push(label + ' ' + (report[name] || 'blank'));
+            else form.elements[name].value = report[name] ?? '';
+          }
+          status.textContent = 'The pickup changed. Saved values: ' + saved.join(' · ') + '. Review your entries and save again.';
+        }
+      } finally {
+        draft.saving = save.disabled = false;
+        updateDocuments();
+        controls.querySelectorAll('input').forEach(field => { field.readOnly = false; });
+      }
+    });
+    return editor;
+  }
+
+  function deliveryPaperworkButton(load, stop) {
     const limit = 20 - paperworkFiles(stop.progress?.driverReport).length;
     if (limit <= 0) return null;
-    const label = stop.kind === 'pickup' ? 'BOL' : 'Proof of Delivery';
+    const label = 'Proof of Delivery';
     const key = JSON.stringify([load.id,stop.key]);
     return button('Upload ' + label, () => {
       const user = currentUser;
@@ -449,20 +578,15 @@ const driverLoadWorkflow = (() => {
       driverPaperwork.edit(draft,'Upload ' + label,pro(load) + ' · ' + stop.info.company,() => {},{
         limit,
         async save() {
-          const documents = [];
-          for (const entry of draft.files) {
-            if (currentUser !== user) throw new Error('Sign in again to upload paperwork.');
-            documents.push(await driverPaperwork.upload(load.id,user.id,entry));
-          }
-          if (currentUser !== user) throw new Error('Sign in again to attach your paperwork.');
-          const { error } = await supabaseClient.rpc('attach_completed_load_paperwork',{
+          const documents = await uploadPaperwork(load.id,user,draft.files);
+          const { error } = await supabaseClient.rpc('update_driver_stop_info',{
             target_load:load.id,target_stop:stop.key,documents
           });
           if (error) throw error;
           paperworkDrafts.delete(key);
           if (currentUser === user) {
             showToast(label + ' saved.');
-            await refresh(false,true);
+            await refresh(false,false);
           }
         }
       });
@@ -480,6 +604,7 @@ const driverLoadWorkflow = (() => {
   function stopForm(load, stop) {
     const form = node('form');
     form.dataset.trailerDeparture = '';
+    form.dataset.stopKey = stop.key;
     let freight = load.freight || {};
     const title = stop.kind === 'pickup' ? 'Depart Pickup' : 'Depart Delivery';
     form.append(node('h3', title));
@@ -600,12 +725,7 @@ const driverLoadWorkflow = (() => {
       updateTrailer();
     });
     updateTrailer();
-    const pickupFreight = stop.kind === 'pickup' && !load.return_of ? [
-      input('Commodity', 'commodity', { maxLength:120 }),
-      input('Weight', 'weight', { inputMode:'decimal', maxLength:20 }),
-      input('Pieces', 'pieces', { inputMode:'numeric', maxLength:20 }),
-      input('BOL number', 'bol', { maxLength:100 })
-    ] : [];
+    const pickupFreight = stop.kind === 'pickup' && !load.return_of ? pickupFreightInputs(stop.progress?.driverReport) : [];
     form.append(fields(
       trailer, bobtail, ...pickupFreight,
       dropped,
@@ -614,13 +734,20 @@ const driverLoadWorkflow = (() => {
     form.append(trailerTypes, serviceAlert, alert);
     const paperworkTitle = stop.kind === 'pickup' ? 'BOL' : 'proof of delivery';
     const paperwork = button('', () => {
-      if (!draft.saving) driverPaperwork.edit(draft, 'Upload ' + paperworkTitle, pro(load) + ' · ' + stop.info.company, updatePaperwork);
+      const current = driverData.loads.find(row => row.id === load.id)?.stops.find(row => row.key === stop.key);
+      const limit = 20 - paperworkFiles(current?.progress?.driverReport).length;
+      if (!draft.saving) driverPaperwork.edit(draft, 'Upload ' + paperworkTitle, pro(load) + ' · ' + stop.info.company, () => {
+        updatePaperwork();
+        pickupEditors.get(key)?.dispatchEvent(new Event('paperwork-change'));
+      },
+        {limit,scan:stop.kind === 'pickup'});
     });
     function updatePaperwork() {
       const total = draft.files.length;
       paperwork.textContent = total ? 'Edit ' + paperworkTitle + ' · ' + total + (total === 1 ? ' file' : ' files') : 'Add ' + paperworkTitle;
     }
     updatePaperwork();
+    form.addEventListener('paperwork-change',updatePaperwork);
     const actions = node('div', '', 'dispatch-actions');
     actions.append(paperwork, submit);
     form.append(actions);
@@ -632,19 +759,17 @@ const driverLoadWorkflow = (() => {
       draft.saving = paperwork.disabled = submit.disabled = true;
       const originalLabel = submit.textContent;
       try {
-        const documents = [];
-        for (const [index, entry] of draft.files.entries()) {
-          if (currentUser !== user) return;
-          submit.textContent = 'Uploading ' + (index + 1) + ' of ' + draft.files.length + '…';
-          documents.push(await driverPaperwork.upload(load.id, user.id, entry));
-        }
-        if (currentUser !== user) return;
+        const documents = await uploadPaperwork(load.id,user,draft.files,message => { submit.textContent = message; });
         if (documents.length) data.documents = documents;
         submit.textContent = 'Saving stop…';
         submit.disabled = false;
         await mutate(submit, 'driver', 'finish_stop', load.id, data,
           stop.kind === 'pickup' ? 'Pickup departure recorded.' : 'Delivery departure recorded.',
-          () => paperworkDrafts.delete(key));
+          () => {
+            draft.files.length = 0;
+            paperworkDrafts.delete(key);
+            pickupEditors.get(key)?.dispatchEvent(new Event('paperwork-change'));
+          });
       } catch (error) {
         if (currentUser === user) showToast(error.message || 'Could not upload the paperwork.');
       } finally {
@@ -1165,13 +1290,26 @@ const driverLoadWorkflow = (() => {
       }
     }
     const stopsChanged = JSON.stringify(previous.stops) !== JSON.stringify(load.stops);
-    if (stopsChanged || freightChanged) byId('driverLoadStops')?.replaceWith(showAllStops(load));
+    if (stopsChanged || freightChanged) {
+      const focused = document.activeElement;
+      const inPickupEditor = focused?.closest('.driver-pickup-info');
+      byId('driverLoadStops')?.replaceWith(showAllStops(load));
+      if (inPickupEditor && focused.isConnected) focused.focus({preventScroll:true});
+    }
     if (stopsChanged) {
       const before = previous.stops.find(stop => !stop.progress?.completedAt);
       const after = load.stops.find(stop => !stop.progress?.completedAt);
       if (actions && (before?.key !== after?.key || Boolean(before?.progress?.arrivalAt) !== Boolean(after?.progress?.arrivalAt))) {
         actions.replaceChildren();
         paintProgressActions(load, actions);
+      } else if (actions && after?.kind === 'pickup') {
+        const departure = actions.querySelector('[data-trailer-departure]');
+        for (const [name] of pickupFields) {
+          const input = departure?.elements[name];
+          if (input && input.value === String(before.progress?.driverReport?.[name] ?? '')) {
+            input.value = after.progress?.driverReport?.[name] ?? '';
+          }
+        }
       }
     }
     for (const kind of ['breakdown', 'traffic']) {
@@ -1429,6 +1567,7 @@ const driverLoadWorkflow = (() => {
   function reset() {
     driverPaperwork.close();
     paperworkDrafts.clear();
+    pickupEditors.clear();
     driverRead = null; officeRead = null; selected = null;
     detailTab = 'progress';
     driverSnapshot = ''; officeSnapshot = ''; driverData = empty(); seenLoadVersion = '';
