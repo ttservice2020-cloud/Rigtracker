@@ -454,6 +454,24 @@ const driverLoadWorkflow = (() => {
     return pickupFields.map(([name,label,options]) => input(label,name,{...options,value:report[name] ?? ''}));
   }
 
+  function setTrailerType(choices,value) {
+    for (const option of choices.querySelectorAll('input')) option.checked = option.value === value;
+  }
+
+  function trailerTypeChoices(name,value) {
+    const choices = node('fieldset','','equipment-trailer-choices');
+    choices.append(node('legend','Trailer Type'),
+      input('Fleet',name,{type:'radio',value:'fleet'}),input('Power Only',name,{type:'radio',value:'power_only'}));
+    setTrailerType(choices,value);
+    return choices;
+  }
+
+  function departureTrailer(load,stop) {
+    const report = stop.progress?.driverReport;
+    if (stop.kind === 'pickup' && report?.pickupTrailerType === 'power_only' && report.pickupTrailer) return report.pickupTrailer;
+    return load.incomingTrailer ?? report?.pickupTrailer ?? '';
+  }
+
   async function uploadPaperwork(loadId,user,files,progress = () => {}) {
     const documents = [];
     for (const [index, entry] of files.entries()) {
@@ -484,6 +502,8 @@ const driverLoadWorkflow = (() => {
     const save = submitButton('Save Load Info');
     const controls = fields(...pickupInfoFields.map(([name,label,options]) => input(label,name,options)));
     const trailer = controls.querySelector('[name=pickupTrailer]');
+    const trailerTypes = trailerTypeChoices('pickupTrailerType');
+    controls.firstElementChild.after(trailerTypes);
     const trailerWarning = node('p','','driver-trailer-alert');
     trailerWarning.setAttribute('role','status');
     const latestLoad = () => driverData.loads.find(row => row.id === load.id) || load;
@@ -502,22 +522,31 @@ const driverLoadWorkflow = (() => {
       const active = current.status !== 'completed' && !pickup.progress?.completedAt;
       const expected = planned || (active ? current.incomingTrailer : pickup.progress?.arrivalTrailer);
       const entered = trailer.value.trim().toUpperCase();
-      const mismatch = !trailer.readOnly && Boolean(entered && expected && entered !== expected.trim().toUpperCase());
-      const note = mismatch ? 'Trailer number must match ' + expected + ' for this pickup.' : '';
+      const type = form.elements.pickupTrailerType.value;
+      const needsType = !trailer.readOnly && entered && !type && entered !== (report.pickupTrailer || '').trim().toUpperCase();
+      const mismatch = !trailer.readOnly && type === 'fleet' && Boolean(entered && expected && entered !== expected.trim().toUpperCase());
+      const note = mismatch ? 'Trailer number must match ' + expected + ' for this pickup.'
+        : needsType ? 'Choose Fleet or Power Only for this trailer.' : '';
       trailer.setCustomValidity(note);
-      trailer.setAttribute('aria-invalid', String(mismatch));
+      trailer.setAttribute('aria-invalid', String(Boolean(note)));
       trailer.dataset.outOfService = 'false';
       trailerWarning.textContent = note;
       clearTimeout(trailerLookup);
       const version = ++trailerLookupVersion;
-      if (!mismatch && entered && !trailer.readOnly && current.status !== 'completed') {
+      if (!mismatch && entered && type === 'fleet' && !trailer.readOnly && current.status !== 'completed') {
         const user = currentUser;
         trailerLookup = setTimeout(async () => {
           try {
             const {data,error} = await supabaseClient.rpc('driver_trailer_status',{target_load:load.id,unit_numbers:[entered]});
-            if (!error && version === trailerLookupVersion && user === currentUser && editor.isConnected && data?.[entered] === true) {
-              trailer.dataset.outOfService = 'true';
-              trailerWarning.textContent = 'Trailer ' + entered + ' is out of service.';
+            if (!error && version === trailerLookupVersion && user === currentUser && editor.isConnected && data) {
+              if (!Object.hasOwn(data,entered)) {
+                trailerWarning.textContent = 'Choose a trailer saved in Equipment or select Power Only.';
+                trailer.setCustomValidity(trailerWarning.textContent);
+                trailer.setAttribute('aria-invalid','true');
+              } else if (data[entered] === true) {
+                trailer.dataset.outOfService = 'true';
+                trailerWarning.textContent = 'Trailer ' + entered + ' is out of service.';
+              }
             }
           } catch {}
         },250);
@@ -527,9 +556,12 @@ const driverLoadWorkflow = (() => {
       for (const [name] of pickupFields) form.elements[name].value = report[name] ?? '';
       trailer.readOnly = trailerRecorded();
       trailer.value = reportTrailer();
+      trailerTypes.disabled = trailerRecorded();
+      setTrailerType(trailerTypes,trailerRecorded() ? report.trailerType : report.pickupTrailerType);
       validateTrailer();
     }
     trailer.addEventListener('input',validateTrailer);
+    trailerTypes.addEventListener('change',validateTrailer);
     const count = node('p','','muted');
     const documentLimit = () => Math.max(0,20 - paperworkFiles(latestReport()).length);
     const upload = button('Upload Document',() => {
@@ -571,11 +603,18 @@ const driverLoadWorkflow = (() => {
       const changes = Object.fromEntries(pickupInfoFields.filter(([name]) => !form.elements[name].readOnly)
         .map(([name]) => [name,form.elements[name].value.trim()])
         .filter(([name,value]) => value !== String(report[name] ?? '').trim()));
+      const trailerNumber = trailer.value.trim();
+      const trailerType = trailerNumber ? form.elements.pickupTrailerType.value : '';
+      if (!trailer.readOnly && (Object.hasOwn(changes,'pickupTrailer') || trailerType !== (report.pickupTrailerType ?? ''))) {
+        changes.pickupTrailer = trailerNumber;
+        changes.pickupTrailerType = trailerType;
+      }
       if (!Object.keys(changes).length && !draft.files.length) { editor.open = false; return; }
       const expected = Object.fromEntries(Object.keys(changes).map(name => [name,report[name] ?? null]));
       draft.saving = save.disabled = true;
       updateDocuments();
       controls.querySelectorAll('input').forEach(field => { field.readOnly = true; });
+      trailerTypes.disabled = true;
       status.textContent = 'Saving load info…';
       try {
         const documents = await uploadPaperwork(load.id,user,draft.files,message => { status.textContent = message; });
@@ -604,7 +643,10 @@ const driverLoadWorkflow = (() => {
             if (Object.hasOwn(changes,name)) saved.push(label + ' ' + (report[name] || 'blank'));
             else form.elements[name].value = report[name] ?? '';
           }
-          if (trailerRecorded()) trailer.value = reportTrailer();
+          if (trailerRecorded()) {
+            trailer.value = reportTrailer();
+            setTrailerType(trailerTypes,report.trailerType);
+          } else if (!Object.hasOwn(changes,'pickupTrailerType')) setTrailerType(trailerTypes,report.pickupTrailerType);
           status.textContent = 'The pickup changed. Saved values: ' + saved.join(' · ') + '. Review your entries and save again.';
         } else if (error.hint === 'pickup_trailer') {
           trailer.setAttribute('aria-invalid','true');
@@ -615,6 +657,7 @@ const driverLoadWorkflow = (() => {
         updateDocuments();
         controls.querySelectorAll('input').forEach(field => { field.readOnly = false; });
         trailer.readOnly = trailerRecorded();
+        trailerTypes.disabled = trailerRecorded();
       }
     });
     return editor;
@@ -671,10 +714,11 @@ const driverLoadWorkflow = (() => {
     const state = node('select');
     state.name = 'loaded_state';
     setOptions(state, [['loaded','Loaded'],['empty','Empty']], 'Select loaded or empty');
-    const trailer = input('Trailer number', 'trailer', {maxLength:40,
-      value:load.incomingTrailer ?? stop.progress?.driverReport?.pickupTrailer ?? ''});
+    const report = stop.progress?.driverReport || {};
+    const trailer = input('Trailer number','trailer',{maxLength:40,value:departureTrailer(load,stop)});
     const trailerNumber = trailer.querySelector('input');
     if (load.incomingTrailer != null) trailerNumber.dataset.incomingTrailer = load.incomingTrailer;
+    if (report.pickupTrailerType === 'power_only' && report.pickupTrailer) trailerNumber.dataset.powerOnlyTrailer = report.pickupTrailer;
     const bobtail = input('Bobtail (leaving without a trailer)', 'bobtail', { type:'checkbox', value:'true' });
     bobtail.classList.add('dispatch-checkbox');
     const check = bobtail.querySelector('input');
@@ -683,10 +727,7 @@ const driverLoadWorkflow = (() => {
     const picked = input('Trailer pickup number (optional)', 'picked_trailer', { maxLength:40 });
     const pickedNumber = picked.querySelector('input');
     const numbers = [trailerNumber, droppedNumber, pickedNumber];
-    const trailerTypes = node('fieldset', '', 'equipment-trailer-choices');
-    trailerTypes.append(node('legend', 'Trailer Type'),
-      input('Fleet', 'trailer_type', { type:'radio', value:'fleet' }),
-      input('Power Only', 'trailer_type', { type:'radio', value:'power_only' }));
+    const trailerTypes = trailerTypeChoices('trailer_type',stop.kind === 'pickup' ? report.pickupTrailerType : undefined);
     const alert = node('p', '', 'driver-trailer-alert');
     alert.setAttribute('role', 'alert');
     alert.id = 'driver-trailer-alert';
@@ -725,6 +766,9 @@ const driverLoadWorkflow = (() => {
       trailerTypes.disabled = check.checked;
       scheduleTrailerLookup();
       const incoming = trailerNumber.dataset.incomingTrailer;
+      const selectedType = trailerTypes.querySelector('input:checked')?.value;
+      const pickupPowerOnly = stop.kind === 'pickup' && selectedType === 'power_only';
+      const expected = pickupPowerOnly ? trailerNumber.dataset.powerOnlyTrailer : incoming;
       const departure = normalizeNumber(trailerNumber);
       const dropped = normalizeNumber(droppedNumber);
       const picked = normalizeNumber(pickedNumber);
@@ -738,15 +782,17 @@ const driverLoadWorkflow = (() => {
       state.required = !check.checked && Boolean(picked);
       const hookMismatch = !check.checked && Boolean(picked) && departure !== picked;
       const unreportedHook = !check.checked && dropped && !picked && departure && departure !== dropped;
-      const mismatch = incoming != null && departure !== incoming.toUpperCase()
+      const mismatch = expected != null && departure !== expected.toUpperCase()
         && !check.checked && !droppedNumber.value.trim() && !picked;
-      const fleetSelected = trailerTypes.querySelector('input:checked')?.value === 'fleet';
-      const unregisteredFleet = fleetSelected && !check.checked && departure &&
-        (!dropped || picked || departure !== dropped) && inventory && !Object.hasOwn(inventory, departure);
+      const fleetSelected = selectedType === 'fleet';
+      const leavingWithTrailer = !check.checked && (picked || (departure && (!dropped || departure !== dropped)));
+      const missingType = leavingWithTrailer && !selectedType;
+      const unregisteredFleet = fleetSelected && leavingWithTrailer && departure && inventory && !Object.hasOwn(inventory, departure);
       const unavailable = new Set();
       for (const control of numbers) {
         const unit = normalizeNumber(control);
-        const outOfService = !control.disabled && inventory?.[unit] === true;
+        const fleetNumber = selectedType !== 'power_only' || control === droppedNumber;
+        const outOfService = fleetNumber && !control.disabled && inventory?.[unit] === true;
         control.dataset.outOfService = String(outOfService);
         if (outOfService) unavailable.add(unit);
       }
@@ -758,11 +804,13 @@ const driverLoadWorkflow = (() => {
         : hookMismatch ? 'Trailer number must match the picked-up trailer.'
         : unreportedHook ? 'Enter the trailer pickup number if you are leaving with a different trailer.'
         : mismatch
-        ? 'Trailer mismatch. ' + (incoming ? 'Arrival trailer: ' + incoming + '. ' : 'You arrived bobtail. ') +
+        ? 'Trailer mismatch. ' + (pickupPowerOnly ? 'Saved pickup trailer: ' + expected + '. '
+          : expected ? 'Arrival trailer: ' + expected + '. ' : 'You arrived bobtail. ') +
           'Enter the same trailer, record a trailer drop or pickup, or select Bobtail.'
+        : missingType ? 'Choose Fleet or Power Only for this trailer.'
         : unregisteredFleet ? 'Select a trailer saved in Equipment or choose Power Only.'
         : '';
-      const invalid = wrongDrop || wrongArrivalDrop || wrongPickup || missingBobtail || hookMismatch || unreportedHook || mismatch || unregisteredFleet;
+      const invalid = wrongDrop || wrongArrivalDrop || wrongPickup || missingBobtail || hookMismatch || unreportedHook || mismatch || missingType || unregisteredFleet;
       trailerNumber.setAttribute('aria-invalid', String(Boolean(hookMismatch || unreportedHook || mismatch || unregisteredFleet)));
       droppedNumber.setAttribute('aria-invalid', String(Boolean(wrongDrop || wrongArrivalDrop)));
       pickedNumber.setAttribute('aria-invalid', String(Boolean(wrongPickup)));
@@ -1340,7 +1388,9 @@ const driverLoadWorkflow = (() => {
       const trailer = byId('driverLoadProgressActions')?.querySelector('input[name=trailer]');
       if (trailer) {
         const previousNumber = trailer.dataset.incomingTrailer ?? '';
-        if (trailer.value.trim().toUpperCase() === previousNumber.toUpperCase()) trailer.value = load.incomingTrailer ?? '';
+        const defaultTrailer = trailer.form.elements.trailer_type.value === 'power_only' && trailer.dataset.powerOnlyTrailer
+          ? trailer.dataset.powerOnlyTrailer : load.incomingTrailer ?? '';
+        if (trailer.value.trim().toUpperCase() === previousNumber.toUpperCase()) trailer.value = defaultTrailer;
         if (load.incomingTrailer == null) delete trailer.dataset.incomingTrailer;
         else trailer.dataset.incomingTrailer = load.incomingTrailer;
         trailer.dispatchEvent(new Event('input'));
@@ -1366,11 +1416,19 @@ const driverLoadWorkflow = (() => {
         paintProgressActions(load, actions);
       } else if (actions && after?.kind === 'pickup') {
         const departure = actions.querySelector('[data-trailer-departure]');
-        const savedTrailer = after.progress?.driverReport?.pickupTrailer;
-        if (departure && savedTrailer && load.incomingTrailer == null &&
-          departure.elements.trailer.value === (before.progress?.driverReport?.pickupTrailer ?? '')) {
-          departure.elements.trailer.value = savedTrailer;
-          departure.elements.trailer.dispatchEvent(new Event('input'));
+        if (departure) {
+          const trailer = departure.elements.trailer;
+          const previousType = before.progress?.driverReport?.pickupTrailerType ?? '';
+          const report = after.progress?.driverReport || {};
+          const type = report.pickupTrailerType ?? '';
+          const powerOnlyTrailer = type === 'power_only' && report.pickupTrailer;
+          if (powerOnlyTrailer) trailer.dataset.powerOnlyTrailer = powerOnlyTrailer;
+          else delete trailer.dataset.powerOnlyTrailer;
+          if (departure.elements.trailer_type.value === previousType && type !== previousType) {
+            setTrailerType(departure.querySelector('.equipment-trailer-choices'),type);
+          }
+          if (trailer.value === departureTrailer(previous,before)) trailer.value = departureTrailer(load,after);
+          trailer.dispatchEvent(new Event('input'));
         }
         for (const [name] of pickupFields) {
           const input = departure?.elements[name];
