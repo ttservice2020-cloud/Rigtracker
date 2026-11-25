@@ -180,7 +180,8 @@ const hrTaxForms = (() => {
     if (current.managed && worker.kind !== 'roster') {
       const context = { fleet:current.fleet, kind:'hr_' + worker.kind, reference:worker.reference,
         name:worker.name, readOnlyForms:worker.former };
-      if (worker.w2) actions.append(button('Withholding Forms & Elections',() => payrollTaxPreview.open(context)));
+      if (worker.w2) actions.append(button(worker.kind === 'driver' ? 'Tax Form & Classification' : 'Withholding Forms & Elections',
+        () => payrollTaxPreview.open(context)));
       actions.append(button('Prepare 1099-NEC',() => payrollTaxPreview.open({...context,mode:'1099'})));
     }
     if (worker.driver_id) {

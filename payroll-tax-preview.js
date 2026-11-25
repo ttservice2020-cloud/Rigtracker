@@ -24,6 +24,7 @@ const payrollTaxPreview = (() => {
   ];
   const money = amount => Math.round((amount + Number.EPSILON) * 100) / 100;
   const hasAmount = amount => Number.isFinite(amount);
+  const contractorTaxTreatment = '1099_nec';
   let session;
 
   function element(tag, content, className) {
@@ -217,8 +218,17 @@ const payrollTaxPreview = (() => {
 
   function showSettings(context, date, saved) {
     const settings = { ...defaults(date), ...saved?.settings };
-    title.textContent = 'Withholding Forms & Elections';
+    const classify = context.kind === 'hr_driver';
+    title.textContent = classify ? 'Tax Form & Classification' : 'Withholding Forms & Elections';
     const form = element('form');
+    const classification = field('taxTreatment','Tax form for pay',{
+      value:settings.taxTreatment || 'w2',choices:[['w2','W-2 Employee (W-4)'],[contractorTaxTreatment,'1099-NEC Contractor (W-9)']]
+    });
+    const confirmed = field('classificationVerified','I verified this driver is an independent contractor for these payments.',{
+      type:'checkbox',required:true,value:settings.classificationVerified
+    });
+    const effective = field('effective',classify ? 'Tax form effective on' : 'Elections effective on',{ type:'date',value:date });
+    const periods = field('periods','Pay frequency',{ choices:Object.entries(payrollTaxRules.periods),value:settings.periods });
     const formMode = field('federalForm', 'Federal withholding form', {
       value:settings.federalForm, choices:[
         ['current','Form W-4 (2020 or later)'], ['legacy','Form W-4 (2019 or earlier)'],
@@ -263,22 +273,25 @@ const payrollTaxPreview = (() => {
     actions.append(save);
     const forms = element('section', '', 'payroll-tax-group withholding-forms');
 
-    form.append(
-      grid(field('effective','Elections effective on',{ type:'date',value:date }),
-        field('periods','Pay frequency',{ choices:Object.entries(payrollTaxRules.periods),value:settings.periods })),
+    const wageForms = element('div');
+    const contractorForms = element('div');
+    forms.append(wageForms,contractorForms);
+    const wageFields = element('fieldset');
+    wageFields.style.cssText = 'margin:0;padding:0;border:0;min-width:0';
+    wageFields.append(...(classify ? [periods] : []),
       fieldset('Federal', grid(formMode,federalStatus), multipleJobs, grid(...federalNumbers,legacy,federalExtra,federalYear)),
       fieldset('State', grid(state,treatment,stateYear,stateExtra), dynamic, stateNotice),
       fieldset('County and city', grid(local,localLabel,localExtra),
         localLookup,
-        localTaxes.container),
-      actions
+        localTaxes.container)
     );
+    form.append(grid(...(classify ? [classification,effective] : [effective,periods])),
+      ...(classify ? [confirmed] : []),wageFields,actions);
     body.replaceChildren(
       element('p',context.name,'payroll-tax-person'),
       element('p',saved ? 'Loaded elections effective ' + saved.effective_on + '. Choose the date these settings take effect.'
-        : 'Copy the withholding elections from the employee’s current forms.', 'muted'),
-      forms,
-      form
+        : classify ? 'Choose the tax form that applies to this driver’s payments.' : 'Copy the withholding elections from the employee’s current forms.', 'muted'),
+      ...(classify ? [form,forms] : [forms,form])
     );
     if (context.kind !== 'office') {
       const note = element('p','Use the residence jurisdiction for drivers covered by the interstate motor-carrier withholding rule. ','muted');
@@ -287,7 +300,7 @@ const payrollTaxPreview = (() => {
       link.target = '_blank';
       link.rel = 'noopener';
       note.append(link);
-      form.before(note);
+      wageFields.prepend(note);
     }
     const inputs = form.elements;
     const number = (field, fallback) => inputs[field].disabled ? fallback : inputs[field].valueAsNumber;
@@ -307,7 +320,8 @@ const payrollTaxPreview = (() => {
       visible(federalYear,mode === 'exempt');
     }
 
-    void payrollWithholdingForms.mount(forms, () => active(context) && forms.isConnected, context, elections => {
+    const contractorMode = () => classify && inputs.taxTreatment.value === contractorTaxTreatment;
+    function applyElections(elections) {
       const exempt = elections.filingStatus === 'exempt';
       inputs.federalForm.value = exempt ? 'exempt' : 'current';
       syncFederal();
@@ -319,7 +333,18 @@ const payrollTaxPreview = (() => {
       }
       message('Federal elections loaded. Verify them against the signed form and save with the correct effective date.');
       form.scrollIntoView({block:'start'});
-    });
+    }
+
+    function syncClassification() {
+      const contractor = contractorMode();
+      if (classify) visible(confirmed,contractor);
+      wageFields.hidden = wageFields.disabled = contractor;
+      wageForms.hidden = contractor;
+      contractorForms.hidden = !contractor;
+      const host = contractor ? contractorForms : wageForms;
+      if (!host.childElementCount) void payrollWithholdingForms.mount(host,() => active(context) && host.isConnected,
+        contractor ? {...context,mode:'1099'} : context,contractor ? undefined : applyElections);
+    }
 
     function syncLocal() {
       visible(localLabel,inputs.locality.value === 'unverified');
@@ -390,21 +415,29 @@ const payrollTaxPreview = (() => {
     inputs.locality.addEventListener('change',syncLocal);
     syncFederal();
     syncState(false);
+    if (classify) inputs.taxTreatment.addEventListener('change',() => {
+      if (saved?.effective_on === inputs.effective.value && saved.effective_on < today() &&
+        inputs.taxTreatment.value !== (saved.settings.taxTreatment || 'w2')) inputs.effective.value = today();
+      syncClassification();
+      message('');
+    });
+    syncClassification();
     form.addEventListener('submit',async event => {
       event.preventDefault();
       if (!active(context) || save.disabled) return;
       const effective = inputs.effective.value;
+      const contractor = contractorMode();
       const federalForm = inputs.federalForm.value;
       const elections = Object.fromEntries((payrollTaxRules.baseFields[inputs.state.value] || []).map(([key,,choices]) => [
         key, typeof choices?.[0]?.[0] === 'string' ? inputs[key].value : Number(inputs[key].value)
       ]));
       const savedLocalTaxes = localTaxes.read();
-      if (inputs.locality.value === 'configured' && !savedLocalTaxes.length ||
-        inputs.locality.value === 'none' && savedLocalTaxes.length) {
+      if (!contractor && (inputs.locality.value === 'configured' && !savedLocalTaxes.length ||
+        inputs.locality.value === 'none' && savedLocalTaxes.length)) {
         message('Choose a local tax option that matches the saved local taxes.',true);
         return;
       }
-      const payload = {
+      const payload = contractor ? {taxTreatment:contractorTaxTreatment,classificationVerified:inputs.classificationVerified.checked} : {
         state:inputs.state.value, periods:Number(inputs.periods.value), federalForm,
         filingStatus:inputs.filingStatus.disabled ? 'single' : inputs.filingStatus.value,
         multipleJobs:!inputs.multipleJobs.disabled && inputs.multipleJobs.checked,
@@ -519,6 +552,7 @@ const payrollTaxPreview = (() => {
     const statement = element('section','','payroll-statement');
     const loads = Array.isArray(details.loads) ? details.loads : [];
     const daily = hasAmount(details.paidDays);
+    const contractor = details.taxTreatment === contractorTaxTreatment;
     const firstPageLimit = 8;
     const continuationLimit = 16;
     const continuationPages = [];
@@ -535,6 +569,7 @@ const payrollTaxPreview = (() => {
       return section;
     }
     const pay = sheet(1,'Pay Information');
+    if (contractor) pay.append(element('p','1099-NEC contractor pay','payroll-statement-identity'));
     const hours = element('dl','','payroll-tax-results');
     for (const [label,value] of [
       ['Hours worked',hasAmount(details.hours) ? details.hours.toLocaleString('en-US') : ''],
@@ -556,12 +591,17 @@ const payrollTaxPreview = (() => {
     pay.append(...estimateSection('Earnings and reimbursements',[
       ...(details.earnings || []),{name:'Gross pay',amount:amounts.gross}
     ]),...estimateSection('Deductions',[
-      ...(details.deductions || []),{name:'Employee taxes',amount:details.taxTotal},
+      ...(details.deductions || []),{name:contractor ? 'Withholding' : 'Employee taxes',amount:details.taxTotal},
       {name:'Total taxes and deductions',amount:amounts.deductions}
     ]));
 
     const taxes = sheet(pageCount,'Taxes and Net Pay');
-    taxes.append(...estimateSection('Taxable wages',[
+    if (contractor) {
+      if (hasAmount(details.nonemployeeCompensation)) taxes.append(...estimateSection('Nonemployee compensation',[
+        {name:'Compensation for 1099-NEC',amount:details.nonemployeeCompensation}
+      ]));
+      if (details.taxes?.length) taxes.append(...estimateSection('Withholding',details.taxes));
+    } else taxes.append(...estimateSection('Taxable wages',[
       {name:'Federal taxable wages',amount:amounts.federalWages},
       {name:'Social Security wages',amount:amounts.socialSecurityYtd},
       {name:'Medicare wages',amount:amounts.medicareYtd}
@@ -570,7 +610,7 @@ const payrollTaxPreview = (() => {
       ? element('strong','Net pay ' + currency.format(money(amounts.gross - amounts.deductions)),'payroll-statement-net')
       : element('p',details.draft ? 'Estimate payroll taxes to calculate net pay.'
         : 'Net pay requires a confirmed amount for each tax marked Needs review.','muted'));
-    const ytd = ytdSection(totals,date.slice(0,4),state);
+    const ytd = ytdSection(contractor ? {gross:totals.gross,deductions:totals.deductions} : totals,date.slice(0,4),state);
     if (!paid) ytd.append(element('p',details.draft ? 'Confirmed payroll before this draft.'
       : 'Projected totals through this check.','muted'));
     taxes.append(ytd);
@@ -607,7 +647,8 @@ const payrollTaxPreview = (() => {
         return;
       }
       const draft = statementPages(context.name,date,{
-        draft:true,loads:context.loads,taxTotal:null,lumperTotal:context.lumperReimbursement,payPeriod:context.payPeriod
+        draft:true,loads:context.loads,taxTotal:null,lumperTotal:context.lumperReimbursement,payPeriod:context.payPeriod,
+        taxTreatment:history.tax_treatment
       },{
         gross:context.gross == null ? null : Number(context.gross),deductions:null,
         federalWages:null,socialSecurityYtd:null,medicareYtd:null
@@ -951,15 +992,159 @@ const payrollTaxPreview = (() => {
     return {category,amount,federalLimit:limit,percent:percentage ? entered : null};
   }
 
+  function showContractorPayment(context,date,payDate) {
+    const form = element('form');
+    const basis = field('payBasis','Pay basis',{
+      choices:[['regular','Entered load pay'],['daily','Daily rate']],value:context.payBasis || 'regular'
+    });
+    const gross = field('grossPay','Contractor load pay ($)',{value:context.gross});
+    const days = field('paidDays','Days paid',{max:366,value:context.paidDays});
+    const rate = field('dailyRate','Daily rate ($)',{value:context.dailyRate});
+    const lumper = context.lumperReimbursement || 0;
+    const lumperField = lumper ? field('lumperTreatment','Tax treatment for ' + currency.format(lumper) + ' lumper reimbursement',{
+      choices:[['','Choose tax treatment'],['reportable','Reportable compensation'],['reimbursement','Nonreportable reimbursement']],value:''
+    }) : null;
+    const earningsGroup = fieldset('Contractor pay',grid(basis,gross,days,rate),
+      ...(lumperField ? [lumperField] : []),grid(
+        field('otherPay','Additional reportable compensation ($)',{required:false}),
+        field('reimbursements','Other nonreportable reimbursements ($)',{required:false})
+      ));
+    const adjustments = fieldset('Withholding and deductions',grid(
+      field('backupWithholding','Verified federal backup withholding ($)',{required:false}),
+      field('stateWithholding','Verified state withholding ($)',{required:false}),
+      field('deductionAmount','Other deduction amount ($)',{required:false}),
+      field('deductionName','Deduction description',{type:'text',required:false})
+    ));
+    const opening = fieldset('Contractor year-to-date pay before this check',
+      element('p','Enter verified amounts for contractor payments already made this year. Use zero for the first contractor payment.','muted'),
+      grid(field('priorGross','Prior contractor gross pay',{required:false}),
+        field('priorDeductions','Prior contractor withholding and deductions',{required:false})));
+    const calculate = button('Calculate Estimate',null,'primary-btn');
+    calculate.type = 'submit';
+    const historyNote = element('p','Loading paid contractor statements…','muted');
+    historyNote.setAttribute('role','status');
+    const result = element('div');
+    form.append(earningsGroup,adjustments,opening,calculate);
+    body.append(historyNote,form,result);
+    const inputs = form.elements;
+    let history;
+    let recording = false;
+    const showPaid = record => {
+      form.hidden = true;
+      payDate.value = record.paid_on;
+      payDate.disabled = true;
+      historyNote.textContent = 'Payment recorded on ' + record.paid_on + '.';
+      const statement = statementPages(context.name,record.paid_on,{
+        ...record.statement,payPeriod:context.payPeriod,loads:context.loads ?? record.statement.loads
+      },record.amounts,record.through,record.ui_state,true);
+      result.replaceChildren(statement,button('Print / Save as PDF',() => printStatement(statement)));
+    };
+    function syncBasis() {
+      const daily = inputs.payBasis.value === 'daily';
+      visible(gross,!daily);
+      visible(days,daily);
+      visible(rate,daily);
+    }
+    syncBasis();
+    inputs.payBasis.addEventListener('change',() => { context.payBasis = inputs.payBasis.value; syncBasis(); });
+    form.addEventListener('input',event => {
+      if (['paidDays','dailyRate','grossPay'].includes(event.target.name)) context[event.target.name === 'grossPay' ? 'gross' : event.target.name] = event.target.value;
+      result.replaceChildren();
+      message('');
+    });
+    void checkHistory(context,date).then(record => {
+      if (!active(context) || !form.isConnected) return;
+      if (record.paid_on) { showPaid(record); return; }
+      history = record;
+      if (!inputs.priorGross.value && hasAmount(record.before?.gross)) inputs.priorGross.value = record.before.gross;
+      if (!inputs.priorDeductions.value && hasAmount(record.before?.deductions)) inputs.priorDeductions.value = record.before.deductions;
+      historyNote.textContent = '';
+    }).catch(error => {
+      if (active(context) && form.isConnected) historyNote.textContent = error.message || 'Could not load paid contractor statements.';
+    });
+
+    form.addEventListener('submit',event => {
+      event.preventDefault();
+      if (!active(context) || form.hidden || recording || payDate.value !== date) return;
+      const value = key => inputs[key].valueAsNumber;
+      const optional = key => hasAmount(value(key)) ? value(key) : 0;
+      const daily = inputs.payBasis.value === 'daily';
+      const line = daily ? {name:'Daily pay',amount:money(value('paidDays')*value('dailyRate'))}
+        : {name:'Contractor load pay',amount:value('grossPay')};
+      const earnings = [line,...(daily ? additionalPayFromLoads(context.loads) : [])];
+      if (optional('otherPay')) earnings.push({name:'Additional compensation',amount:optional('otherPay')});
+      const nonemployeeCompensation = money(earnings.reduce((sum,item) => sum + item.amount,0) +
+        (inputs.lumperTreatment?.value === 'reportable' ? lumper : 0));
+      if (lumper) earnings.push({name:'Lumper reimbursement',amount:lumper});
+      if (optional('reimbursements')) earnings.push({name:'Other reimbursements',amount:optional('reimbursements')});
+      const taxes = [
+        ['Federal backup withholding',optional('backupWithholding')],['State withholding',optional('stateWithholding')]
+      ].filter(([,amount]) => amount).map(([name,amount]) => ({name,amount}));
+      const taxTotal = money(taxes.reduce((sum,item) => sum + item.amount,0));
+      const deduction = optional('deductionAmount');
+      const deductionName = inputs.deductionName.value.trim();
+      const deductions = deduction && deductionName ? [{name:deductionName,amount:deduction}] : [];
+      const grossPay = money(earnings.reduce((sum,item) => sum + item.amount,0));
+      const totalDeductions = money(taxTotal+deduction);
+      if (Boolean(deduction) !== Boolean(deductionName) || grossPay > 100000000 || totalDeductions > grossPay) {
+        message('Review the pay amounts and enter a description for any deduction.',true);
+        return;
+      }
+      const prior = {gross:value('priorGross'),deductions:value('priorDeductions'),socialSecurityYtd:0,medicareYtd:0};
+      const amounts = {gross:grossPay,deductions:totalDeductions,socialSecurityYtd:0,medicareYtd:0};
+      const details = {taxTreatment:contractorTaxTreatment,nonemployeeCompensation,earnings,taxes,taxTotal,deductions,
+        ...(daily ? {paidDays:value('paidDays'),dailyRate:value('dailyRate')} : {}),
+        ...(Number.isInteger(context.loadCount) ? {loadCount:context.loadCount} : {}),
+        ...(Number.isInteger(context.loadRevision) ? {loadRevision:context.loadRevision} : {})};
+      const projected = {gross:money(prior.gross+grossPay),deductions:money(prior.deductions+totalDeductions)};
+      const report = statementPages(context.name,date,{...details,payPeriod:context.payPeriod,loads:context.loads},amounts,projected,null,false);
+      const preview = element('details','','payroll-tax-group');
+      preview.append(element('summary','Statement preview'),report,button('Print / Save as PDF',() => printStatement(report)));
+      result.replaceChildren(element('strong','Estimated net pay ' + currency.format(grossPay-totalDeductions)),preview);
+      message('');
+      if (!history || date > today()) return;
+      const confirmation = field('confirmIssued','This payment has been issued and I verified the amounts shown.',{type:'checkbox'});
+      const check = confirmation.querySelector('input');
+      const record = button('Record Paid Check',async () => {
+        if (recording || !active(context) || !form.isConnected) return;
+        if (!hasAmount(prior.gross) || !hasAmount(prior.deductions) || prior.deductions>prior.gross) {
+          message('Enter verified prior contractor gross pay and deductions, then calculate again.',true);
+          inputs.priorGross.focus();
+          return;
+        }
+        recording = record.disabled = calculate.disabled = true;
+        try {
+          const paid = await checkHistory(context,date,{
+            action:'record',expected_revision:history.revision,check_data:{prior,amounts,statement:details}
+          });
+          if (!active(context) || !form.isConnected) return;
+          showPaid(paid);
+          context.onRecorded?.();
+          message('Paid contractor statement recorded.');
+        } catch (error) {
+          if (active(context) && form.isConnected) message(error.message || 'Could not record this payment.',true);
+        } finally {
+          recording = false;
+          record.disabled = !check.checked;
+          calculate.disabled = false;
+        }
+      },'primary-btn');
+      record.disabled = true;
+      check.addEventListener('change',() => { record.disabled = recording || !check.checked; });
+      result.append(fieldset('Record payment',confirmation,record));
+    });
+  }
+
   function showPreview(context,date,saved) {
     title.textContent = context.hourlyPay ? 'Create Paycheck' : 'Pay & Taxes';
     const payDate = field('payDate','Pay date',{ type:'date',value:date });
     const payDateInput = payDate.querySelector('input');
-    const summary = saved ? [payrollTaxRules.states[saved.settings.state][0],
+    const contractor = saved?.settings.taxTreatment === contractorTaxTreatment;
+    const summary = contractor ? '1099-NEC Contractor · Effective ' + saved.effective_on : saved ? [payrollTaxRules.states[saved.settings.state][0],
       payrollTaxRules.periods[saved.settings.periods],'Elections effective ' + saved.effective_on].join(' · ')
       : 'No tax elections are saved for this pay date.';
     const actions = element('div','','office-payroll-actions');
-    if (!saved && hrTaxForms.canManage()) actions.append(button('Open HR Tax Forms',() => {
+    if (hrTaxForms.canManage()) actions.append(button('Open HR Tax Forms',() => {
       const pageId = document.querySelector('.page.active')?.id;
       const kind = context.kind === 'office' ? 'office' : 'driver';
       const reference = context.kind === 'settlement' ? context.hrReference : context.reference;
@@ -974,6 +1159,7 @@ const payrollTaxPreview = (() => {
       if (event.target.value && event.target.checkValidity()) void loadPreview(context,event.target.value);
     });
     if (!saved) return;
+    if (contractor) { showContractorPayment(context,date,payDateInput); return; }
     if (saved.settings.stateTreatment === 'regular' &&
       !payrollTaxRules.hasStateElections(saved.settings.state,saved.settings.elections)) {
       body.append(element('p','Save the state withholding elections in HR → Tax Forms.','muted'));
