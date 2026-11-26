@@ -218,7 +218,7 @@ const dispatchProgress = (() => {
   }
 
   function bind({ byId, toggle, element, button, getLoad, getLoads, getRouteNumber, loadDrivers, loadDriverContacts, displayedDriverIds, unassignedDriver, messageDriver,
-    proLabel, describeRoute, editLoad,
+    proLabel, describeRoute, loadBols, editLoad, historyColumnKey,
     back, setProgress, hasUpdate, isReviewing = () => false, openRateConfirmation, canEdit, paintLeaseStatus, saveLoadAction, relayDriverChoices }) {
     const view = byId('dispatchLoadDetail');
     const manual = byId('dispatchArrivalForm');
@@ -231,12 +231,141 @@ const dispatchProgress = (() => {
     let selectedStop;
     let request;
     let historyDate = '';
+    let columnKey;
+    let historyColumns;
+    let renderedColumns;
     let splitFactsKey;
     let splitChoicesKey;
 
     const set = (id, text) => { byId(id).textContent = text; };
     const active = () => activeId && getLoad(activeId);
     const progressLabel = stop => (stop.kind === 'pickup' ? 'Pickup' : 'Delivery') + ' ' + (stop.index + 1);
+    const columnHead = byId('dispatchContractHistoryHead');
+    const addColumn = byId('dispatchContractAddColumn');
+    const columnReset = byId('dispatchContractColumnReset');
+    const defaultColumns = ['pro', 'date', 'bol', 'trailer', 'route', 'drivers'];
+
+    function completedTime(run) {
+      const recorded = Date.parse(run.progress?.completedAt);
+      return Number.isFinite(recorded) ? recorded : Date.parse(run.updated_at);
+    }
+
+    function runDate(run) {
+      const instant = completedTime(run);
+      return Number.isFinite(instant) ? localDateTime(instant, undefined).slice(0, 10) : '';
+    }
+
+    function contractRunTime(instant, zone) {
+      if (!Number.isFinite(instant)) return '—';
+      const iso = new Date(instant).toISOString();
+      const date = element('time', recordedTime(iso, zone));
+      date.dateTime = iso;
+      return date;
+    }
+
+    function recordedTrailer(run) {
+      const trailers = stopsFor(run, false).filter(stop => stop.kind === 'pickup')
+        .map(stop => {
+          const report = stop.progress.driverReport;
+          return report?.pickedTrailer || report?.trailer;
+        }).filter(Boolean);
+      return [...new Set(trailers)].join(' / ') || run.details.trailerNumber;
+    }
+
+    function historyRunButton(run, text) {
+      const label = proLabel(run.pro_number);
+      const viewRun = button(text || label, () => show(run.id));
+      viewRun.setAttribute('aria-label', 'View run ' + label);
+      return viewRun;
+    }
+
+    const columnDefinitions = {
+      pro: { label: 'PRO', read: run => historyRunButton(run) },
+      date: { label: 'Date', read: runDate },
+      bol: { label: 'BOL #', read: loadBols },
+      trailer: { label: 'Trailer', read: recordedTrailer },
+      route: { label: 'Route', read: getRouteNumber },
+      drivers: { label: 'Driver', read: loadDrivers },
+      pickup: { label: 'Pickup #', read: run => run.details.pickupNumber },
+      completed: { label: 'Completed Time', read: run => contractRunTime(completedTime(run)) },
+      arrivals: { label: 'Stop Arrivals', read: run => {
+        const arrivals = stopsFor(run, false).filter(stop => Number.isFinite(Date.parse(stop.progress.arrivalAt)));
+        if (!arrivals.length) return '';
+        const list = element('ul');
+        for (const stop of arrivals) {
+          const item = element('li', progressLabel(stop) + ' · ');
+          item.append(contractRunTime(Date.parse(stop.progress.arrivalAt), stop.zone));
+          list.append(item);
+        }
+        return list;
+      } },
+      locations: { label: 'Origin / Destination', read: describeRoute },
+      truck: { label: 'Truck', read: run => run.details.truckNumber }
+    };
+
+    function loadColumns() {
+      const key = historyColumnKey();
+      if (historyColumns && key === columnKey) return;
+      columnKey = key;
+      historyColumns = [...defaultColumns];
+      if (!key) return;
+      try {
+        const saved = JSON.parse(localStorage.getItem(key));
+        if (!Array.isArray(saved)) return;
+        const fields = [...new Set(saved.filter(id => typeof id === 'string' && Object.hasOwn(columnDefinitions, id)))];
+        if (fields.length) historyColumns = fields;
+      } catch {}
+    }
+
+    function changeColumns() {
+      if (columnKey) {
+        try { localStorage.setItem(columnKey, JSON.stringify(historyColumns)); } catch {}
+      }
+      const load = active();
+      if (load) history(load);
+    }
+
+    function historyHead(showAction) {
+      const layout = historyColumns.join(',');
+      if (layout === renderedColumns) return;
+      renderedColumns = layout;
+      const fields = Object.entries(columnDefinitions);
+      const unused = fields.filter(([id]) => !historyColumns.includes(id));
+      addColumn.replaceChildren(new Option('Choose a field', ''), ...unused.map(([id, { label }]) => new Option(label, id)));
+      addColumn.disabled = !unused.length;
+      const headers = historyColumns.map((id, index) => {
+        const cell = element('th');
+        cell.scope = 'col';
+        cell.dataset.column = id;
+        const select = element('select');
+        select.setAttribute('aria-label', 'Field for column ' + (index + 1));
+        select.append(...fields.map(([value, { label }]) => new Option(label, value)));
+        if (historyColumns.length > 1) select.append(new Option('Remove column', ''));
+        select.value = id;
+        select.addEventListener('change', () => {
+          const next = select.value;
+          if (next === id) return;
+          if (!next) historyColumns.splice(index, 1);
+          else {
+            const existing = historyColumns.indexOf(next);
+            if (existing !== -1) historyColumns[existing] = id;
+            historyColumns[index] = next;
+          }
+          changeColumns();
+          const selectors = columnHead.querySelectorAll('select');
+          selectors[Math.min(index, selectors.length - 1)]?.focus();
+        });
+        cell.append(select);
+        return cell;
+      });
+      if (showAction) {
+        const view = element('th', 'Run');
+        view.scope = 'col';
+        view.dataset.column = 'action';
+        headers.push(view);
+      }
+      columnHead.replaceChildren(...headers);
+    }
 
     function fact(label, value) {
       const pair = element('div');
@@ -367,28 +496,33 @@ const dispatchProgress = (() => {
       toggle('dispatchDetailHistory', Boolean(contract));
       if (!contract) return;
       set('dispatchHistoryRoute', 'Route ' + getRouteNumber(contract));
-      const completedOn = run => run.progress?.completedAt || run.updated_at;
-      const runDate = run => localDateTime(Date.parse(completedOn(run)), undefined).slice(0, 10);
+      loadColumns();
       const rows = getLoads().filter(item => item.status === 'completed' && item.contract_load_id === contract.id && item.id !== load.id)
-        .sort((a, b) => Date.parse(completedOn(b)) - Date.parse(completedOn(a)));
-      const dates = [...new Set(rows.map(runDate))];
+        .sort((a, b) => (completedTime(b) || 0) - (completedTime(a) || 0));
+      const dates = [...new Set(rows.map(runDate).filter(Boolean))];
       if (!dates.includes(historyDate)) historyDate = '';
       const selector = byId('dispatchHistoryDate');
       selector.replaceChildren(new Option('All dates', ''), ...dates.map(date => new Option(date, date)));
       selector.value = historyDate;
-      selector.disabled = !rows.length;
+      selector.disabled = !dates.length;
       const visible = historyDate ? rows.filter(run => runDate(run) === historyDate) : rows;
+      const showAction = !historyColumns.includes('pro');
+      historyHead(showAction);
       byId('dispatchContractRuns').replaceChildren(...visible.map(run => {
-        const row = element('li', '', 'dispatch-history-run');
-        const completedAt = completedOn(run);
-        row.append(element('strong', run.details.pickupNumber ? 'Pickup #' + run.details.pickupNumber : loadDrivers(run) || 'Contract run'),
-          element('span', clockText(Date.parse(completedAt)), 'muted'));
-        if (run.details.pickupNumber && loadDrivers(run)) row.append(element('span', loadDrivers(run), 'muted'));
-        const visits = stopsFor(run).filter(stop => stop.progress.arrivalAt);
-        if (visits.length) {
-          row.append(element('span', visits.map(stop => progressLabel(stop) + ' · ' + recordedTime(stop.progress.arrivalAt, stop.zone)).join(' / '), 'muted'));
+        const row = element('tr');
+        for (const id of historyColumns) {
+          const cell = element(id === 'pro' ? 'th' : 'td');
+          if (id === 'pro') cell.scope = 'row';
+          cell.dataset.column = id;
+          cell.append(columnDefinitions[id].read(run) || '—');
+          row.append(cell);
         }
-        row.append(button('View Run', () => show(run.id)));
+        if (showAction) {
+          const action = element('td');
+          action.dataset.column = 'action';
+          action.append(historyRunButton(run, 'View'));
+          row.append(action);
+        }
         return row;
       }));
       toggle('dispatchContractRunsEmpty', !rows.length);
@@ -717,6 +851,16 @@ const dispatchProgress = (() => {
     byId('dispatchHistoryDate').addEventListener('change', event => {
       historyDate = event.target.value;
       if (active()) history(active());
+    });
+    addColumn.addEventListener('change', () => {
+      if (!addColumn.value || historyColumns.includes(addColumn.value)) return;
+      historyColumns.push(addColumn.value);
+      changeColumns();
+      if (addColumn.disabled) columnHead.querySelector('th:last-child select')?.focus();
+    });
+    columnReset.addEventListener('click', () => {
+      historyColumns = [...defaultColumns];
+      changeColumns();
     });
     byId('dispatchDetailBack').addEventListener('click', back);
     messageButton.addEventListener('click', () => {

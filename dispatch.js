@@ -349,6 +349,11 @@ const fleetDispatchApp = (() => {
     return [cityState(pickups?.[0]), cityState(receivers?.at(-1))].filter(Boolean).join(' → ');
   }
 
+  function loadBols(load) {
+    const reported = Object.values(load.progress?.stops || {}).map(stop => stop.driverReport?.bol);
+    return [...new Set([load.details.bolNumber, ...reported].filter(Boolean).map(String))].join(' / ');
+  }
+
   function displayedDriverIds(load) {
     if (load.status === 'current' && load.progress?.relay?.droppedAt) {
       const driver = load.progress.relay.departedAt ? dispatchProgress.relayDriverId(load)
@@ -829,8 +834,7 @@ const fleetDispatchApp = (() => {
       date.append(time);
       const pro = proLabel(load.pro_number);
       const stopNames = stops => (stops || []).map(stop => stop.company).filter(Boolean).join(' / ');
-      const reportedBols = Object.values(load.progress?.stops || {}).map(stop => stop.driverReport?.bol);
-      const bols = [...new Set([load.details.bolNumber, ...reportedBols].filter(Boolean).map(String))].join(' / ');
+      const bols = loadBols(load);
       const cells = [bols, stopNames(load.details.pickups), stopNames(load.details.receivers)].map(value => {
         const cell = element('td', value || '—');
         if (value) cell.title = value;
@@ -2522,7 +2526,9 @@ const fleetDispatchApp = (() => {
     byId('dispatchDetailAddInfo').addEventListener('click', openStopInfo);
     progressView = dispatchProgress.bind({
       byId, toggle, element, button, getLoad, getLoads: () => state?.loads || [], getRouteNumber,
-      loadDrivers, loadDriverContacts, displayedDriverIds, unassignedDriver, messageDriver, proLabel, describeRoute: route,
+      historyColumnKey: () => currentUser?.id && state?.fleetId
+        ? 'rigtracker-contract-history-columns:' + currentUser.id + ':' + state.fleetId : null,
+      loadDrivers, loadBols, loadDriverContacts, displayedDriverIds, unassignedDriver, messageDriver, proLabel, describeRoute: route,
       editLoad: load => openLoad(load), back: () => selectTab(selectedTab, true),
       setProgress: recordProgress, hasUpdate: id => Boolean(state?.updates.has(id)),
       isReviewing: id => Boolean(state?.boardReviews.has(id)),
