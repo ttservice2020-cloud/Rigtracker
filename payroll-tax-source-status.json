@@ -1,5 +1,5 @@
 {
-  "checked_at": "2026-11-23T15:12:29+00:00",
+  "checked_at": "2026-11-26T15:10:49+00:00",
   "sources_checked": 66,
   "needs_review": [
     {
@@ -16,6 +16,16 @@
       "name": "Louisville Metro Form W-1 instructions",
       "url": "https://louisvilleky.gov/government/revenue-commission/w-1-tax-form-instructions",
       "status": "unavailable"
+    },
+    {
+      "name": "Wisconsin withholding rules",
+      "url": "https://www.revenue.wi.gov/DOR%20Publications/pb166.pdf",
+      "status": "unavailable"
+    },
+    {
+      "name": "Kentucky unemployment wage base",
+      "url": "https://ui.ky.gov/Redesign/ResourcePages/TaxableWageBase.aspx",
+      "status": "changed"
     },
     {
       "name": "Nevada unemployment wage base",
@@ -35,6 +45,11 @@
     {
       "name": "DC Office of Tax and Revenue withholding forms",
       "url": "https://otr.cfo.dc.gov/page/withholding-tax-forms",
+      "status": "changed"
+    },
+    {
+      "name": "New Mexico withholding rates directory",
+      "url": "https://www.tax.newmexico.gov/all-nm-taxes/current-historic-tax-rates-overview/withholding-tax-rates/",
       "status": "changed"
     }
   ]
