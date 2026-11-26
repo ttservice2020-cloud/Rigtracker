@@ -635,6 +635,13 @@ const payrollTaxPreview = (() => {
     window.print();
   }
 
+  function statementActions(statement, name, date) {
+    const actions = element('div', '', 'dispatch-actions no-print');
+    actions.append(button('Print', () => printStatement(statement)),
+      button('Save PDF', event => reportPdf.save(statement, 'Settlement - ' + name + ' - ' + date, event.currentTarget)));
+    return actions;
+  }
+
   async function showSettlementYtd(container,context) {
     const date = today();
     try {
@@ -643,7 +650,7 @@ const payrollTaxPreview = (() => {
       if (history.paid_on) {
         const statement = statementPages(context.name,history.paid_on,{...history.statement,payPeriod:context.payPeriod,loads:context.loads ?? history.statement.loads},
           history.amounts,history.through,history.ui_state,true);
-        container.replaceChildren(statement,button('Print / Save as PDF',() => printStatement(statement)));
+        container.replaceChildren(statement,statementActions(statement,context.name,history.paid_on));
         return;
       }
       const draft = statementPages(context.name,date,{
@@ -1037,7 +1044,7 @@ const payrollTaxPreview = (() => {
       const statement = statementPages(context.name,record.paid_on,{
         ...record.statement,payPeriod:context.payPeriod,loads:context.loads ?? record.statement.loads
       },record.amounts,record.through,record.ui_state,true);
-      result.replaceChildren(statement,button('Print / Save as PDF',() => printStatement(statement)));
+      result.replaceChildren(statement,statementActions(statement,context.name,record.paid_on));
     };
     function syncBasis() {
       const daily = inputs.payBasis.value === 'daily';
@@ -1099,7 +1106,7 @@ const payrollTaxPreview = (() => {
       const projected = {gross:money(prior.gross+grossPay),deductions:money(prior.deductions+totalDeductions)};
       const report = statementPages(context.name,date,{...details,payPeriod:context.payPeriod,loads:context.loads},amounts,projected,null,false);
       const preview = element('details','','payroll-tax-group');
-      preview.append(element('summary','Statement preview'),report,button('Print / Save as PDF',() => printStatement(report)));
+      preview.append(element('summary','Statement preview'),report,statementActions(report,context.name,date));
       result.replaceChildren(element('strong','Estimated net pay ' + currency.format(grossPay-totalDeductions)),preview);
       message('');
       if (!history || date > today()) return;
@@ -1309,7 +1316,7 @@ const payrollTaxPreview = (() => {
       const paidPeriod = record.statement.payPeriod ?? (context.kind === 'settlement' ? context.payPeriod : undefined);
       const statement = statementPages(context.name,record.paid_on,{...record.statement,payPeriod:paidPeriod,loads:context.loads ?? record.statement.loads},
         record.amounts,record.through,record.ui_state,true);
-      result.replaceChildren(statement,button('Print / Save as PDF',() => printStatement(statement)));
+      result.replaceChildren(statement,statementActions(statement,context.name,record.paid_on));
     }
 
     async function refreshHistory({resetState=false} = {}) {
@@ -1457,7 +1464,7 @@ const payrollTaxPreview = (() => {
         const report = statementPages(context.name,date,{...statement,payPeriod:context.payPeriod,loads:context.loads},current,projected,state,false);
         const statementPreview = element('details','','payroll-tax-group');
         statementPreview.append(element('summary','Statement preview'),report,
-          button('Print / Save as PDF',() => printStatement(report)));
+          statementActions(report,context.name,date));
         employee.push(...deductionsForStatement);
         const isMainTax = row => ['federal','fica','state'].includes(row.type);
         const additional = employee.filter(row => !isMainTax(row) &&

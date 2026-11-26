@@ -298,7 +298,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 #companySignupFields{border:0;padding:0;margin:0;min-inline-size:0}
 </style>
 <link rel="stylesheet" href="./dispatch.css?v=driver-input-1">
-<link rel="stylesheet" href="./driver-app.css?v=bol-scan-2">
+<link rel="stylesheet" href="./driver-app.css?v=document-scan-1">
 <link rel="stylesheet" href="./office-tools.css?v=withholding-forms-1">
 </head>
 <body>
@@ -496,10 +496,11 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
    <div class="panel">
     <h2>Supporting Photo or Log (optional)</h2>
     <div class="support-actions">
-     <button class="primary-btn" type="button" onclick="document.getElementById('stayFile').click()">▣ Take Photo</button>
+     <button class="primary-btn" type="button" onclick="driverPaperwork.captureDocument(document.getElementById('stayFile'), document.getElementById('stayCamera'))">Scan Receipt</button>
      <button class="primary-btn" type="button" onclick="document.getElementById('stayFile').click()">↑ Upload File</button>
     </div>
-    <input id="stayFile" type="file" accept="image/*,.pdf" capture="environment" class="hidden">
+    <input id="stayCamera" type="file" accept="image/*" capture="environment" data-document-scan="stayFile" class="hidden">
+    <input id="stayFile" type="file" accept="image/*,.pdf" data-document-scan class="hidden">
     <div id="stayFileName" class="muted" style="text-align:center;margin-top:8px"></div>
    </div>
    <button class="primary-btn full" type="submit">Add Stay</button>
@@ -534,10 +535,10 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
     <div class="tax-callout"><h2>Tax Packet</h2><div>Settlements • Expense breakdown • Per diem log • Receipts list</div></div>
    </div>
   </div>
-  <div class="tax-actions no-print"><button onclick="window.print()">Print Tax Packet</button><button onclick="window.print()">Download PDF</button><button onclick="showToast('Tax professional sharing is not available yet.')">Share with Tax Professional</button></div>
+  <div class="tax-actions no-print"><button onclick="window.print()">Print Tax Packet</button><button type="button" onclick="reportPdf.save(document.getElementById('taxPage'), 'Tax Summary ' + selectedYear, this)">Save PDF</button><button onclick="showToast('Tax professional sharing is not available yet.')">Share with Tax Professional</button></div>
   <div class="panel accent-edge tax-docs">
    <div><h2>Tax Documents</h2><p>Keep your tax forms with your records.</p></div>
-   <div><label class="primary-btn full" style="display:block;text-align:center;cursor:pointer">↑ Upload Tax Document<input id="taxFile" type="file" accept=".pdf,.png,.jpg,.jpeg" class="hidden" onchange="uploadTaxDocument(event)"></label><p class="muted" style="text-align:center">1099-NEC • 1099-MISC • W-2 • Other</p><div id="taxDocumentList"></div></div>
+   <div><button class="outline" type="button" onclick="driverPaperwork.captureDocument(document.getElementById('taxFile'))">Scan Tax Document</button><label class="primary-btn full" style="display:block;text-align:center;cursor:pointer">↑ Upload Tax Document<input id="taxFile" type="file" data-document-scan accept=".pdf,.png,.jpg,.jpeg,.webp,.heic,.heif" class="hidden" onchange="uploadTaxDocument(event)"></label><p class="muted" style="text-align:center">1099-NEC • 1099-MISC • W-2 • Other</p><div id="taxDocumentList"></div></div>
   </div>
   <footer>Record keeping only. No tax estimates.</footer>
  </section>
@@ -817,7 +818,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
           <legend>Load assignment</legend>
           <section class="panel">
            <h3>Rate Confirmation</h3>
-           <div class="field"><label for="dispatchRatePhoto">Rate confirmation photo</label><input id="dispatchRatePhoto" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif"></div>
+           <div class="field"><label for="dispatchRatePhoto">Rate confirmation (photo or PDF)</label><button class="outline" type="button" onclick="driverPaperwork.captureDocument(document.getElementById('dispatchRatePhoto'))">Scan Rate Confirmation</button><input id="dispatchRatePhoto" type="file" data-document-scan accept="application/pdf,image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif"></div>
            <p class="muted" id="dispatchRatePhotoStatus" role="status"></p>
            <button class="outline hidden" id="dispatchEditorRateConfirmation" type="button">View Saved Photo</button>
            <div class="dispatch-fields">
@@ -1040,7 +1041,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
          </div>
          <div class="hidden" id="fleetEquipmentDocs">
           <form id="fleetEquipmentUpload">
-           <div class="field"><label for="fleetEquipmentFile">Add a document</label><input id="fleetEquipmentFile" type="file" accept="application/pdf,image/jpeg,image/png,image/webp" required></div>
+           <div class="field"><label for="fleetEquipmentFile">Add a document</label><button class="outline" type="button" onclick="driverPaperwork.captureDocument(document.getElementById('fleetEquipmentFile'))">Scan Document</button><input id="fleetEquipmentFile" type="file" data-document-scan accept="application/pdf,image/jpeg,image/png,image/webp" required></div>
            <button class="outline" type="submit">Upload Document</button>
           </form>
           <p class="muted" id="fleetEquipmentDocsStatus" role="status"></p>
@@ -1503,7 +1504,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
        <div class="field hidden" id="companyPayDraftField"><label for="companyPayDraft">Use an existing draft (optional)</label><select id="companyPayDraft" name="settlement_id"><option value="">Generate a new settlement number</option></select></div>
        <div class="field"><label for="newPayStart">Pay period start</label><input id="newPayStart" name="period_start" type="date" required></div>
        <div class="field"><label for="newPayEnd">Pay period end</label><input id="newPayEnd" name="period_end" type="date" required></div>
-       <div class="field"><label for="newPayFile">Statement file</label><input id="newPayFile" name="file" type="file" accept="application/pdf,image/jpeg,image/png,image/webp" required></div>
+       <div class="field"><label for="newPayFile">Statement file</label><button class="outline" type="button" onclick="driverPaperwork.captureDocument(document.getElementById('newPayFile'))">Scan Statement</button><input id="newPayFile" name="file" type="file" data-document-scan accept="application/pdf,image/jpeg,image/png,image/webp" required></div>
       </div>
       <button type="submit" class="primary-btn">Send for Review</button>
       <button type="button" class="outline hidden" id="companyPayCancelReplacement">Cancel Correction</button>
@@ -1695,7 +1696,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
       <option value="accident">Accident</option><option value="other">Other safety report</option>
      </select></div>
      <div class="field"><label for="companySafetyDate">Incident date</label><input id="companySafetyDate" name="incident_date" type="date" required></div>
-     <div class="field"><label for="companySafetyFile">Photo or PDF (optional)</label><input id="companySafetyFile" name="file" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,application/pdf"></div>
+     <div class="field"><label for="companySafetyFile">Photo or PDF (optional)</label><button class="outline" type="button" onclick="driverPaperwork.captureDocument(document.getElementById('companySafetyFile'), document.getElementById('companySafetyCamera'))">Scan Document</button><input id="companySafetyCamera" type="file" accept="image/*" capture="environment" data-document-scan="companySafetyFile" hidden><input id="companySafetyFile" name="file" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,application/pdf"></div>
      <div class="field dispatch-wide"><label for="companySafetyNotes">Notes</label><textarea id="companySafetyNotes" name="notes" maxlength="3000" rows="3"></textarea></div>
     </div>
     <button class="primary-btn" type="submit">Send Report to Fleet</button>
@@ -1951,10 +1952,10 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 <div id="modal"><div class="modal-card"><h2 id="modalTitle"></h2><div id="modalBody"></div><button class="primary-btn" onclick="closeModal()">Close</button></div></div>
 
 <script src="./dispatch-progress.js?v=driver-input-1"></script>
-<script src="./dispatch-rate-confirmation.js?v=1"></script>
+<script src="./dispatch-rate-confirmation.js?v=document-scan-1"></script>
 <script src="./dispatch-route-miles.js?v=1"></script>
-<script src="./dispatch-zip-lookup.js?v=1"></script>
-<script src="./dispatch.js?v=saved-loads-1"></script>
+<script src="./dispatch-zip-lookup.js?v=zip-timezone-1"></script>
+<script src="./dispatch.js?v=document-scan-1"></script>
 <script src="./linked-profiles.js?v=driver-push-1"></script>
 <script src="./fleet-equipment.js?v=driver-loads-1"></script>
 <script src="./payroll-tax-jurisdictions.js?v=2"></script>
@@ -1968,15 +1969,16 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 <script src="./payroll-tax-rules.js?v=4"></script>
 <script src="./payroll-tax-deductions.js?v=2"></script>
 <script src="./payroll-tax-updates.js?v=1"></script>
-<script src="./payroll-tax-preview.js?v=driver-1099-1"></script>
-<script src="./company-driver-tools.js?v=daily-pay-1"></script>
+<script src="./report-pdf.js?v=1"></script>
+<script src="./payroll-tax-preview.js?v=save-pdf-1"></script>
+<script src="./company-driver-tools.js?v=save-pdf-1"></script>
 <script src="./company-messages.js?v=driver-push-1"></script>
 <script src="./driver-document-scan.js?v=1"></script>
-<script src="./driver-paperwork.js?v=bol-scan-2"></script>
-<script src="./payroll-withholding-forms.js?v=hr-tax-1"></script>
+<script src="./driver-paperwork.js?v=document-scan-1"></script>
+<script src="./payroll-withholding-forms.js?v=document-scan-1"></script>
 <script src="./payroll-contractor-tax.js?v=hr-tax-1"></script>
 <script src="./hr-tax-forms.js?v=driver-1099-1"></script>
-<script src="./driver-workflow.js?v=driver-input-1"></script>
+<script src="./driver-workflow.js?v=document-scan-1"></script>
 <script src="./fleet-admin-driver.js?v=1"></script>
 <script src="./company-safety.js?v=1"></script>
 <script src="./driver-app.js?v=push-1"></script>

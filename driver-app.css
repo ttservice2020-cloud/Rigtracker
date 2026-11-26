@@ -52,6 +52,9 @@
 .driver-paperwork-error:empty{display:none}
 .driver-scan-review{margin-top:16px}
 .driver-scan-review h3{margin-bottom:6px}
+.driver-live-scan-frame{position:relative;margin:12px auto;overflow:hidden;border-radius:8px;background:#000}
+.driver-live-scan-frame video{display:block;width:100%;height:auto}
+.driver-live-scan-frame canvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
 .driver-scan-crop{position:relative;margin:20px auto}
 .driver-scan-crop canvas{display:block;width:100%;height:auto;border-radius:6px}
 .driver-paperwork-screen .driver-scan-corner{position:absolute;display:grid;place-items:center;width:40px;height:40px;

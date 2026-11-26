@@ -1,4 +1,67 @@
 const dispatchZipLookup = (() => {
+  let timeZones;
+
+  async function getZone(zip) {
+    timeZones ??= fetch('./dispatch-zip-timezones.json?v=1').then(response => {
+      if (!response.ok) throw new Error('ZIP time zones unavailable');
+      return response.json();
+    }).catch(error => {
+      timeZones = null;
+      throw error;
+    });
+    const { zones, ranges } = await timeZones;
+    const code = Number(zip);
+    let low = 0;
+    let high = ranges.length - 1;
+    while (low <= high) {
+      const middle = Math.floor((low + high) / 2);
+      const [start, end, index] = ranges[middle];
+      if (code < start) high = middle - 1;
+      else if (code > end) low = middle + 1;
+      else return zones[index];
+    }
+    return '';
+  }
+
+  function bindTimeZone({ zip, zone, status }) {
+    const zipCode = () => /^(\d{5})(?:-\d{4})?$/.exec(zip.value.trim())?.[1] ?? '';
+    let previous = zipCode();
+    let request;
+
+    async function update() {
+      const code = zipCode();
+      if (code !== previous) {
+        previous = code;
+        zone.value = '';
+      }
+      if (!code || zone.value) {
+        request = null;
+        status.textContent = '';
+        return;
+      }
+      if (request?.code === code) return;
+      const pending = request = { code };
+      status.textContent = 'Finding time zone…';
+      try {
+        const value = await getZone(code);
+        if (request !== pending || !zip.isConnected) return;
+        zone.value = value;
+        status.textContent = zone.value ? 'Time zone filled from ZIP.' : 'Choose the time zone for this ZIP.';
+      } catch {
+        if (request === pending) status.textContent = 'ZIP lookup unavailable. Choose the time zone.';
+      } finally {
+        if (request === pending) request = null;
+      }
+    }
+
+    zip.addEventListener('input', update);
+    zone.addEventListener('change', () => {
+      request = null;
+      status.textContent = '';
+    });
+    return update;
+  }
+
   function bind({street,city,state,zip,status,lookup,allowed}) {
     let timer;
     let request;
@@ -83,5 +146,5 @@ const dispatchZipLookup = (() => {
     return {update,reset};
   }
 
-  return {bind};
+  return {bind, bindTimeZone};
 })();

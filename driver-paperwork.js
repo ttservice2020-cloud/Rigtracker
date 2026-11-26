@@ -134,53 +134,57 @@ const driverPaperwork = (() => {
       onChange();
     }
 
+    async function readSelection(selected) {
+      if (session !== view || !dialog.open || draft.saving || scanning) return;
+      if (!selected.length) return;
+      const errors = new Set();
+      scanning = Boolean(options.scan);
+      if (scanning) {
+        error.textContent = '';
+        update();
+      }
+      for (const file of selected) {
+        const mime = fileMime(file);
+        const needsScan = Boolean(options.scan && mime?.startsWith('image/'));
+        if (!Object.hasOwn(extensionByMime, mime) || !file.size) {
+          errors.add(file.name + ' is not a supported photo or PDF.');
+        } else if (file.size > (needsScan ? maxPhotoBytes : maxBytes)) {
+          const maxSize = needsScan ? '32 MB for a photo you want to scan' : '10 MB per file';
+          errors.add(file.name + ' exceeds ' + maxSize + '.');
+        } else if (draft.files.length >= limit) {
+          errors.add('You can add up to ' + limit + (limit === 1 ? ' more file.' : ' more files.'));
+          break;
+        } else {
+          let entry = { file, mime };
+          if (needsScan) {
+            try {
+              entry = await reviewScan(view, content, file, mime);
+            } catch (failure) {
+              errors.add('Could not scan ' + file.name + '. ' + (failure.message || '') +
+                ' Try again or choose an existing PDF.');
+              continue;
+            }
+          }
+          if (session !== view || !dialog.open) return;
+          if (entry) draft.files.push(entry);
+        }
+      }
+      if (session !== view || !dialog.open) return;
+      scanning = false;
+      error.textContent = [...errors].join(' ');
+      update();
+      if (options.scan) (draft.files.length && !done.disabled ? done : take).focus();
+    }
+
     function filePicker(accept) {
       const picker = element('input');
       picker.type = 'file';
       picker.accept = accept;
       picker.hidden = true;
-      picker.addEventListener('change', async () => {
-        if (session !== view || !dialog.open || draft.saving || scanning) return;
+      picker.addEventListener('change', () => {
         const selected = [...picker.files];
         picker.value = '';
-        if (!selected.length) return;
-        const errors = new Set();
-        scanning = Boolean(options.scan);
-        if (scanning) {
-          error.textContent = '';
-          update();
-        }
-        for (const file of selected) {
-          const mime = fileMime(file);
-          const needsScan = Boolean(options.scan && mime?.startsWith('image/'));
-          if (!Object.hasOwn(extensionByMime, mime) || !file.size) {
-            errors.add(file.name + ' is not a supported photo or PDF.');
-          } else if (file.size > (needsScan ? maxPhotoBytes : maxBytes)) {
-            const maxSize = needsScan ? '32 MB for a photo you want to scan' : '10 MB per file';
-            errors.add(file.name + ' exceeds ' + maxSize + '.');
-          } else if (draft.files.length >= limit) {
-            errors.add('You can add up to ' + limit + (limit === 1 ? ' more file.' : ' more files.'));
-            break;
-          } else {
-            let entry = { file, mime };
-            if (needsScan) {
-              try {
-                entry = await reviewScan(view, content, file, mime);
-              } catch (failure) {
-                errors.add('Could not scan ' + file.name + '. ' + (failure.message || '') +
-                  ' Try again or choose an existing PDF.');
-                continue;
-              }
-            }
-            if (session !== view || !dialog.open) return;
-            if (entry) draft.files.push(entry);
-          }
-        }
-        if (session !== view || !dialog.open) return;
-        scanning = false;
-        error.textContent = [...errors].join(' ');
-        update();
-        if (options.scan) (draft.files.length && !done.disabled ? done : take).focus();
+        void readSelection(selected);
       });
       return picker;
     }
@@ -189,7 +193,11 @@ const driverPaperwork = (() => {
     files.multiple = true;
     const camera = filePicker('image/*');
     camera.setAttribute('capture', 'environment');
-    const take = button(options.scan ? 'Scan Page' : 'Take photo', () => camera.click());
+    const take = button(options.scan ? 'Scan Page' : 'Take photo', async () => {
+      if (!options.scan) return camera.click();
+      const file = await cameraPreview(view, content, () => camera.click());
+      if (file) await readSelection([file]);
+    });
     const add = button('Add photos or PDF', () => files.click());
     const actions = element('div', '', 'driver-paperwork-actions');
     actions.append(take, add, camera, files);
@@ -222,6 +230,113 @@ const driverPaperwork = (() => {
     count, error, gallery, footer);
     view.body.append(content);
     paint();
+  }
+
+  function cameraPreview(view, content, fallback) {
+    const section = element('section', '', 'driver-scan-review');
+    const frame = element('div', '', 'driver-live-scan-frame');
+    const video = element('video');
+    video.muted = video.autoplay = video.playsInline = true;
+    const overlay = element('canvas');
+    overlay.setAttribute('aria-hidden', 'true');
+    const sample = element('canvas');
+    const sampleContext = sample.getContext('2d', { willReadFrequently: true });
+    const outline = overlay.getContext('2d');
+    const status = element('p', 'Opening camera…', 'muted');
+    status.setAttribute('role', 'status');
+    frame.hidden = true;
+    frame.append(video, overlay);
+    content.hidden = true;
+    view.body.append(section);
+    dialog.scrollTop = 0;
+
+    return new Promise(resolve => {
+      let finished = false;
+      let stream;
+      let timer;
+      function finish(file = null) {
+        if (finished) return;
+        finished = true;
+        clearTimeout(timer);
+        stream?.getTracks().forEach(track => track.stop());
+        video.srcObject = null;
+        section.remove();
+        content.hidden = false;
+        view.cancelScan = null;
+        resolve(file);
+      }
+      view.cancelScan = finish;
+      const capture = button('Capture Page', async () => {
+        capture.disabled = true;
+        clearTimeout(timer);
+        const page = element('canvas');
+        page.width = video.videoWidth;
+        page.height = video.videoHeight;
+        page.getContext('2d').drawImage(video, 0, 0);
+        const blob = await new Promise(done => page.toBlob(done, 'image/jpeg', 0.95));
+        if (blob) finish(new File([blob], 'Document-page.jpg', { type: blob.type }));
+        else if (!finished) {
+          status.textContent = 'Could not capture the page. Try again.';
+          detectFrame();
+        }
+      }, 'primary-btn');
+      capture.disabled = true;
+      const actions = element('div', '', 'driver-paperwork-actions');
+      actions.append(button('Cancel', () => finish()), button('Choose Photo', () => {
+        finish();
+        fallback();
+      }), capture);
+      section.append(element('h3', 'Scan Page'), frame, status, actions);
+
+      function detectFrame() {
+        if (finished) return;
+        if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && video.videoWidth && video.videoHeight) {
+          const scale = 350 / Math.max(video.videoWidth, video.videoHeight);
+          const width = Math.round(video.videoWidth * scale);
+          const height = Math.round(video.videoHeight * scale);
+          if (sample.width !== width || sample.height !== height) {
+            sample.width = overlay.width = width;
+            sample.height = overlay.height = height;
+            frame.style.width = `min(100%, ${60 * width / height}dvh)`;
+          }
+          frame.hidden = capture.disabled = false;
+          sampleContext.drawImage(video, 0, 0, width, height);
+          const corners = driverDocumentScan.detect(sample);
+          outline.clearRect(0, 0, width, height);
+          if (corners) {
+            outline.beginPath();
+            outline.moveTo(corners[0].x, corners[0].y);
+            corners.slice(1).forEach(({ x, y }) => outline.lineTo(x, y));
+            outline.closePath();
+            outline.lineWidth = 2;
+            outline.strokeStyle = '#5ce5ac';
+            outline.stroke();
+          }
+          const message = corners ? 'Paper edges detected.' : 'Fit all four paper corners in the frame.';
+          if (status.textContent !== message) status.textContent = message;
+        }
+        timer = setTimeout(detectFrame, 180);
+      }
+
+      async function start() {
+        try {
+          const camera = await navigator.mediaDevices.getUserMedia({ audio: false, video: {
+            facingMode: { ideal: 'environment' }, width: { ideal: 2560 }, height: { ideal: 1920 }
+          } });
+          if (finished) {
+            camera.getTracks().forEach(track => track.stop());
+            return;
+          }
+          stream = camera;
+          video.srcObject = stream;
+          await video.play();
+          detectFrame();
+        } catch {
+          if (!finished) status.textContent = 'Camera unavailable. Allow camera access or choose a photo to scan.';
+        }
+      }
+      void start();
+    });
   }
 
   function cornerEditor(source, points, message, onPreview, onDiscard) {
@@ -386,6 +501,78 @@ const driverPaperwork = (() => {
     });
   }
 
+  async function scanDocument(file) {
+    const mime = fileMime(file);
+    if (mime === 'application/pdf' && file.size && file.size <= maxBytes) return { file, mime };
+    if (!mime?.startsWith('image/') || !file.size || file.size > maxPhotoBytes) {
+      throw new Error('Choose a supported photo up to 32 MB or a PDF up to 10 MB.');
+    }
+    const view = show('Scan Document', file.name);
+    const instructions = element('p', 'Finding the page edges…', 'muted');
+    instructions.setAttribute('role', 'status');
+    view.body.append(instructions);
+    try {
+      return await reviewScan(view, instructions, file, mime);
+    } finally {
+      if (session === view) close();
+    }
+  }
+
+  const processedChanges = new WeakSet();
+  const scannedPages = new WeakMap();
+
+  function setScannedFile(target, result) {
+    const transfer = new DataTransfer();
+    transfer.items.add(result.file);
+    target.files = transfer.files;
+    if (result.scan) scannedPages.set(target.files[0], result.scan);
+    const change = new Event('change', { bubbles: true });
+    processedChanges.add(change);
+    target.dispatchEvent(change);
+  }
+
+  async function captureDocument(target, fallback = target) {
+    if (!target?.isConnected || target.disabled) return;
+    const user = currentUser;
+    const view = show('Scan Document');
+    const preparing = element('p', 'Finding the page edges…', 'muted');
+    view.body.append(preparing);
+    try {
+      const file = await cameraPreview(view, preparing, () => {
+        close();
+        fallback.click();
+      });
+      if (!file || session !== view || currentUser !== user) return;
+      const result = await reviewScan(view, preparing, file, file.type);
+      if (!result || session !== view || currentUser !== user || !target.isConnected) return;
+      close();
+      setScannedFile(target, result);
+    } catch (error) {
+      if (currentUser === user) showToast(error.message || 'Could not scan the document. Try again.');
+    } finally {
+      if (session === view) close();
+    }
+  }
+
+  document.addEventListener('change', async event => {
+    const input = event.target;
+    if (!(input instanceof HTMLInputElement) || !input.hasAttribute('data-document-scan') || processedChanges.has(event)) return;
+    const file = input.files?.[0];
+    if (!file) return;
+    const target = input.dataset.documentScan ? document.getElementById(input.dataset.documentScan) : input;
+    if (target === input && fileMime(file) === 'application/pdf') return;
+    event.stopImmediatePropagation();
+    input.value = '';
+    const user = currentUser;
+    try {
+      const result = await scanDocument(file);
+      if (!result || currentUser !== user || !target?.isConnected) return;
+      setScannedFile(target, result);
+    } catch (error) {
+      if (currentUser === user) showToast(error.message || 'Could not scan the document. Try again.');
+    }
+  }, true);
+
   async function upload(loadId, userId, entry) {
     entry.path ??= loadId + '/' + userId + '/' + crypto.randomUUID() + (entry.scan ? '-scan' : '') + '.' + extensionByMime[entry.mime];
     if (!entry.uploaded) {
@@ -513,11 +700,11 @@ const driverPaperwork = (() => {
       const photosOnly = files.every(file => file.scan);
       const print = button('Print', printPhotos);
       if (photosOnly) actions.append(print);
-      status.textContent = 'Preparing printable PDF…';
+      status.textContent = 'Preparing PDF…';
       const pdf = files.length === 1 && files[0].mime === 'application/pdf' ? files[0].original : await buildPdf(files);
       if (!current()) return;
       const pdfUrl = objectUrl(view, pdf);
-      const download = element('a', 'Download PDF', 'outline driver-paperwork-download');
+      const download = element('a', 'Save PDF', 'outline driver-paperwork-download');
       download.href = pdfUrl;
       download.download = fileNameBase + '.pdf';
       actions.append(download);
@@ -547,5 +734,5 @@ const driverPaperwork = (() => {
     }
   }
 
-  return { edit, upload, open, close, loadPdfLibrary };
+  return { edit, upload, open, close, loadPdfLibrary, captureDocument, scanImage: file => scannedPages.get(file) };
 })();
