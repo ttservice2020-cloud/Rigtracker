@@ -221,7 +221,10 @@
 .dispatch-contract-history-table tbody tr:nth-child(even){--run-background:#142539}
 .dispatch-contract-history-table tbody :is(td,th){background:var(--run-background);overflow-wrap:anywhere}
 .dispatch-contract-history-table :is(th,td):first-child{position:sticky;left:0;z-index:1}
-.dispatch-contract-history-table thead th:first-child{z-index:3}
+.dispatch-contract-history-table tbody [data-column="action"]{position:sticky;right:0;z-index:1}
+.dispatch-contract-history-table thead :is(th:first-child,[data-column="action"]){z-index:3}
+.dispatch-contract-history-table thead [data-column="action"]{right:0}
+.dispatch-contract-history-table [data-column="action"]{width:1%;text-align:center;border-left:1px solid #334a64}
 .dispatch-contract-history-table :is([data-column="date"],[data-column="completed"]){white-space:nowrap}
 .dispatch-contract-history-table [data-column="arrivals"]{min-width:13rem}
 .dispatch-contract-history-table [data-column="locations"]{min-width:11rem}

@@ -272,15 +272,8 @@ const dispatchProgress = (() => {
       return [...new Set(trailers)].join(' / ') || run.details.trailerNumber;
     }
 
-    function historyRunButton(run, text) {
-      const label = proLabel(run.pro_number);
-      const viewRun = button(text || label, () => show(run.id));
-      viewRun.setAttribute('aria-label', 'View run ' + label);
-      return viewRun;
-    }
-
     const columnDefinitions = {
-      pro: { label: 'PRO', read: run => historyRunButton(run) },
+      pro: { label: 'PRO', read: run => proLabel(run.pro_number) },
       date: { label: 'Date', read: runDate },
       bol: { label: 'BOL #', read: loadBols },
       trailer: { label: 'Trailer', read: recordedTrailer },
@@ -325,7 +318,7 @@ const dispatchProgress = (() => {
       if (load) history(load);
     }
 
-    function historyHead(showAction) {
+    function historyHead() {
       const layout = historyColumns.join(',');
       if (layout === renderedColumns) return;
       renderedColumns = layout;
@@ -358,13 +351,10 @@ const dispatchProgress = (() => {
         cell.append(select);
         return cell;
       });
-      if (showAction) {
-        const view = element('th', 'Run');
-        view.scope = 'col';
-        view.dataset.column = 'action';
-        headers.push(view);
-      }
-      columnHead.replaceChildren(...headers);
+      const view = element('th', 'Run');
+      view.scope = 'col';
+      view.dataset.column = 'action';
+      columnHead.replaceChildren(...headers, view);
     }
 
     function fact(label, value) {
@@ -506,8 +496,7 @@ const dispatchProgress = (() => {
       selector.value = historyDate;
       selector.disabled = !dates.length;
       const visible = historyDate ? rows.filter(run => runDate(run) === historyDate) : rows;
-      const showAction = !historyColumns.includes('pro');
-      historyHead(showAction);
+      historyHead();
       byId('dispatchContractRuns').replaceChildren(...visible.map(run => {
         const row = element('tr');
         for (const id of historyColumns) {
@@ -517,12 +506,12 @@ const dispatchProgress = (() => {
           cell.append(columnDefinitions[id].read(run) || '—');
           row.append(cell);
         }
-        if (showAction) {
-          const action = element('td');
-          action.dataset.column = 'action';
-          action.append(historyRunButton(run, 'View'));
-          row.append(action);
-        }
+        const action = element('td');
+        const viewRun = button('View', () => show(run.id));
+        viewRun.setAttribute('aria-label', 'View run ' + proLabel(run.pro_number));
+        action.dataset.column = 'action';
+        action.append(viewRun);
+        row.append(action);
         return row;
       }));
       toggle('dispatchContractRunsEmpty', !rows.length);
