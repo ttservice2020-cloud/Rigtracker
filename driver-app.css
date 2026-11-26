@@ -50,6 +50,17 @@
 .driver-paperwork-screen button,.driver-paperwork-download{min-height:44px}
 .driver-paperwork-error{color:#ff9daa}
 .driver-paperwork-error:empty{display:none}
+.driver-scan-review{margin-top:16px}
+.driver-scan-review h3{margin-bottom:6px}
+.driver-scan-crop{position:relative;margin:20px auto}
+.driver-scan-crop canvas{display:block;width:100%;height:auto;border-radius:6px}
+.driver-paperwork-screen .driver-scan-corner{position:absolute;display:grid;place-items:center;width:40px;height:40px;
+  min-height:40px;padding:0;transform:translate(-50%,-50%);border:0;border-radius:50%;background:transparent;
+  touch-action:none;cursor:grab}
+.driver-scan-corner::after{content:"";width:18px;height:18px;border:2px solid #0b1524;border-radius:50%;background:#5ce5ac}
+.driver-scan-corner:active{cursor:grabbing}
+.driver-scan-corner:focus-visible{outline:2px solid #fff;outline-offset:0}
+.driver-scan-preview:not([hidden]){display:block;max-width:100%;max-height:62dvh;width:auto;height:auto;margin:12px auto;border-radius:4px}
 .driver-paperwork-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,140px),1fr));gap:12px;list-style:none;padding:0}
 .driver-paperwork-card{min-width:0;padding:8px;border:1px solid #36567c;border-radius:10px;background:#111f31}
 .driver-paperwork-card p{font-size:14px;margin:8px 0}
