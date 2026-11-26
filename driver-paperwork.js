@@ -3,6 +3,7 @@ const driverPaperwork = (() => {
   const bucket = 'driver-load-documents';
   const maxFiles = 20;
   const maxBytes = 10 * 1024 * 1024;
+  const maxPhotoBytes = 32 * 1024 * 1024;
   const mimeByExtension = {
     jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp',
     heic: 'image/heic', heif: 'image/heif', pdf: 'application/pdf'
@@ -31,6 +32,7 @@ const driverPaperwork = (() => {
 
   function release() {
     if (!session) return;
+    session.cancelScan?.();
     session.urls.forEach(url => URL.revokeObjectURL(url));
     document.body.classList.remove('printing-driver-paperwork');
     session = null;
@@ -90,6 +92,7 @@ const driverPaperwork = (() => {
   function edit(draft, title, subtitle, onChange, options = {}) {
     const view = show(title, subtitle);
     const limit = options.limit ?? maxFiles;
+    const content = element('div');
     const gallery = element('ol', '', 'driver-paperwork-grid');
     const count = element('p', '', 'muted');
     count.setAttribute('role', 'status');
@@ -118,7 +121,7 @@ const driverPaperwork = (() => {
         return card;
       }));
       const total = draft.files.length;
-      count.textContent = scanning ? 'Preparing PDF scan…'
+      count.textContent = scanning ? 'Preparing page…'
         : total ? total + (total === 1 ? ' file selected' : ' files selected') : 'No files selected';
       add.disabled = take.disabled = Boolean(draft.saving) || scanning || total >= limit;
       done.disabled = scanning || Boolean(options.save && (draft.saving || !total));
@@ -149,35 +152,35 @@ const driverPaperwork = (() => {
         }
         for (const file of selected) {
           const mime = fileMime(file);
-          if (!Object.hasOwn(extensionByMime, mime) || !file.size || file.size > maxBytes) {
-            errors.add(file.name + ' must be a supported photo or PDF up to 10 MB.');
+          const needsScan = Boolean(options.scan && mime?.startsWith('image/'));
+          if (!Object.hasOwn(extensionByMime, mime) || !file.size) {
+            errors.add(file.name + ' is not a supported photo or PDF.');
+          } else if (file.size > (needsScan ? maxPhotoBytes : maxBytes)) {
+            const maxSize = needsScan ? '32 MB for a photo you want to scan' : '10 MB per file';
+            errors.add(file.name + ' exceeds ' + maxSize + '.');
           } else if (draft.files.length >= limit) {
             errors.add('You can add up to ' + limit + (limit === 1 ? ' more file.' : ' more files.'));
             break;
           } else {
             let entry = { file, mime };
-            if (options.scan && mime.startsWith('image/')) {
-              const url = URL.createObjectURL(file);
+            if (needsScan) {
               try {
-                const scan = await scanPhoto(url);
-                const pdf = await buildPdf([{ mime, scan }]);
-                if (pdf.size > maxBytes) throw new Error('This PDF scan exceeds 10 MB.');
-                const name = file.name.replace(/\.[^.]+$/, '') + '-scan.pdf';
-                entry = { file: new File([pdf], name, { type: pdf.type }), mime: pdf.type, scan };
+                entry = await reviewScan(view, content, file, mime);
               } catch (failure) {
                 errors.add('Could not scan ' + file.name + '. ' + (failure.message || '') +
                   ' Try again or choose an existing PDF.');
                 continue;
-              } finally { URL.revokeObjectURL(url); }
+              }
             }
             if (session !== view || !dialog.open) return;
-            draft.files.push(entry);
+            if (entry) draft.files.push(entry);
           }
         }
         if (session !== view || !dialog.open) return;
         scanning = false;
         error.textContent = [...errors].join(' ');
         update();
+        if (options.scan) (draft.files.length && !done.disabled ? done : take).focus();
       });
       return picker;
     }
@@ -186,7 +189,7 @@ const driverPaperwork = (() => {
     files.multiple = true;
     const camera = filePicker('image/*');
     camera.setAttribute('capture', 'environment');
-    const take = button(options.scan ? 'Scan to PDF' : 'Take photo', () => camera.click());
+    const take = button(options.scan ? 'Scan Page' : 'Take photo', () => camera.click());
     const add = button('Add photos or PDF', () => files.click());
     const actions = element('div', '', 'driver-paperwork-actions');
     actions.append(take, add, camera, files);
@@ -212,10 +215,175 @@ const driverPaperwork = (() => {
       }
     }, 'primary-btn');
     footer.append(done);
-    view.body.append(actions, element('p', options.help || (options.save
+    content.append(actions);
+    if (options.scan) content.append(element('p', 'Fit all four corners of the paper in the camera frame.', 'muted'));
+    content.append(element('p', options.help || (options.save
       ? 'Choose files and save them to this stop.' : 'Files are attached when you save the stop.'), 'muted'),
     count, error, gallery, footer);
+    view.body.append(content);
     paint();
+  }
+
+  function cornerEditor(source, points, message, onPreview, onDiscard) {
+    const crop = element('div', '', 'driver-scan-crop');
+    crop.style.width = `min(100%, ${source.width}px, ${60 * source.width / source.height}dvh)`;
+    const canvas = element('canvas');
+    const scale = Math.min(1, 900 / Math.max(source.width, source.height));
+    canvas.width = Math.max(1, Math.round(source.width * scale));
+    canvas.height = Math.max(1, Math.round(source.height * scale));
+    canvas.setAttribute('aria-hidden', 'true');
+    crop.append(canvas);
+    const context = canvas.getContext('2d');
+    const status = element('p', '', 'driver-paperwork-error');
+    status.setAttribute('role', 'status');
+    const preview = button('Preview Scan', () => onPreview(points), 'primary-btn');
+    const actions = element('div', '', 'driver-paperwork-actions');
+    actions.append(button('Discard Photo', onDiscard), preview);
+    const names = ['Top left', 'Top right', 'Bottom right', 'Bottom left'];
+    const horizontal = source.width - 1;
+    const vertical = source.height - 1;
+
+    function paint() {
+      context.drawImage(source, 0, 0, canvas.width, canvas.height);
+      const page = new Path2D();
+      points.forEach(({ x, y }, index) => {
+        const left = x * canvas.width / horizontal;
+        const top = y * canvas.height / vertical;
+        if (index === 0) page.moveTo(left, top);
+        else page.lineTo(left, top);
+        handles[index].style.left = `${100 * x / horizontal}%`;
+        handles[index].style.top = `${100 * y / vertical}%`;
+      });
+      page.closePath();
+      const outside = new Path2D(page);
+      outside.rect(0, 0, canvas.width, canvas.height);
+      context.fillStyle = '#0008';
+      context.fill(outside, 'evenodd');
+      context.lineWidth = 2;
+      context.strokeStyle = '#5ce5ac';
+      context.stroke(page);
+      preview.disabled = !driverDocumentScan.validCorners(points, source);
+      status.textContent = preview.disabled ? 'Keep the four corners in order around the page.' : '';
+    }
+
+    function move(index, x, y) {
+      points[index] = { x: Math.max(0, Math.min(horizontal, x)), y: Math.max(0, Math.min(vertical, y)) };
+      paint();
+    }
+
+    const handles = names.map((name, index) => {
+      const handle = button('', () => {}, 'driver-scan-corner');
+      handle.setAttribute('aria-label', name + ' corner. Use arrow keys to adjust.');
+      handle.addEventListener('pointerdown', event => {
+        if (event.button === 0) handle.setPointerCapture(event.pointerId);
+      });
+      handle.addEventListener('pointermove', event => {
+        if (!handle.hasPointerCapture(event.pointerId)) return;
+        const bounds = canvas.getBoundingClientRect();
+        move(index, (event.clientX - bounds.left) / bounds.width * horizontal,
+          (event.clientY - bounds.top) / bounds.height * vertical);
+      });
+      handle.addEventListener('keydown', event => {
+        const changes = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
+        if (!Object.hasOwn(changes, event.key)) return;
+        event.preventDefault();
+        const step = event.shiftKey ? 0.05 : 0.01;
+        const [dx, dy] = changes[event.key];
+        move(index, points[index].x + dx * step * horizontal, points[index].y + dy * step * vertical);
+      });
+      crop.append(handle);
+      return handle;
+    });
+    paint();
+    return [element('h3', 'Adjust Page Corners'), element('p', message, 'muted'),
+      crop, status, actions];
+  }
+
+  async function reviewScan(view, content, file, mime) {
+    const source = await driverDocumentScan.read(file);
+    if (session !== view || !dialog.open) return null;
+    const detected = driverDocumentScan.detect(source);
+    let points = detected || driverDocumentScan.fullPage(source);
+    const editor = element('section', '', 'driver-scan-review');
+    content.hidden = true;
+    view.body.append(editor);
+    dialog.scrollTop = 0;
+    const active = () => session === view && dialog.open && editor.isConnected;
+    let previewUrl;
+
+    function clearPreview() {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      previewUrl = null;
+    }
+
+    return new Promise(resolve => {
+      function finish(entry = null) {
+        clearPreview();
+        editor.remove();
+        content.hidden = false;
+        view.cancelScan = null;
+        resolve(entry);
+      }
+      view.cancelScan = finish;
+
+      function adjust(message = 'Move the handles to the four corners of the paper.') {
+        clearPreview();
+        editor.replaceChildren(...cornerEditor(source, points, message, next => {
+          points = next;
+          void preview();
+        }, () => finish()));
+        dialog.scrollTop = 0;
+        editor.querySelector('.driver-scan-corner').focus({ preventScroll: true });
+      }
+
+      async function preview() {
+        const status = element('p', 'Straightening and cleaning the page…', 'muted');
+        status.setAttribute('role', 'status');
+        const img = element('img', '', 'driver-scan-preview');
+        img.alt = 'Cleaned and straightened scan preview';
+        img.hidden = true;
+        const corners = button('Adjust Corners', () => adjust());
+        const discard = button('Discard Photo', () => finish());
+        const actions = element('div', '', 'driver-paperwork-actions');
+        let scan;
+        const use = button('Use Scan', async () => {
+          use.disabled = corners.disabled = true;
+          status.textContent = 'Creating PDF…';
+          try {
+            const pdf = await buildPdf([{ mime, scan }]);
+            if (!active()) return;
+            if (pdf.size > maxBytes) throw new Error('This PDF scan exceeds 10 MB.');
+            const name = file.name.replace(/\.[^.]+$/, '') + '-scan.pdf';
+            finish({ file: new File([pdf], name, { type: pdf.type }), mime: pdf.type, scan });
+          } catch (failure) {
+            if (!active()) return;
+            status.textContent = failure.message || 'Could not create the PDF. Try again.';
+            use.disabled = corners.disabled = false;
+          }
+        }, 'primary-btn');
+        use.disabled = true;
+        actions.append(discard, corners, use);
+        editor.replaceChildren(element('h3', 'Scan Preview'), img, status, actions);
+        dialog.scrollTop = 0;
+        try {
+          await new Promise(resolve => setTimeout(resolve, 0));
+          if (!active() || !editor.contains(img)) return;
+          scan = await blobJpeg(driverDocumentScan.scan(source, points));
+          if (!active() || !editor.contains(img)) return;
+          previewUrl = URL.createObjectURL(scan);
+          img.src = previewUrl;
+          img.hidden = false;
+          status.textContent = '';
+          use.disabled = false;
+          use.focus({ preventScroll: true });
+        } catch (failure) {
+          if (active() && editor.contains(img)) status.textContent = failure.message || 'Could not prepare the page. Adjust the corners and try again.';
+        }
+      }
+
+      if (detected) void preview();
+      else adjust('Could not detect the page edges. Move the handles to the four corners of the paper.');
+    });
   }
 
   async function upload(loadId, userId, entry) {
