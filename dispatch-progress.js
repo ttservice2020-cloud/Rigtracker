@@ -230,21 +230,12 @@ const dispatchProgress = (() => {
     let activeId;
     let selectedStop;
     let request;
-    let historyDate = '';
-    let columnKey;
-    let historyColumns;
-    let renderedColumns;
     let splitFactsKey;
     let splitChoicesKey;
 
     const set = (id, text) => { byId(id).textContent = text; };
     const active = () => activeId && getLoad(activeId);
     const progressLabel = stop => (stop.kind === 'pickup' ? 'Pickup' : 'Delivery') + ' ' + (stop.index + 1);
-    const columnHead = byId('dispatchContractHistoryHead');
-    const addColumn = byId('dispatchContractAddColumn');
-    const columnReset = byId('dispatchContractColumnReset');
-    const defaultColumns = ['pro', 'date', 'bol', 'trailer', 'route', 'drivers'];
-
     function completedTime(run) {
       const recorded = Date.parse(run.progress?.completedAt);
       return Number.isFinite(recorded) ? recorded : Date.parse(run.updated_at);
@@ -296,66 +287,14 @@ const dispatchProgress = (() => {
       truck: { label: 'Truck', read: run => run.details.truckNumber }
     };
 
-    function loadColumns() {
-      const key = historyColumnKey();
-      if (historyColumns && key === columnKey) return;
-      columnKey = key;
-      historyColumns = [...defaultColumns];
-      if (!key) return;
-      try {
-        const saved = JSON.parse(localStorage.getItem(key));
-        if (!Array.isArray(saved)) return;
-        const fields = [...new Set(saved.filter(id => typeof id === 'string' && Object.hasOwn(columnDefinitions, id)))];
-        if (fields.length) historyColumns = fields;
-      } catch {}
-    }
-
-    function changeColumns() {
-      if (columnKey) {
-        try { localStorage.setItem(columnKey, JSON.stringify(historyColumns)); } catch {}
-      }
-      const load = active();
-      if (load) history(load);
-    }
-
-    function historyHead() {
-      const layout = historyColumns.join(',');
-      if (layout === renderedColumns) return;
-      renderedColumns = layout;
-      const fields = Object.entries(columnDefinitions);
-      const unused = fields.filter(([id]) => !historyColumns.includes(id));
-      addColumn.replaceChildren(new Option('Choose a field', ''), ...unused.map(([id, { label }]) => new Option(label, id)));
-      addColumn.disabled = !unused.length;
-      const headers = historyColumns.map((id, index) => {
-        const cell = element('th');
-        cell.scope = 'col';
-        cell.dataset.column = id;
-        const select = element('select');
-        select.setAttribute('aria-label', 'Field for column ' + (index + 1));
-        select.append(...fields.map(([value, { label }]) => new Option(label, value)));
-        if (historyColumns.length > 1) select.append(new Option('Remove column', ''));
-        select.value = id;
-        select.addEventListener('change', () => {
-          const next = select.value;
-          if (next === id) return;
-          if (!next) historyColumns.splice(index, 1);
-          else {
-            const existing = historyColumns.indexOf(next);
-            if (existing !== -1) historyColumns[existing] = id;
-            historyColumns[index] = next;
-          }
-          changeColumns();
-          const selectors = columnHead.querySelectorAll('select');
-          selectors[Math.min(index, selectors.length - 1)]?.focus();
-        });
-        cell.append(select);
-        return cell;
-      });
-      const view = element('th', 'Run');
-      view.scope = 'col';
-      view.dataset.column = 'action';
-      columnHead.replaceChildren(...headers, view);
-    }
+    const historyGrid = loadHistoryGrid.bind(byId('dispatchDetailHistory'), {
+      columns: columnDefinitions,
+      defaults: ['pro', 'date', 'bol', 'trailer', 'route', 'drivers'],
+      storageKey: historyColumnKey,
+      dateFor: runDate,
+      reference: run => proLabel(run.pro_number),
+      onView: run => show(run.id)
+    });
 
     function fact(label, value) {
       const pair = element('div');
@@ -486,35 +425,9 @@ const dispatchProgress = (() => {
       toggle('dispatchDetailHistory', Boolean(contract));
       if (!contract) return;
       set('dispatchHistoryRoute', 'Route ' + getRouteNumber(contract));
-      loadColumns();
       const rows = getLoads().filter(item => item.status === 'completed' && item.contract_load_id === contract.id && item.id !== load.id)
         .sort((a, b) => (completedTime(b) || 0) - (completedTime(a) || 0));
-      const dates = [...new Set(rows.map(runDate).filter(Boolean))];
-      if (!dates.includes(historyDate)) historyDate = '';
-      const selector = byId('dispatchHistoryDate');
-      selector.replaceChildren(new Option('All dates', ''), ...dates.map(date => new Option(date, date)));
-      selector.value = historyDate;
-      selector.disabled = !dates.length;
-      const visible = historyDate ? rows.filter(run => runDate(run) === historyDate) : rows;
-      historyHead();
-      byId('dispatchContractRuns').replaceChildren(...visible.map(run => {
-        const row = element('tr');
-        for (const id of historyColumns) {
-          const cell = element(id === 'pro' ? 'th' : 'td');
-          if (id === 'pro') cell.scope = 'row';
-          cell.dataset.column = id;
-          cell.append(columnDefinitions[id].read(run) || '—');
-          row.append(cell);
-        }
-        const action = element('td');
-        const viewRun = button('View', () => show(run.id));
-        viewRun.setAttribute('aria-label', 'View run ' + proLabel(run.pro_number));
-        action.dataset.column = 'action';
-        action.append(viewRun);
-        row.append(action);
-        return row;
-      }));
-      toggle('dispatchContractRunsEmpty', !rows.length);
+      historyGrid.paint(rows);
     }
 
     function editLumper(load,stop) {
@@ -821,7 +734,7 @@ const dispatchProgress = (() => {
       if (activeId !== id) {
         byId('dispatchLoadNoteText').value = '';
         byId('dispatchDetailFreightPanel').open = false;
-        historyDate = '';
+        historyGrid.reset();
       }
       activeId = id;
       selectedStop = null;
@@ -834,23 +747,10 @@ const dispatchProgress = (() => {
       closeMessageDrivers();
       activeId = null;
       selectedStop = null;
+      historyGrid.reset();
       view.classList.add('hidden');
     }
 
-    byId('dispatchHistoryDate').addEventListener('change', event => {
-      historyDate = event.target.value;
-      if (active()) history(active());
-    });
-    addColumn.addEventListener('change', () => {
-      if (!addColumn.value || historyColumns.includes(addColumn.value)) return;
-      historyColumns.push(addColumn.value);
-      changeColumns();
-      if (addColumn.disabled) columnHead.querySelector('th:last-child select')?.focus();
-    });
-    columnReset.addEventListener('click', () => {
-      historyColumns = [...defaultColumns];
-      changeColumns();
-    });
     byId('dispatchDetailBack').addEventListener('click', back);
     messageButton.addEventListener('click', () => {
       const load = active();

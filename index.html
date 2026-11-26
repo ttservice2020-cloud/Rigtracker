@@ -297,7 +297,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 .driver-load-stops li[aria-current="step"]{border-color:#4c8dff;background:#13294a}
 #companySignupFields{border:0;padding:0;margin:0;min-inline-size:0}
 </style>
-<link rel="stylesheet" href="./dispatch.css?v=contract-history-2">
+<link rel="stylesheet" href="./dispatch.css?v=load-history-1">
 <link rel="stylesheet" href="./driver-app.css?v=document-scan-1">
 <link rel="stylesheet" href="./office-tools.css?v=withholding-forms-1">
 </head>
@@ -728,18 +728,18 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
         <section class="panel hidden" id="dispatchDetailHistory" aria-labelledby="dispatchRouteHistoryTitle">
          <h3 id="dispatchRouteHistoryTitle">Route History</h3>
          <p class="muted" id="dispatchHistoryRoute"></p>
-         <div class="dispatch-contract-history-controls">
-          <div class="field dispatch-history-filter"><label for="dispatchHistoryDate">Run date</label><select id="dispatchHistoryDate"></select></div>
-          <div class="field dispatch-history-filter"><label for="dispatchContractAddColumn">Add column</label><select id="dispatchContractAddColumn"></select></div>
-          <button class="outline" id="dispatchContractColumnReset" type="button">Reset Columns</button>
+         <div class="load-history-controls">
+          <div class="field dispatch-history-filter"><label for="dispatchHistoryDate">Run date</label><select id="dispatchHistoryDate" data-history-date></select></div>
+          <div class="field dispatch-history-filter"><label for="dispatchContractAddColumn">Add column</label><select id="dispatchContractAddColumn" data-history-add></select></div>
+          <button class="outline" id="dispatchContractColumnReset" data-history-reset type="button">Reset Columns</button>
          </div>
-         <div class="dispatch-history-scroll dispatch-contract-history-scroll" tabindex="0" role="region" aria-label="Completed contract runs">
-          <table class="dispatch-contract-history-table" aria-label="Completed contract runs">
-           <thead><tr id="dispatchContractHistoryHead"></tr></thead>
-           <tbody id="dispatchContractRuns"></tbody>
+         <div class="dispatch-history-scroll load-history-scroll dispatch-contract-history-scroll" tabindex="0" role="region" aria-label="Completed contract runs">
+          <table class="load-history-table dispatch-contract-history-table" aria-label="Completed contract runs">
+           <thead><tr id="dispatchContractHistoryHead" data-history-head></tr></thead>
+           <tbody id="dispatchContractRuns" data-history-rows></tbody>
           </table>
          </div>
-         <p class="muted hidden" id="dispatchContractRunsEmpty" role="status">No completed runs for this contract yet.</p>
+         <p class="muted hidden" id="dispatchContractRunsEmpty" data-history-empty role="status">No completed runs for this contract yet.</p>
         </section>
         <section class="panel" id="dispatchLoadNotes" aria-labelledby="dispatchLoadNotesTitle">
          <h3 id="dispatchLoadNotesTitle">Load Notes</h3>
@@ -1347,6 +1347,21 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
    <section class="panel">
     <h2>Assignments</h2>
     <div id="driverWorkflowLoads" class="dispatch-load-list"></div>
+   </section>
+   <section class="panel hidden" id="driverCompletedLoads" aria-labelledby="driverCompletedLoadsTitle">
+    <h2 id="driverCompletedLoadsTitle">Completed Loads</h2>
+    <div class="load-history-controls">
+     <div class="field dispatch-history-filter"><label for="driverHistoryDate">Last stop date</label><select id="driverHistoryDate" data-history-date></select></div>
+     <div class="field dispatch-history-filter"><label for="driverHistoryAddColumn">Add column</label><select id="driverHistoryAddColumn" data-history-add></select></div>
+     <button class="outline" type="button" data-history-reset>Reset Columns</button>
+    </div>
+    <div class="dispatch-history-scroll load-history-scroll" tabindex="0" role="region" aria-label="Your completed loads">
+     <table class="load-history-table" aria-label="Your completed loads">
+      <thead><tr data-history-head></tr></thead>
+      <tbody data-history-rows></tbody>
+     </table>
+    </div>
+    <p class="muted hidden" data-history-empty role="status">No completed loads yet.</p>
    </section>
    <div id="driverLoadsYardHost">
    <section class="panel hidden" id="driverWorkflowYard">
@@ -1960,7 +1975,8 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 </dialog>
 <div id="modal"><div class="modal-card"><h2 id="modalTitle"></h2><div id="modalBody"></div><button class="primary-btn" onclick="closeModal()">Close</button></div></div>
 
-<script src="./dispatch-progress.js?v=contract-history-2"></script>
+<script src="./load-history-grid.js?v=1"></script>
+<script src="./dispatch-progress.js?v=load-history-1"></script>
 <script src="./dispatch-rate-confirmation.js?v=document-scan-1"></script>
 <script src="./dispatch-route-miles.js?v=1"></script>
 <script src="./dispatch-zip-lookup.js?v=zip-timezone-1"></script>
@@ -1987,7 +2003,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 <script src="./payroll-withholding-forms.js?v=document-scan-1"></script>
 <script src="./payroll-contractor-tax.js?v=hr-tax-1"></script>
 <script src="./hr-tax-forms.js?v=driver-1099-1"></script>
-<script src="./driver-workflow.js?v=document-scan-1"></script>
+<script src="./driver-workflow.js?v=load-history-1"></script>
 <script src="./fleet-admin-driver.js?v=1"></script>
 <script src="./company-safety.js?v=1"></script>
 <script src="./driver-app.js?v=push-1"></script>
