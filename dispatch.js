@@ -28,7 +28,7 @@ const fleetDispatchApp = (() => {
     ['America/New_York', 'Eastern'], ['America/Chicago', 'Central'],
     ['America/Denver', 'Mountain'], ['America/Phoenix', 'Arizona'],
     ['America/Los_Angeles', 'Pacific'], ['America/Anchorage', 'Alaska'],
-    ['Pacific/Honolulu', 'Hawaii']
+    ['Pacific/Honolulu', 'Hawaii'], ['America/Adak', 'Aleutian']
   ];
   const loadTable = 'fleet_dispatch_loads';
   const savedLoadTable = 'fleet_dispatch_saved_loads';
@@ -1075,10 +1075,38 @@ const fleetDispatchApp = (() => {
     const required = { required: edit?.row?.status !== 'completed' };
     const company = input('text', 120);
     field('company', kind === 'pickup' ? 'Shipper name' : 'Receiver company name', company, { required: true, wide: true });
+    field('address', 'Street address', input('text', 180), { ...required, wide: true });
+    field('city', 'City', input('text', 80), required);
+    const region = input('text', 2);
+    region.pattern = '[A-Za-z]{2}';
+    region.title = 'Two-letter state abbreviation';
+    region.autocapitalize = 'characters';
+    field('state', 'State', region, required);
+    const zip = input('text', 10);
+    zip.inputMode = 'numeric';
+    zip.pattern = '[0-9]{5}(-[0-9]{4})?';
+    zip.title = '5-digit or ZIP+4 code';
+    const zipField = field('zip', 'ZIP', zip, required);
+    const zipStatus = element('p','','muted dispatch-compact');
+    zipStatus.id = prefix + 'zip-status';
+    zipStatus.setAttribute('role','status');
+    zipField.append(zipStatus);
+    const zipLookup = bindAddressZip(key => fields.querySelector('[data-stop-field=' + key + ']'),zipStatus,
+      () => group.isConnected && editorCanLookupZip());
     field('date', kind === 'pickup' ? 'Pickup date' : 'Receiver date', input('date'), required);
     const zone = element('select');
     zone.append(new Option('Select time zone', ''), ...zones.map(([value, label]) => new Option(label, value)));
-    field('zone', 'Time zone', zone, required);
+    const zoneField = field('zone', 'Time zone', zone, required);
+    const zoneStatus = element('p', '', 'muted dispatch-compact');
+    zoneStatus.id = prefix + 'zone-status';
+    zoneStatus.setAttribute('role', 'status');
+    zone.setAttribute('aria-describedby', zoneStatus.id);
+    zoneField.append(zoneStatus);
+    const updateZone = dispatchZipLookup.bindTimeZone({ zip, zone, status: zoneStatus });
+    stopZipLookups.set(group, {
+      update() { zipLookup.update(); void updateZone(); },
+      reset: zipLookup.reset
+    });
     const timeInput = () => {
       if (!progressEnabled) return input('time');
       const node = input('text', 5);
@@ -1104,25 +1132,6 @@ const fleetDispatchApp = (() => {
       }));
       fields.append(actions);
     }
-    field('address', 'Street address', input('text', 180), { ...required, wide: true });
-    field('city', 'City', input('text', 80), required);
-    const region = input('text', 2);
-    region.pattern = '[A-Za-z]{2}';
-    region.title = 'Two-letter state abbreviation';
-    region.autocapitalize = 'characters';
-    field('state', 'State', region, required);
-    const zip = input('text', 10);
-    zip.inputMode = 'numeric';
-    zip.pattern = '[0-9]{5}(-[0-9]{4})?';
-    zip.title = '5-digit or ZIP+4 code';
-    const zipField = field('zip', 'ZIP', zip, required);
-    const zipStatus = element('p','','muted dispatch-compact');
-    zipStatus.id = prefix + 'zip-status';
-    zipStatus.setAttribute('role','status');
-    zipField.append(zipStatus);
-    const zipLookup = bindAddressZip(key => fields.querySelector('[data-stop-field=' + key + ']'),zipStatus,
-      () => group.isConnected && editorCanLookupZip());
-    stopZipLookups.set(group,zipLookup);
     const waitAlert = input('number');
     Object.assign(waitAlert, { min:'0', step:'any', placeholder:'2', inputMode:'decimal' });
     field('waitAlertHours', 'Wait alert (hours after appointment)', waitAlert);
@@ -1130,6 +1139,7 @@ const fleetDispatchApp = (() => {
       zipLookup.reset();
       for (const key of addressParts) group.querySelector('[data-stop-field=' + key + ']').value = location[key];
       waitAlert.value = location.wait_alert_hours ?? '';
+      void updateZone();
     });
     const contact = element('div');
     const contactName = input('text', 120);
@@ -1458,7 +1468,7 @@ const fleetDispatchApp = (() => {
     if (fromContract && form.elements.pickupNumber) form.elements.pickupNumber.value = '';
     toggle('dispatchLegacyEmptyRate', Boolean(data.emptyRate));
     const attachment = edit.row?.details.rateConfirmation;
-    ratePhotoStatus.textContent = attachment ? 'Saved photo · ' + attachment.name : '';
+    ratePhotoStatus.textContent = attachment ? 'Saved document · ' + attachment.name : '';
     toggle('dispatchEditorRateConfirmation', Boolean(attachment?.path));
     for (const details of form.querySelectorAll('details')) {
       details.open = details.id !== 'dispatchFreightDetails' &&
@@ -1527,21 +1537,15 @@ const fleetDispatchApp = (() => {
     const draft = edit;
     const file = ratePhoto.files[0];
     if (!scope?.access.dispatch || !draft || draft.saving || !file) return;
-    let attachment;
-    try {
-      attachment = dispatchRateConfirmation.photo(file);
-    } catch (error) {
-      ratePhoto.value = '';
-      draft.ratePhoto = null;
-      ratePhotoStatus.textContent = error.message;
-      return;
-    }
+    const attachment = { file, extension: 'pdf', contentType: 'application/pdf' };
     draft.ratePhoto = attachment;
     markEdited();
-    ratePhotoStatus.textContent = 'Reading photo… You can keep entering load details.';
+    const scan = driverPaperwork.scanImage(file);
+    ratePhotoStatus.textContent = scan ? 'Reading the scan… You can keep entering load details.' : 'PDF ready to attach.';
+    if (!scan) return;
     const active = () => state === scope && edit === draft && draft.ratePhoto === attachment && !draft.saving;
     try {
-      const data = await dispatchRateConfirmation.scan(attachment);
+      const data = await dispatchRateConfirmation.scan({ file: scan });
       if (!active()) return;
       let filled = 0;
       const apply = (field, value) => {
@@ -1562,10 +1566,10 @@ const fleetDispatchApp = (() => {
       paintDriverPay();
       updateEditorZips();
       void routeEstimate();
-      ratePhotoStatus.textContent = filled ? 'Review the filled fields and add any missing details. The original photo saves with the load.'
-        : 'No empty fields could be filled. You can enter the details and save the original photo.';
+      ratePhotoStatus.textContent = filled ? 'Review the filled fields and add any missing details. The PDF saves with the load.'
+        : 'No empty fields could be filled. You can enter the details and save the PDF.';
     } catch {
-      if (active()) ratePhotoStatus.textContent = 'Could not read this photo. You can enter the details and save the original photo.';
+      if (active()) ratePhotoStatus.textContent = 'Could not read this scan. You can enter the details and save the PDF.';
     }
   });
 
@@ -1580,7 +1584,7 @@ const fleetDispatchApp = (() => {
       tab.location.replace(data.signedUrl);
     } catch {
       tab.close();
-      showToast('Could not open the rate confirmation photo.');
+      showToast('Could not open the rate confirmation.');
     }
   }
 
@@ -1671,7 +1675,7 @@ const fleetDispatchApp = (() => {
             .upload(path, photo.file, { contentType: photo.contentType });
           if (state !== scope || edit !== draft) return;
           if (error && (error.statusCode !== '409' || error.error !== 'Duplicate')) {
-            showLoadIssue('Could not upload the rate confirmation photo. Try saving again.');
+            showLoadIssue('Could not upload the rate confirmation. Try saving again.');
             return;
           }
           photo.uploaded = true;

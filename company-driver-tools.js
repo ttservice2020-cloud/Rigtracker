@@ -540,6 +540,7 @@ const companyDriverTools = (() => {
         fileInput.type = 'file';
         fileInput.accept = Object.keys(fileExtensions).join(',');
         fileInput.className = 'hidden';
+        fileInput.setAttribute('data-document-scan', '');
         const upload = button(tax ? 'Upload Tax Document' : 'Upload File', () => fileInput.click());
         fileInput.addEventListener('change', async () => {
           if (!active()) return;
@@ -560,7 +561,7 @@ const companyDriverTools = (() => {
             if (active()) showToast(error.message || 'Could not upload this file.');
           } finally { upload.disabled = false; fileInput.value = ''; }
         });
-        container.append(upload, fileInput);
+        container.append(button('Scan Document', () => driverPaperwork.captureDocument(fileInput)), upload, fileInput);
       }
       return true;
     } catch (error) {
@@ -1354,13 +1355,14 @@ const companyDriverTools = (() => {
       element('strong', 'Known pay items: ' + settlementCurrency.format(Number(settlement.total_pay)), 'settlement-preview-total'),
       ...(missingBase ? [element('p', 'Confirm driver pay before issuing this statement. Hourly pay can be entered using hours and rate.', 'muted')] : []),
       ...(taxContext ? [button('Pay & Taxes',() => payrollTaxPreview.open(taxContext)),yearToDate] : []),
-      ...(rows.length ? [button(taxContext ? 'Print Load Details' : 'Print / Save as PDF', () => {
+      ...(rows.length ? [button('Print Load Details', () => {
         if (!breakdown.open) {
           breakdown.open = true;
           window.addEventListener('afterprint',() => { breakdown.open = false; },{once:true});
         }
         window.print();
-      })] : [])
+      }), button('Save PDF', event => reportPdf.save(preview,
+        'Settlement ' + settlement.settlement_number, event.currentTarget))] : [])
     );
     if (taxContext) void payrollTaxPreview.showSettlementYtd(yearToDate,taxContext);
     preview.classList.remove('hidden');

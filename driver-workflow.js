@@ -576,7 +576,7 @@ const driverLoadWorkflow = (() => {
       driverPaperwork.edit(draft,'Upload BOL',pro(load) + ' · ' + stop.info.company,() => {
         updateDocuments();
         updateDeparturePaperwork(load,stop);
-      },{limit:documentLimit(),scan:true,help:'Scan the BOL as a PDF, then tap Done and Save Load Info.'});
+      },{limit:documentLimit(),scan:true,help:'Review and use each scan, then tap Done and Save Load Info.'});
     });
     function updateDocuments() {
       const size = draft.files.length;
@@ -683,7 +683,7 @@ const driverLoadWorkflow = (() => {
       if (draft.saving) return;
       paperworkDrafts.set(key,draft);
       driverPaperwork.edit(draft,'Upload ' + label,pro(load) + ' · ' + stop.info.company,() => {},{
-        limit,
+        limit,scan:true,
         async save() {
           const documents = await uploadPaperwork(load.id,user,draft.files);
           const { error } = await supabaseClient.rpc('update_driver_stop_info',{
@@ -853,7 +853,7 @@ const driverLoadWorkflow = (() => {
         updatePaperwork();
         pickupEditors.get(key)?.dispatchEvent(new Event('paperwork-change'));
       },
-        {limit,scan:stop.kind === 'pickup'});
+        {limit,scan:true});
     });
     function updatePaperwork() {
       const total = draft.files.length;

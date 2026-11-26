@@ -1,21 +1,7 @@
 const dispatchRateConfirmation = (() => {
   const bucket = 'dispatch-rate-confirmations';
-  const limit = 10 * 1024 * 1024;
-  const types = {
-    jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', heic: 'image/heic', heif: 'image/heif'
-  };
   const library = 'https://cdn.jsdelivr.net/npm/tesseract.js@7.0.0/dist/';
   let loading;
-
-  function photo(file) {
-    const extension = Object.keys(types).find(key => types[key] === file.type) ??
-      /\.(jpe?g|png|webp|heic|heif)$/i.exec(file.name)?.[1].toLowerCase().replace(/^jpg$/, 'jpeg');
-    if (!extension || (file.type && file.type !== 'application/octet-stream' && file.type !== types[extension])) {
-      throw Error('Choose a JPEG, PNG, WebP, or HEIC photo.');
-    }
-    if (!file.size || file.size > limit) throw Error('Choose a photo under 10 MB.');
-    return { file, extension, contentType: types[extension] };
-  }
 
   function loadEngine() {
     loading ??= new Promise((resolve, reject) => {
@@ -140,5 +126,5 @@ const dispatchRateConfirmation = (() => {
     }
   }
 
-  return { bucket, photo, scan };
+  return { bucket, scan };
 })();

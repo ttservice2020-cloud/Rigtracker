@@ -164,6 +164,7 @@ const payrollWithholdingForms = (() => {
       const fileLabel = element('label', 'Signed form', 'field');
       const file = element('input');
       Object.assign(file,{type:'file',accept:Object.keys(extensions).join(','),required:true});
+      file.setAttribute('data-document-scan', '');
       fileLabel.append(file);
       const save = element('button', context ? 'Add signed form' : 'Submit to HR', 'primary-btn');
       save.type = 'submit';
@@ -180,7 +181,8 @@ const payrollWithholdingForms = (() => {
       }
       type.addEventListener('change',syncType);
       syncType();
-      uploadForm.append(fleetLabel, typeLabel, fileLabel,signedLabel,...(elections ? [elections.panel] : []),save);
+      uploadForm.append(fleetLabel, typeLabel,
+        button('Scan Document', () => driverPaperwork.captureDocument(file)), fileLabel,signedLabel,...(elections ? [elections.panel] : []),save);
       if (!context?.readOnlyForms) list.before(uploadForm);
 
       async function refresh(message = '') {
