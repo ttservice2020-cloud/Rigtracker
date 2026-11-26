@@ -626,6 +626,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
        <div class="fleet-dashboard-nav dispatch-nav" id="dispatchTabs" role="tablist" aria-label="Dispatch">
         <button id="dispatch-tab-current" type="button" role="tab" aria-selected="true" aria-controls="dispatch-panel-current" data-dispatch-tab="current">Current Loads</button>
         <button id="dispatch-tab-create" type="button" role="tab" aria-selected="false" aria-controls="dispatch-panel-create" data-dispatch-tab="create" tabindex="-1">Create a Load</button>
+        <button id="dispatch-tab-saved" type="button" role="tab" aria-selected="false" aria-controls="dispatch-panel-saved" data-dispatch-tab="saved" tabindex="-1">Saved Loads</button>
         <button id="dispatch-tab-contract" type="button" role="tab" aria-selected="false" aria-controls="dispatch-panel-contract" data-dispatch-tab="contract" tabindex="-1">Contract Loads</button>
         <button id="dispatch-tab-history" type="button" role="tab" aria-selected="false" aria-controls="dispatch-panel-history" data-dispatch-tab="history" tabindex="-1">Load History</button>
         <button id="dispatch-tab-day" type="button" role="tab" aria-selected="false" aria-controls="dispatch-panel-day" data-dispatch-tab="day" tabindex="-1">Past 14 Days</button>
@@ -650,6 +651,8 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
           <button class="outline dispatch-watch-button hidden" id="dispatchDetailWatch" type="button" aria-pressed="false">Watch load</button>
           <button class="outline hidden" id="dispatchDetailRateConfirmation" type="button">View Rate Confirmation</button>
           <button class="outline hidden" id="dispatchDetailMessage" type="button" aria-controls="dispatchMessageDrivers" aria-expanded="false">Message</button>
+          <button class="outline hidden" id="dispatchDetailSaveLoad" type="button">Save Load</button>
+          <button class="outline hidden" id="dispatchDetailRedispatch" type="button">Redispatch</button>
           <button class="outline" id="dispatchDetailEdit" type="button">Edit Load</button>
           <button class="primary-btn hidden" id="dispatchReviewDeparture" type="button">Accept departure</button>
           <button class="outline" id="dispatchDetailComplete" type="button">Mark Completed</button>
@@ -975,6 +978,10 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
         <div class="field"><label for="dispatchLocationSearch">Search saved locations</label><input id="dispatchLocationSearch" type="search"></div>
         <p id="dispatchLocationStatus" class="muted" role="status"></p>
         <div id="dispatchLocationList" class="dispatch-load-list"></div>
+       </section>
+       <section id="dispatch-panel-saved" class="dispatch-panel hidden" role="tabpanel" aria-labelledby="dispatch-tab-saved" tabindex="0">
+        <p id="dispatchSavedLoadStatus" class="muted" role="status"></p>
+        <div id="dispatchSavedLoadList" class="dispatch-load-list"></div>
        </section>
        <section id="dispatch-panel-contract" class="dispatch-panel hidden" role="tabpanel" aria-labelledby="dispatch-tab-contract" tabindex="0">
         <p id="dispatchContractEmpty" class="muted" role="status"></p>
@@ -1947,7 +1954,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 <script src="./dispatch-rate-confirmation.js?v=1"></script>
 <script src="./dispatch-route-miles.js?v=1"></script>
 <script src="./dispatch-zip-lookup.js?v=1"></script>
-<script src="./dispatch.js?v=dispatch-stop-info-1"></script>
+<script src="./dispatch.js?v=saved-loads-1"></script>
 <script src="./linked-profiles.js?v=driver-push-1"></script>
 <script src="./fleet-equipment.js?v=driver-loads-1"></script>
 <script src="./payroll-tax-jurisdictions.js?v=2"></script>

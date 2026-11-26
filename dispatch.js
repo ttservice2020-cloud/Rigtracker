@@ -31,6 +31,7 @@ const fleetDispatchApp = (() => {
     ['Pacific/Honolulu', 'Hawaii']
   ];
   const loadTable = 'fleet_dispatch_loads';
+  const savedLoadTable = 'fleet_dispatch_saved_loads';
   const driverTable = 'fleet_dispatch_drivers';
   const locationTable = 'fleet_dispatch_locations';
   const addressParts = ['address', 'city', 'state', 'zip'];
@@ -293,6 +294,7 @@ const fleetDispatchApp = (() => {
     byId('dispatch-panel-create').setAttribute('aria-labelledby', 'dispatch-tab-' + (showEditor ? tab : 'create'));
     byId('dispatchWorkspace').dataset.board = String(tab === 'current' && view === 'list');
     if (view === 'list' && (tab === 'current' || tab === 'day')) paintLoads();
+    if (view === 'list' && tab === 'saved') void readSavedLoads(state);
     if (tab === 'equipment' && view === 'list') {
       const { fleetId, drivers, access } = state;
       const editDriver = access.dispatch ? driver => companyDriverTools.openRoster(driver, fleetId, true) : null;
@@ -667,12 +669,100 @@ const fleetDispatchApp = (() => {
     return row;
   }
 
+  function redispatchSetup(load) {
+    const original = load.details;
+    const runFields = new Set(['pickupNumber', 'brokerLoadNumber', 'relayDate']);
+    const details = Object.fromEntries([...formDetails, 'routeMilesZips', 'truckFromDriver', 'trailerFromDriver']
+      .filter(key => !runFields.has(key) && Object.hasOwn(original, key)).map(key => [key, original[key]]));
+    details.routeNumber = getRouteNumber(load);
+    for (const key of ['pickups', 'receivers']) {
+      details[key] = (original[key] || []).map(stop => ({ ...stop, date: '' }));
+    }
+    return { details, driver_id: load.driver_id, second_driver_id: load.second_driver_id };
+  }
+
+  async function readSavedLoads(scope) {
+    if (!scope?.access.dispatch) return;
+    const request = {};
+    scope.savedLoadsRequest = request;
+    const status = byId('dispatchSavedLoadStatus');
+    const list = byId('dispatchSavedLoadList');
+    if (!list.childElementCount) status.textContent = 'Loading saved loads…';
+    try {
+      const loads = await readRecords(scope, savedLoadTable, 'name', true);
+      if (state !== scope || scope.savedLoadsRequest !== request) return;
+      status.textContent = loads.length ? '' : 'No saved loads yet. Open a load and choose Save Load.';
+      list.replaceChildren(...loads.map(load => {
+        const row = element('article', '', 'dispatch-load-row');
+        const info = element('div');
+        info.append(element('strong', load.name));
+        const summary = [route(load), loadDrivers(load)].filter(Boolean).join(' · ');
+        if (summary) info.append(element('p', summary));
+        const actions = element('div', '', 'dispatch-actions');
+        const remove = button('Remove', () => void removeSavedLoad(load, remove));
+        remove.setAttribute('aria-label', 'Remove saved load ' + load.name);
+        actions.append(button('Redispatch', () => openLoad(load, 'saved')), remove);
+        row.append(info, actions);
+        return row;
+      }));
+    } catch {
+      if (state === scope && scope.savedLoadsRequest === request) status.textContent = 'Could not load saved loads. Select Saved Loads to retry.';
+    }
+  }
+
+  async function saveLoadForRedispatch(load) {
+    const scope = state;
+    if (!scope?.access.dispatch || scope.savingLoad || !load || !['current', 'completed'].includes(load.status)) return;
+    const label = route(load) || proLabel(load.pro_number);
+    const name = window.prompt('Name this saved load', label.slice(0, 120))?.trim();
+    if (!name) return;
+    if (name.length > 120) { showToast('Use a name up to 120 characters.'); return; }
+    const control = byId('dispatchDetailSaveLoad');
+    control.disabled = scope.savingLoad = true;
+    try {
+      const { error } = await scope.client.from(savedLoadTable).insert({
+        ...redispatchSetup(load), name, fleet_id: scope.fleetId, source_load_id: load.id
+      });
+      if (state !== scope) return;
+      if (error?.code === '23505') { showToast('This load is already in Saved Loads.'); return; }
+      if (error) throw error;
+      showToast('Saved to Saved Loads.');
+      if (selectedTab === 'saved') void readSavedLoads(scope);
+    } catch {
+      if (state === scope) showToast('Could not save this load. Try again.');
+    } finally {
+      scope.savingLoad = false;
+      if (state === scope) control.disabled = false;
+    }
+  }
+
+  async function removeSavedLoad(load, control) {
+    const scope = state;
+    if (!scope?.access.dispatch || control.disabled || !window.confirm('Remove ' + load.name + ' from Saved Loads?')) return;
+    control.disabled = true;
+    try {
+      const { error } = await scope.client.from(savedLoadTable).delete().eq('fleet_id', scope.fleetId).eq('id', load.id);
+      if (error) throw error;
+      if (state !== scope) return;
+      control.closest('article')?.remove();
+      await readSavedLoads(scope);
+    } catch {
+      if (state === scope) showToast('Could not remove this saved load. Try again.');
+    } finally {
+      control.disabled = false;
+    }
+  }
+
   function paintLoads() {
     const open = getLoad(progressView?.id());
     toggle('dispatchDetailRateConfirmation', Boolean(open?.details.rateConfirmation?.path));
     const canWatch = state.access.dispatch && open?.status === 'current';
     toggle('dispatchDetailWatch', canWatch);
     if (canWatch) showWatchButton(byId('dispatchDetailWatch'), open);
+    const canReuse = state.access.dispatch && ['current', 'completed'].includes(open?.status);
+    toggle('dispatchDetailSaveLoad', canReuse);
+    toggle('dispatchDetailRedispatch', canReuse);
+    byId('dispatchDetailSaveLoad').disabled = Boolean(state.savingLoad);
     const search = byId('dispatchLoadSearch').value.trim().toLowerCase();
     const onlyWatched = byId('dispatchWatchedOnly').checked;
     const driver = paintLoadDriverFilter();
@@ -727,7 +817,7 @@ const fleetDispatchApp = (() => {
     toggle('dispatchDraftSection', drafts.length > 0);
     byId('dispatchDraftList').replaceChildren(...drafts.map(load => loadRow(load, 'Open Draft', () => openLoad(load))));
     byId('dispatchContractEmpty').textContent = contracts.length || !state.loaded ? '' : 'No contract loads.';
-    byId('dispatchContractList').replaceChildren(...contracts.map(load => loadRow(load, 'Use Contract', () => openLoad(load, true))));
+    byId('dispatchContractList').replaceChildren(...contracts.map(load => loadRow(load, 'Use Contract', () => openLoad(load, 'contract'))));
     byId('dispatchHistoryEmpty').textContent = history.length || !state.loaded ? '' : 'No completed loads' + (driver ? ' for ' + driver.name : '') + '.';
     toggle('dispatchHistoryTable', history.length > 0);
     byId('dispatchHistoryList').replaceChildren(...history.map(load => {
@@ -1316,15 +1406,16 @@ const fleetDispatchApp = (() => {
     }
   }
 
-  function installEditor(row = null, fromContract = false) {
+  function installEditor(row = null, reuse = '') {
     cancelRouteEstimate();
     resetEditorZips();
+    const fromContract = reuse === 'contract';
     const data = row?.details ?? {};
     edit = {
-      row: fromContract ? null : row,
-      id: fromContract ? null : row?.id,
-      pro: fromContract ? null : row?.pro_number,
-      contractId: fromContract ? row.id : row?.contract_load_id,
+      row: reuse ? null : row,
+      id: reuse ? null : row?.id,
+      pro: reuse ? null : row?.pro_number,
+      contractId: fromContract ? row.id : reuse ? null : row?.contract_load_id,
       truckFromDriver: data.truckFromDriver === 'yes',
       trailerFromDriver: !fromContract && data.trailerFromDriver === 'yes'
     };
@@ -1354,7 +1445,7 @@ const fleetDispatchApp = (() => {
       stopContacts[kind].replaceChildren();
       (source?.length ? source : [{}]).forEach((stop, index) => {
         const oldId = stop.stopId || kind + '-' + index;
-        const stopId = fromContract || !row ? crypto.randomUUID() : oldId;
+        const stopId = reuse || !row ? crypto.randomUUID() : oldId;
         addStop(kind, { ...stop, stopId });
         newStopIds.set(oldId, stopId);
       });
@@ -1381,17 +1472,17 @@ const fleetDispatchApp = (() => {
     return !edit.saving && !edit.waitingForRoute && (!edit.dirty || window.confirm('Discard unsaved changes to this load?'));
   }
 
-  function openLoad(load, fromContract = false) {
-    const tab = fromContract ? 'create' : load.status === 'completed' ? 'history' : 'current';
-    const view = fromContract ? 'list' : 'edit';
-    if (load?.id === edit.row?.id && load?.updated_at === edit.row?.updated_at && !fromContract) {
+  function openLoad(load, reuse = '') {
+    const tab = reuse ? 'create' : load.status === 'completed' ? 'history' : 'current';
+    const view = reuse ? 'list' : 'edit';
+    if (!reuse && load?.id === edit.row?.id && load?.updated_at === edit.row?.updated_at) {
       selectTab(tab, true, view);
       return;
     }
     if (!canOpenLoad()) return;
-    installEditor(load, fromContract);
+    installEditor(load, reuse);
     selectTab(tab, true, view);
-    if (fromContract) markEdited();
+    if (reuse) markEdited();
   }
 
   function reservePro() {
@@ -2031,6 +2122,11 @@ const fleetDispatchApp = (() => {
   });
   byId('dispatchDayDate').addEventListener('change', paintDay);
   byId('dispatchDetailWatch').addEventListener('click', event => toggleWatch(getLoad(progressView?.id()), event.currentTarget));
+  byId('dispatchDetailSaveLoad').addEventListener('click', () => void saveLoadForRedispatch(getLoad(progressView?.id())));
+  byId('dispatchDetailRedispatch').addEventListener('click', () => {
+    const load = getLoad(progressView?.id());
+    if (state?.access.dispatch && load && ['current', 'completed'].includes(load.status)) openLoad(redispatchSetup(load), 'saved');
+  });
   byId('dispatchReviewDeparture').addEventListener('click', () => void acceptBoardDeparture(getLoad(progressView?.id())));
   byId('dispatchDriverSearch').addEventListener('input', paintDrivers);
   byId('dispatchDriverFilter').addEventListener('change', paintDrivers);
@@ -2476,9 +2572,10 @@ const fleetDispatchApp = (() => {
     byId('dispatchDriverSearch').value = '';
     byId('dispatchDriverFilter').value = '';
     for (const id of ['dispatchRailList', 'dispatchTransitList', 'dispatchWorkingList', 'dispatchIssueList', 'dispatchDayList',
-      'dispatchDraftList', 'dispatchContractList',
+      'dispatchDraftList', 'dispatchContractList', 'dispatchSavedLoadList',
       'dispatchHistoryList', 'dispatchDriversList', 'dispatchDriverUpdates', 'dispatchPickups', 'dispatchReceivers',
       'dispatchShipperContacts', 'dispatchReceiverContacts']) byId(id).replaceChildren();
+    byId('dispatchSavedLoadStatus').textContent = '';
     toggle('dispatchReadError', false);
   }
 
