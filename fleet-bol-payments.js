@@ -1,6 +1,7 @@
 const fleetBolPayments = (() => {
   const byId = id => document.getElementById(id);
   const page = byId('fleetBolPaymentsPage');
+  const workspaceView = byId('fleetBolWorkspace');
   const status = byId('fleetBolStatus');
   const search = byId('fleetBolSearch');
   const more = byId('fleetBolMore');
@@ -36,7 +37,9 @@ const fleetBolPayments = (() => {
   }
 
   function active(scope) {
-    return workspace === scope && currentUser?.id === scope.userId && page.classList.contains('active');
+    return workspace === scope && currentUser?.id === scope.userId
+      && workspaceView.parentElement === scope.panel && !scope.panel.closest('.hidden')
+      && Boolean(scope.panel.closest('.page.active'));
   }
 
   function pro(load) {
@@ -63,21 +66,42 @@ const fleetBolPayments = (() => {
 
   function loadRow(load) {
     const row = node('article', '', 'panel');
-    row.append(node('h2', pro(load)));
-    if (load.destination) row.append(node('p', load.destination));
+    const header = node('header', '', 'bol-load-header');
+    const info = node('div', '');
+    info.append(node('h2', pro(load)));
+    if (load.destination) info.append(node('p', load.destination));
     const dates = [];
     const delivered = Date.parse(load.delivered_at);
     if (Number.isFinite(delivered)) dates.push('Delivered ' + deliveredDate.format(delivered));
     if (load.paid_on) dates.push('Paid ' + paidDate.format(Date.parse(load.paid_on)));
-    if (dates.length) row.append(node('p', dates.join(' · '), 'muted'));
+    if (dates.length) info.append(node('p', dates.join(' · '), 'muted'));
+    header.append(info);
+    if (!load.paid_on) header.append(button('Mark Paid', () => openPayment(load)));
+    row.append(header);
 
+    const details = node('div', '', 'bol-load-details');
+    const broker = node('section', '');
+    broker.append(node('h3', 'Broker'));
+    broker.append(node('p', load.broker_name || 'Broker name missing.', load.broker_name ? '' : 'muted'));
+    if (load.broker_load_number) broker.append(node('p', 'Broker load # ' + load.broker_load_number));
+    if (load.broker_phone) broker.append(node('p', load.broker_phone));
+    if (load.broker_email) broker.append(node('p', load.broker_email));
+    if (!load.broker_phone && !load.broker_email) broker.append(node('p', 'Contact details missing.', 'muted'));
+
+    const documents = node('section', '');
+    documents.append(node('h3', 'Paperwork'));
+    const scope = workspace;
+    if (load.rate_confirmation) documents.append(button('View Rate Confirmation', () => {
+      if (active(scope)) return dispatchRateConfirmation.open(load.rate_confirmation, supabaseClient, () => active(scope));
+    }));
+    else documents.append(node('p', 'Rate confirmation missing.', 'muted'));
     if (load.paperwork.length) {
       const paperwork = node('div', '', 'bol-paperwork');
-      if (load.paperwork.length > 1) row.append(button('Open all paperwork',
+      if (load.paperwork.length > 1) documents.append(button('View BOLs and Delivery Proof',
         () => driverLoadWorkflow.openDocument(load.paperwork.map(file => file.path), pro(load) + ' paperwork')));
       load.paperwork.forEach((file, index) => {
         const entry = node('div', '');
-        const label = file.kind === 'delivery' ? 'Proof of Delivery' : 'BOL';
+        const label = file.kind === 'delivery' ? 'Proof of Delivery' : 'Signed BOL';
         const context = [label, file.bol, file.company].filter(Boolean).join(' · ');
         entry.append(node('strong', context));
         const actions = node('div', '', 'dispatch-actions');
@@ -88,15 +112,12 @@ const fleetBolPayments = (() => {
         entry.append(actions);
         paperwork.append(entry);
       });
-      row.append(paperwork);
+      documents.append(paperwork);
     } else {
-      row.append(node('p', 'No BOL or proof of delivery uploaded.', 'muted'));
+      documents.append(node('p', 'No signed BOL or proof of delivery uploaded.', 'muted'));
     }
-    if (!load.paid_on) {
-      const actions = node('div', '', 'dispatch-actions');
-      actions.append(button('Mark Paid', () => openPayment(load)));
-      row.append(actions);
-    }
+    details.append(broker, documents);
+    row.append(details);
     return row;
   }
 
@@ -116,7 +137,7 @@ const fleetBolPayments = (() => {
     if (!append) more.classList.add('hidden');
     status.textContent = 'Loading loads…';
     try {
-      const { data, error } = await supabaseClient.rpc('list_fleet_bol_payments', {
+      const { data, error } = await supabaseClient.rpc('list_fleet_load_processing', {
         target_fleet: scope.fleetId,
         paid,
         target_pro: filter?.[2] ?? null,
@@ -132,10 +153,10 @@ const fleetBolPayments = (() => {
       cursor = rows.at(-1) ?? null;
       more.classList.toggle('hidden', data.length <= pageSize);
       status.textContent = rows.length ? '' : filter ? 'No matching PRO in this tab.'
-        : paid ? 'No paid loads yet.' : 'No loads need attention.';
+        : paid ? 'No paid loads yet.' : 'No unpaid completed loads.';
     } catch (error) {
       if (request === current && active(scope)) {
-        status.textContent = error.code === '42501' ? 'BOLs & Payments access is required.'
+        status.textContent = error.code === '42501' ? 'Load Processing access is required.'
           : 'Could not load records. Try refreshing.';
       }
     } finally {
@@ -186,11 +207,11 @@ const fleetBolPayments = (() => {
       if (error) throw error;
       dialog.close();
       tabs[selected].focus();
-      showToast(pro(selection.load) + ' moved to Completed.');
+      showToast(pro(selection.load) + ' marked paid.');
       void read();
     } catch (error) {
       if (payment === selection && active(selection.workspace)) {
-        paymentStatus.textContent = error.code === '42501' ? 'BOLs & Payments access is required.'
+        paymentStatus.textContent = error.code === '42501' ? 'Load Processing access is required.'
           : 'Could not record payment. Try again.';
       }
     } finally {
@@ -262,11 +283,26 @@ const fleetBolPayments = (() => {
 
   function open(fleetId) {
     if (!currentUser) return;
-    if (!fleetId) return showToast('Set your Fleet ID in Fleet Settings to open BOLs & Payments.');
+    if (!fleetId) return showToast('Set your Fleet ID in Fleet Settings to open Load Processing.');
     reset();
-    workspace = { userId: currentUser.id, fleetId };
+    page.append(workspaceView);
     showPage('fleetBolPaymentsPage');
+    workspace = { userId: currentUser.id, fleetId, panel: page };
     return selectTab(0);
+  }
+
+  function openInDispatch(fleetId) {
+    if (!currentUser || !fleetId) return;
+    const panel = byId('dispatch-panel-processing');
+    if (workspace?.panel === panel && workspace.fleetId === fleetId && active(workspace)) return;
+    reset();
+    panel.append(workspaceView);
+    workspace = { userId: currentUser.id, fleetId, panel };
+    return selectTab(0);
+  }
+
+  function pageChanged() {
+    if (workspace && !active(workspace)) reset();
   }
 
   byId('fleetBolBack').addEventListener('click', () => {
@@ -275,5 +311,5 @@ const fleetBolPayments = (() => {
     else void showFleetSection('dashboard');
   });
 
-  return { open, reset };
+  return { open, openInDispatch, pageChanged, reset };
 })();

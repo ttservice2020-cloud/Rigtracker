@@ -188,7 +188,8 @@ const officeTools = (() => {
 
   function dispatchAccess() {
     return { dispatch:has('dispatch'), drivers:has('drivers'), equipment:Boolean(equipmentFleet()),
-      maintenance:has('assets'), paySettings:Boolean(employee?.office_is_official), messages:messagesAllowed() };
+      maintenance:has('assets'), paySettings:Boolean(employee?.office_is_official), messages:messagesAllowed(),
+      processing:has('bol_payments') };
   }
 
   async function rpc(action, fleet, row, settings) {

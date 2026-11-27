@@ -1,6 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.4";
 
-const officePermissions = new Set(["dispatch", "drivers", "assets", "messages", "hr", "payroll", "settlements", "hourly", "bank_ledger", "payments", "policies", "activity",
+const officePermissions = new Set(["dispatch", "bol_payments", "drivers", "assets", "messages", "hr", "payroll", "settlements", "hourly", "bank_ledger", "payments", "policies", "activity",
   "driver_documents", "driver_bols", "driver_company_file", "driver_messages", "driver_history",
   "driver_pay_settlements", "driver_tax", "driver_pay_status"]);
 
