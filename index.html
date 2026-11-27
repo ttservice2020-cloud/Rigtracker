@@ -221,8 +221,31 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 .fleet-online-button:not(:disabled):hover,.fleet-online-button:focus-visible{border-color:var(--accent)}
 .fleet-online-label{color:var(--muted);font-weight:700}
 .office-profile-dialog.office-contact-picker{margin-block-start:min(8dvh,60px);width:min(460px,calc(100% - 24px));max-height:calc(92dvh - 12px)}
-.office-contact-picker h3{margin:10px 0 0;font-size:14px;color:var(--muted)}
-.office-contact-picker .message-contact{width:100%;min-height:44px;overflow-wrap:anywhere}
+#fleetOfficeMessagesPage{max-width:1080px}
+.office-inbox{display:grid;gap:14px}
+.office-inbox-column{display:none}
+.office-inbox-thread{min-width:0}
+.office-inbox-thread h2:empty{display:none}
+.office-inbox-history{max-height:min(55dvh,560px);overflow-y:auto;overscroll-behavior:contain}
+.office-contact-groups,.office-contact-role{display:grid;gap:4px;min-width:0}
+.office-contact-role h3{margin:12px 6px 2px;font-size:13px;color:var(--muted);overflow-wrap:anywhere}
+.office-contact-row{width:100%;min-width:0;min-height:48px;padding:9px 10px;border:1px solid transparent;border-radius:9px;background:none;color:var(--white);text-align:left}
+.office-contact-row:hover{background:#14263b}
+.office-contact-row[aria-pressed="true"]{background:#173451;border-color:#3982c6}
+.office-contact-row:focus-visible{outline:2px solid var(--accent-hover);outline-offset:-2px}
+.office-contact-row strong,.office-contact-row small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.office-contact-row small{margin-top:3px;color:var(--muted);font-size:13px}
+.office-contact-row[data-unread="true"] strong::after{content:"";display:inline-block;width:7px;height:7px;margin-inline-start:8px;border-radius:50%;background:var(--accent-hover);vertical-align:middle}
+.office-contact-row[data-unread="true"] small{color:var(--white)}
+.office-message-badge{min-width:24px;padding:3px 7px;border-radius:12px;background:#173d64;text-align:center}
+.office-message-notice{position:fixed;inset:auto 14px max(18px,env(safe-area-inset-bottom)) auto;z-index:98;max-width:min(420px,calc(100% - 28px));padding:12px 16px;border:1px solid var(--accent);border-radius:12px;background:#132944;color:var(--white);text-align:left;box-shadow:0 8px 26px #0009}
+#fleetOfficeMessageAnnouncement{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+@media(min-width:760px){
+ .office-inbox{grid-template-columns:minmax(215px,290px) minmax(0,1fr);align-items:start}
+ .office-inbox-column{display:block;max-height:max(220px,calc(100dvh - 176px));overflow:auto;margin:0;padding:12px}
+ .office-inbox-column h2{margin:0 6px 8px;font-size:18px}
+ #fleetOfficeContactsButton{display:none}
+}
 .fleet-summary-value{flex:none;margin:0;font-size:clamp(18px,3vw,23px);line-height:1.1;font-weight:800;text-align:right;font-variant-numeric:tabular-nums}
 .fleet-dashboard-content .table-shell table{min-width:0}
 .fleet-dashboard-content .table-shell th,.fleet-dashboard-content .table-shell td{white-space:normal;overflow-wrap:anywhere}
@@ -623,7 +646,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
         <button class="card fleet-tool" type="button" onclick="fleetAdminDriver.open()">My Driver Profile <span aria-hidden="true">›</span></button>
          <button class="card fleet-tool" type="button" onclick="showFleetSection('links')">Linked Profiles <span aria-hidden="true">›</span></button>
         <button class="card fleet-tool" type="button" onclick="showFleetSection('dispatch','equipment')">Assets <span aria-hidden="true">›</span></button>
-        <button class="card fleet-tool" type="button" onclick="fleetOfficeCommunications.open()">Office Messages <span aria-hidden="true">›</span></button>
+        <button class="card fleet-tool" type="button" onclick="fleetOfficeCommunications.open()">Office Messages <span class="office-message-badge hidden" data-office-unread aria-hidden="true"></span></button>
         <button class="card fleet-tool" id="companyFleetMessagesButton" type="button" onclick="showFleetSection('messages')">Driver Messages</button>
        </div>
       </section>
@@ -1835,17 +1858,27 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
    </div>
    <dialog class="office-profile-dialog office-contact-picker" id="fleetOfficeContacts" aria-labelledby="fleetOfficeContactsTitle">
     <div class="office-profile-heading"><h2 id="fleetOfficeContactsTitle" tabindex="-1">Office Contacts</h2><button class="outline" id="fleetOfficeContactsClose" type="button">Close</button></div>
-    <p id="fleetOfficeContactsStatus" role="status" class="muted"></p>
-    <div class="dispatch-load-list" id="fleetOfficeContactList"></div>
-    <button class="outline hidden" id="fleetOfficeContactsRetry" type="button">Retry</button>
+    <div id="fleetOfficeContactsMobile"></div>
    </dialog>
-   <h2 id="fleetOfficeConversationTitle" tabindex="-1"></h2>
-   <p id="fleetOfficeMessageStatus" class="muted" role="status"></p>
-   <ol id="fleetOfficeMessageList" class="message-history" aria-label="Office conversation"></ol>
-   <form class="panel hidden" id="fleetOfficeMessageForm">
-    <div class="field"><label for="fleetOfficeMessageBody">Message</label><textarea id="fleetOfficeMessageBody" required rows="3" maxlength="4000"></textarea></div>
-    <button class="primary-btn" id="fleetOfficeMessageSend" type="submit">Send Message</button>
-   </form>
+   <div class="office-inbox">
+    <aside class="panel office-inbox-column" id="fleetOfficeContactsColumn" aria-labelledby="fleetOfficeContactsHeading">
+     <h2 id="fleetOfficeContactsHeading">Office Contacts</h2>
+     <div id="fleetOfficeContactsContent">
+      <p id="fleetOfficeContactsStatus" role="status" class="muted"></p>
+      <div class="office-contact-groups" id="fleetOfficeContactList"></div>
+      <button class="outline hidden" id="fleetOfficeContactsRetry" type="button">Retry</button>
+     </div>
+    </aside>
+    <section class="panel office-inbox-thread" aria-label="Office chat">
+     <h2 id="fleetOfficeConversationTitle" tabindex="-1"></h2>
+     <p id="fleetOfficeMessageStatus" class="muted" role="status"></p>
+     <ol id="fleetOfficeMessageList" class="message-history office-inbox-history" aria-label="Office conversation"></ol>
+     <form class="hidden" id="fleetOfficeMessageForm">
+      <div class="field"><label for="fleetOfficeMessageBody">Message</label><textarea id="fleetOfficeMessageBody" required rows="3" maxlength="4000"></textarea></div>
+      <button class="primary-btn" id="fleetOfficeMessageSend" type="submit">Send Message</button>
+     </form>
+    </section>
+   </div>
   </section>
   <section id="fleetEmployeePage" class="page fleet-account-page">
   <div class="page-head"><div><h1>Office Dashboard</h1><p class="muted" id="employeeAccountSummary" role="status">Loading your profile…</p></div></div>
@@ -1859,7 +1892,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
      <button type="button" class="card fleet-tool hidden" data-office-tool="link-profiles">Link Profiles</button>
      <button type="button" class="card fleet-tool hidden" data-office-tool="equipment">Equipment</button>
      <button type="button" class="card fleet-tool hidden" data-office-tool="assets">Assets</button>
-     <button type="button" class="card fleet-tool hidden" data-office-tool="office_messages">Office Messages</button>
+     <button type="button" class="card fleet-tool hidden" data-office-tool="office_messages">Office Messages <span class="office-message-badge hidden" data-office-unread aria-hidden="true"></span></button>
      <button type="button" class="card fleet-tool hidden" data-office-tool="messages" id="companyOfficeMessagesButton">Driver Messages</button>
     </div>
    </section>
@@ -2061,6 +2094,8 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
   <div class="fleet-equipment-units" id="fleetEquipmentPickerList"></div>
  </dialog>
  <div id="toast" class="hidden" role="status"></div>
+ <button class="office-message-notice hidden" id="fleetOfficeMessageNotice" type="button"></button>
+ <div id="fleetOfficeMessageAnnouncement" role="status"></div>
 <dialog id="driverPaperworkDialog" class="driver-paperwork-dialog" aria-labelledby="driverPaperworkTitle"></dialog>
 <dialog class="office-profile-dialog" id="dispatchSavedLocationPicker" aria-labelledby="dispatchSavedLocationPickerTitle">
  <h2 id="dispatchSavedLocationPickerTitle">Choose a saved location</h2>
@@ -2186,7 +2221,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 <script src="./owner-settlement-records.js?v=owner-deductions-1"></script>
 <script src="./owner-settlement-import.js?v=preview-1"></script>
 <script src="./owner-op-tools.js?v=1"></script>
-<script src="./fleet-office-communications.js?v=3"></script>
+<script src="./fleet-office-communications.js?v=4"></script>
 <script>
 const SUPABASE_URL = 'https://pxxikzzfrcncwufpzdfp.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_7yQMjUtCtnHC6jgRF4ROLA_CmgsHaZo';
@@ -2373,6 +2408,7 @@ async function openSignedInApp(user){
   startFleetPresenceTimer(loadFleetOnlineCount,30000);
   showFleetSection('dashboard');
   await loadFleetAdmin(true);
+  if(currentUser===user)void fleetOfficeCommunications.refreshNotifications();
   return;
  }
  if(accountType==='employee'){await loadEmployeeAccount();return}
@@ -3120,6 +3156,7 @@ async function loadEmployeeAccount(){
   void markFleetEmployeeOnline();
   companyDriverTools.refresh();
   void companyMessaging.refresh();
+  void fleetOfficeCommunications.refreshNotifications();
   void companySafety.refreshOfficeAccess();
  }
 }
