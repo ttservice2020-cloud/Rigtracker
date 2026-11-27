@@ -106,7 +106,9 @@ begin
            coalesce(nullif(btrim(concat_ws(' ',p.first_name,p.last_name)),''),case p.profile_type when 'driver' then 'Owner Op' else 'Company Driver' end))
            order by p.last_name,p.first_name)
         from public.rigtracker_profiles p join public.rigtracker_fleet_links l on l.profile_user_id=p.user_id
-        where l.fleet_id=fleet and l.unlinked_at is null and p.profile_type in ('company_driver','driver') and not p.password_required), '[]'::jsonb));
+        where l.fleet_id=fleet and l.unlinked_at is null and p.profile_type in ('company_driver','driver') and not p.password_required), '[]'::jsonb),
+      -- The previous frontend reads these arrays while the new site is deploying.
+      'staff','[]'::jsonb, 'grants','[]'::jsonb);
   end if;
   if action='start' then
     if coalesce(channel,'') not in ('dispatch','safety','maintenance') then
