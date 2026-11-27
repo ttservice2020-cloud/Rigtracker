@@ -25,6 +25,7 @@ const officeTools = (() => {
   let hasPrivateThreads = false;
   let employeeRequest;
   let clockRequest;
+  let clockWrite;
   let officeShift;
 
   const has = permission => Boolean(employee && (employee.office_is_official || employee.office_permissions.includes(permission)));
@@ -65,19 +66,25 @@ const officeTools = (() => {
     control.setAttribute('aria-label', active ? 'Stop work time clock' : 'Start work time clock');
   }
 
+  async function clockRpc(action, fleetId) {
+    const { data, error } = await supabaseClient.rpc('fleet_employee_time_clock', { action, target_fleet: fleetId });
+    if (error) throw error;
+    return data;
+  }
+
   async function refreshClock() {
     const user = currentUser;
     if (!user || !employee || !has('hourly')) { paintClock(); return; }
     const request = {};
     clockRequest = request;
     try {
-      const { data, error } = await supabaseClient.rpc('fleet_employee_time_clock', {
-        action: 'clock_status', target_fleet: employee.fleet_id
-      });
-      if (error) throw error;
-      if (currentUser !== user || clockRequest !== request) return;
-      officeShift = data;
-      paintClock();
+      const data = await clockRpc('clock_status', employee.fleet_id);
+      if (currentUser !== user) return;
+      if (clockRequest === request) {
+        officeShift = data;
+        paintClock();
+      }
+      return data;
     } catch {
       if (currentUser === user && clockRequest === request) {
         officeShift = null;
@@ -88,6 +95,32 @@ const officeTools = (() => {
     }
   }
 
+  async function clockStatus() {
+    const user = currentUser;
+    if (!user || !employee || !has('hourly')) return [];
+    if (clockWrite) await Promise.allSettled([clockWrite]);
+    if (currentUser !== user) return [];
+    const status = await refreshClock();
+    return status ? [{ fleetId: status.fleet_id, enabled: true, running: status.clocked_in }] : [];
+  }
+
+  async function updateClock(action, fleetId) {
+    if (!employee || employee.fleet_id !== fleetId || !has('hourly')) throw new Error('Hourly time clock access is required.');
+    const user = currentUser;
+    const write = clockRpc(action, fleetId);
+    clockWrite = write;
+    try {
+      const shift = await write;
+      if (currentUser === user && employee?.fleet_id === fleetId) {
+        clockRequest = null;
+        officeShift = shift;
+        paintClock();
+      }
+    } finally {
+      if (clockWrite === write) clockWrite = null;
+    }
+  }
+
   async function toggleClock() {
     if (!employee || !has('hourly')) return;
     const user = currentUser;
@@ -95,13 +128,7 @@ const officeTools = (() => {
     const control = byId('officeClockToggle');
     control.disabled = true;
     try {
-      const { data, error } = await supabaseClient.rpc('fleet_employee_time_clock', {
-        action, target_fleet: employee.fleet_id
-      });
-      if (error) throw error;
-      if (currentUser !== user) return;
-      officeShift = data;
-      paintClock();
+      await updateClock(action, employee.fleet_id);
     } catch (error) {
       if (currentUser === user) showToast(error.message || 'Could not update the work time clock.');
     } finally {
@@ -565,6 +592,7 @@ const officeTools = (() => {
     hasPrivateThreads = false;
     employeeRequest = null;
     clockRequest = null;
+    clockWrite = null;
     officeShift = null;
     byId('officeClockWidget').classList.add('hidden');
     if (dialog.open) dialog.close();
@@ -575,5 +603,5 @@ const officeTools = (() => {
     renderTools();
   }
 
-  return { has,canLinkProfiles,fuelSettingsFleet,readEmployee,setEmployee,refreshEmployee,setPrivateThreads,openDashboard,openReviewIssue,dispatchFleet,equipmentFleet,dispatchAccess,loadRoster,updateCreateAccess,reset };
+  return { has,canLinkProfiles,fuelSettingsFleet,readEmployee,setEmployee,refreshEmployee,setPrivateThreads,openDashboard,openReviewIssue,dispatchFleet,equipmentFleet,dispatchAccess,loadRoster,updateCreateAccess,clockStatus,updateClock,reset };
 })();

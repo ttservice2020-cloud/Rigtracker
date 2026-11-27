@@ -307,7 +307,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
   <span class="truck-emblem truck" aria-hidden="true"></span>
   <span>RigTracker Pro</span>
  </div>
- <div class="top-actions"><span id="accountLabel">Owner Op</span><div class="office-clock-widget hidden" id="officeClockWidget"><span id="officeClockStatus">Not clocked in</span><button type="button" class="outline" id="officeClockToggle">Start</button></div><button onclick="signOut()">Sign Out</button></div>
+ <div class="top-actions"><span id="accountLabel">Owner Op</span><div class="office-clock-widget hidden" id="officeClockWidget"><span id="officeClockStatus">Not clocked in</span><button type="button" class="outline" id="officeClockToggle">Start</button></div><button type="button" onclick="signOut({remindClock:true})">Sign Out</button></div>
 </header>
 
 <main>
@@ -1973,6 +1973,18 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
   </div>
  </form>
 </dialog>
+<dialog class="office-profile-dialog" id="authClockReminder" aria-labelledby="authClockReminderTitle" aria-describedby="authClockReminderDetail">
+ <h2 id="authClockReminderTitle"></h2>
+ <p id="authClockReminderDetail"></p>
+ <form>
+  <div class="field" id="authClockReminderFleetField" hidden><label for="authClockReminderFleet">Fleet</label><select id="authClockReminderFleet" name="fleet"></select></div>
+  <p class="muted" id="authClockReminderStatus" role="status"></p>
+  <div class="dispatch-actions">
+   <button class="outline" type="button" id="authClockReminderSkip">Skip</button>
+   <button class="primary-btn" type="submit" id="authClockReminderAccept"></button>
+  </div>
+ </form>
+</dialog>
 <div id="modal"><div class="modal-card"><h2 id="modalTitle"></h2><div id="modalBody"></div><button class="primary-btn" onclick="closeModal()">Close</button></div></div>
 
 <script src="./load-history-grid.js?v=1"></script>
@@ -1996,7 +2008,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 <script src="./payroll-tax-updates.js?v=1"></script>
 <script src="./report-pdf.js?v=1"></script>
 <script src="./payroll-tax-preview.js?v=save-pdf-1"></script>
-<script src="./company-driver-tools.js?v=save-pdf-1"></script>
+<script src="./company-driver-tools.js?v=clock-reminder-1"></script>
 <script src="./company-messages.js?v=driver-push-1"></script>
 <script src="./driver-document-scan.js?v=1"></script>
 <script src="./driver-paperwork.js?v=document-scan-1"></script>
@@ -2009,7 +2021,8 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 <script src="./driver-app.js?v=push-1"></script>
 <script src="./driver-notifications.js?v=1"></script>
 <script src="./fleet-bol-payments.js?v=paperwork-1"></script>
-<script src="./office-tools.js?v=hr-tax-1"></script>
+<script src="./office-tools.js?v=clock-reminder-1"></script>
+<script src="./auth-clock-reminder.js?v=1"></script>
 <script src="./office-payroll.js?v=daily-pay-1"></script>
 <script src="./owner-escrow.js?v=1"></script>
 <script src="./owner-settlement-records.js?v=owner-deductions-1"></script>
@@ -2154,6 +2167,9 @@ async function submitAuth(event){
    if(result.error)throw result.error;
    passwordField.value='';
    await openSignedInApp(result.data.user);
+   if(!document.getElementById('rigTrackerPasswordPage').classList.contains('active')){
+    await authClockReminder.offer(result.data.user,'clock_in');
+   }
   }
  }catch(error){
   showToast(role==='employee'?'Sign-in failed. Check your username and password.'
@@ -2209,10 +2225,11 @@ async function openSignedInApp(user){
   else showPage('dashboardPage');
  }
 }
-async function signOut(){
+async function signOut({remindClock=false}={}){
  if(signingOut)return;
  signingOut=true;
  try{
+  if(remindClock)await authClockReminder.offer(currentUser,'clock_out');
   if(accountTypeFor(currentUser)==='employee'){
    await employeePresenceWrite;
    await writeEmployeePresence(false);

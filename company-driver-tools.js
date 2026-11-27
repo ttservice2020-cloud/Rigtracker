@@ -19,6 +19,7 @@ const companyDriverTools = (() => {
   let view;
   let equipmentAssignment;
   let clockRequest;
+  const clockWrites = new Map();
   let payRequest;
   let adminRequest;
   let pendingUpload;
@@ -941,17 +942,39 @@ const companyDriverTools = (() => {
     }
   }
 
+  const openCompanyShift = company => company.shifts.find(shift => !shift.ended_at);
+
+  async function clockStatus() {
+    const user = currentUser;
+    await Promise.allSettled(clockWrites.values());
+    if (user !== currentUser) return [];
+    const companies = await rpc('clock_status');
+    return user === currentUser ? companies.map(company => ({
+      fleetId: company.fleet_id, enabled: company.enabled, running: Boolean(openCompanyShift(company))
+    })) : [];
+  }
+
+  async function updateClock(action, fleetId) {
+    const user = currentUser;
+    const write = rpc(action, fleetId);
+    clockWrites.set(fleetId, write);
+    try { await write; }
+    finally {
+      if (clockWrites.get(fleetId) === write) clockWrites.delete(fleetId);
+      if (currentUser === user) void refreshClock(true);
+    }
+  }
+
   async function clockAction(control, company, openShift) {
     const user = currentUser;
     control.disabled = true;
     try {
-      await rpc(openShift ? 'clock_out' : 'clock_in', company.fleet_id);
+      await updateClock(openShift ? 'clock_out' : 'clock_in', company.fleet_id);
       if (currentUser === user) showToast(openShift ? 'Clocked out.' : 'Clocked in.');
     } catch (error) {
       if (currentUser === user) showToast(error.message || 'Could not update the time clock.');
     } finally {
       control.disabled = false;
-      if (currentUser === user) await refreshClock(true);
     }
   }
 
@@ -963,15 +986,14 @@ const companyDriverTools = (() => {
     try {
       const companies = await rpc('clock_status');
       if (user !== currentUser || clockRequest !== request) return;
-      const openShift = company => company.shifts.find(shift => !shift.ended_at);
       byId('companyDriverClockButton').classList.toggle('hidden', !companies.length);
-      byId('companyDriverClockButton').textContent = companies.some(openShift) ? 'Time Clock · In' : 'Time Clock';
+      byId('companyDriverClockButton').textContent = companies.some(openCompanyShift) ? 'Time Clock · In' : 'Time Clock';
       if (!showList && !byId('companyDriverClockPage').classList.contains('active')) return;
       if (!showList && byId('companyDriverClockList').contains(document.activeElement)) return;
       byId('companyDriverClockStatus').textContent = companies.length ? '' : 'The time clock is off for your linked fleets.';
       byId('companyDriverClockList').replaceChildren(...companies.map(company => {
         const section = element('section', '', 'panel');
-        const shift = openShift(company);
+        const shift = openCompanyShift(company);
         section.append(element('h2', company.fleet_id), element('p',
           shift ? 'Clocked in since ' + clockFormat.format(new Date(shift.started_at)) : 'Clocked out', 'muted'));
         if (shift || company.enabled) section.append(button(shift ? 'Clock Out' : 'Clock In',
@@ -1857,6 +1879,7 @@ const companyDriverTools = (() => {
     byId('companyPayrollDriver').replaceChildren();
     byId('companyPayrollOpenDriver').onclick = null;
     adminRequest = null; clockRequest = null; payRequest = null;
+    clockWrites.clear();
     byId('formerCompanyDrivers').open = false;
     for (const id of ['driverPayList','companyDriverClockList','companyDriverAdminShifts','companyDriverAdminPayList',
       'formerCompanyDriverList','companyDriverAdminFacts','companyDriverHistoryList','companyDriverAdminPresence']) byId(id).replaceChildren();
@@ -1869,5 +1892,5 @@ const companyDriverTools = (() => {
   },24000);
   scheduleSettlementHour();
   document.addEventListener('visibilitychange', refreshSettlementHour);
-  return { openDocuments, mountIssuedTaxFiles, openSettlements, openClock, openAdmin, openRoster, openPayroll, backPayroll, backAdmin, loadFormer, refresh, reset };
+  return { openDocuments, mountIssuedTaxFiles, openSettlements, openClock, openAdmin, openRoster, openPayroll, backPayroll, backAdmin, loadFormer, refresh, clockStatus, updateClock, reset };
 })();
