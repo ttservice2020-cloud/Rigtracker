@@ -1,7 +1,7 @@
 const rigTrackerApp = (() => {
   const nav = document.getElementById('driverAppNav');
   const dialog = document.getElementById('driverInstallDialog');
-  const teamLinks = document.querySelectorAll('[data-company-team-link],#companyDriverTeamLinks');
+  const teamLinks = document.querySelectorAll('[data-company-team-link]');
   const tabs = new Map([...nav.querySelectorAll('[data-driver-tab]')].map(control => [control.dataset.driverTab, control]));
   const sections = {
     company: {
@@ -11,12 +11,13 @@ const rigTrackerApp = (() => {
     driver: {
       driverLoadsPage: 'loads', driverLoadDetailPage: 'loads', spreadsheetPage: 'settlements', settlementPage: 'settlements',
       dashboardPage: 'dashboard', rigTrackerProfilePage: 'dashboard', ownDriverDocumentsPage: 'dashboard', taxPage: 'dashboard', perDiemPage: 'dashboard',
-      ownerEscrowPage: 'dashboard', ownerSettlementDeductionsPage: 'settlements', companySafetyPage: 'safety'
+      ownerEscrowPage: 'dashboard', ownerSettlementDeductionsPage: 'settlements', companySafetyPage: 'safety',
+      ownerOpTrucksPage: 'trucks', companyMessagesPage: 'messages'
     }
   };
   const allowedTabs = {
     company: new Set(['loads', 'messages', 'settlements', 'safety', 'profile']),
-    driver: new Set(['loads', 'settlements', 'safety', 'dashboard'])
+    driver: new Set(['loads', 'messages', 'settlements', 'safety', 'trucks', 'dashboard'])
   };
   let currentPage;
   let role;
@@ -87,6 +88,7 @@ const rigTrackerApp = (() => {
       else showPage('spreadsheetPage');
     }
     if (tab === 'profile') showPage('rigTrackerProfilePage');
+    if (tab === 'trucks') void ownerOpTools.openTrucks();
     if (tab === 'dashboard') showPage('dashboardPage');
   });
 

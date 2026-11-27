@@ -205,6 +205,12 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 .fleet-dashboard-nav button{min-width:0;min-height:48px;padding:12px;color:var(--white);background:none;border:1px solid transparent;border-radius:9px;text-align:center;font-weight:700}
 .fleet-dashboard-nav button:hover{background:#14263b}
 .fleet-dashboard-nav button[aria-current="page"]{background:#173a58;border-color:#358ce0;color:#edf6ff}
+.message-board-nav{grid-template-columns:repeat(2,minmax(0,1fr));margin-bottom:12px}
+.message-department-nav{margin-bottom:12px;grid-template-columns:repeat(auto-fit,minmax(85px,1fr))}
+.message-department-nav button[aria-pressed="true"]{background:#173a58;border-color:#358ce0;color:#edf6ff}
+.message-contact{text-align:left;justify-self:stretch}
+.message-contact[aria-pressed="true"]{border-color:var(--accent)}
+.message-contact-preview{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .fleet-dashboard-nav button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .fleet-dashboard-content{min-width:0}
 .fleet-dashboard-content .page-head{margin-top:0}
@@ -212,6 +218,10 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 .fleet-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
 .fleet-summary .card{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:56px;padding:12px 14px}
 .fleet-summary h2{margin:0;font-size:16px;color:var(--muted)}
+.fleet-online-button{width:100%;color:var(--white);text-align:left}
+.fleet-online-button:not(:disabled):hover,.fleet-online-button:focus-visible{border-color:var(--accent)}
+.fleet-online-label{color:var(--muted);font-weight:700}
+.fleet-office-message-body{white-space:pre-wrap;overflow-wrap:anywhere}
 .fleet-summary-value{flex:none;margin:0;font-size:clamp(18px,3vw,23px);line-height:1.1;font-weight:800;text-align:right;font-variant-numeric:tabular-nums}
 .fleet-dashboard-content .table-shell table{min-width:0}
 .fleet-dashboard-content .table-shell th,.fleet-dashboard-content .table-shell td{white-space:normal;overflow-wrap:anywhere}
@@ -224,6 +234,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 .fleet-tool:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .fleet-tool span{color:var(--accent)}
 .fleet-tool-links{display:flex;flex-wrap:wrap;gap:8px}
+#ownerOpDocumentTabs button[aria-pressed="true"]{background:#173a58;border-color:#358ce0}
 .bol-search{display:flex;flex-wrap:wrap;align-items:end;gap:8px;margin:16px 0}
 .bol-search .field{flex:1 1 150px;margin:0}
 .fleet-account-page .bol-search button{margin:0}
@@ -375,6 +386,10 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
   <div class="employee-setup-actions">
     <button class="outline" type="button" onclick="openOwnRigTrackerProfile()">RigTracker Profile</button>
     <button class="primary-btn" id="ownerDriverLoadsButton" type="button" onclick="driverLoadWorkflow.open()">Loads</button>
+    <button class="outline" type="button" onclick="ownerOpTools.openTrucks()">Truck Profiles</button>
+    <button class="outline" type="button" onclick="ownerOpTools.openFleet()">My Fleet</button>
+    <button class="outline" type="button" onclick="companyDriverTools.openDocuments()">Documents</button>
+    <button class="outline" type="button" onclick="companyMessaging.open()">Messages</button>
     <button class="outline" type="button" onclick="companySafety.open()">Safety</button>
    </div>
    <h2>What would you like to do?</h2>
@@ -553,10 +568,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
    </div>
   </div>
   <div class="tax-actions no-print"><button onclick="window.print()">Print Tax Packet</button><button type="button" onclick="reportPdf.save(document.getElementById('taxPage'), 'Tax Summary ' + selectedYear, this)">Save PDF</button><button onclick="showToast('Tax professional sharing is not available yet.')">Share with Tax Professional</button></div>
-  <div class="panel accent-edge tax-docs">
-   <div><h2>Tax Documents</h2><p>Keep your tax forms with your records.</p></div>
-   <div><button class="outline" type="button" onclick="driverPaperwork.captureDocument(document.getElementById('taxFile'))">Scan Tax Document</button><label class="primary-btn full" style="display:block;text-align:center;cursor:pointer">↑ Upload Tax Document<input id="taxFile" type="file" data-document-scan accept=".pdf,.png,.jpg,.jpeg,.webp,.heic,.heif" class="hidden" onchange="uploadTaxDocument(event)"></label><p class="muted" style="text-align:center">1099-NEC • 1099-MISC • W-2 • Other</p><div id="taxDocumentList"></div></div>
-  </div>
+  <section class="panel accent-edge no-print" id="ownerTaxDocuments" aria-label="My Tax Documents"></section>
   <footer>Record keeping only. No tax estimates.</footer>
  </section>
 
@@ -568,6 +580,11 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
     <button type="button" data-fleet-section="profiles" onclick="showFleetSection('profiles')">Employee Profiles</button>
     <button type="button" data-fleet-section="settings" onclick="showFleetSection('settings')">Fleet Settings</button>
    </nav>
+   <nav class="fleet-dashboard-nav hidden" id="ownerOpFleetNav" aria-label="My Fleet navigation">
+    <button type="button" onclick="ownerOpTools.openFleet()">My Fleet</button>
+    <button type="button" onclick="showFleetSection('dispatch')">Dispatch</button>
+    <button type="button" onclick="showFleetSection('links')">Link Drivers</button>
+   </nav>
    <div class="fleet-dashboard-content">
     <div class="page-head">
      <div>
@@ -577,7 +594,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
      <div class="fleet-page-actions">
       <div class="message-notice-anchor">
        <button type="button" class="company-message-notice hidden" id="companyMessageNotice"></button>
-       <button type="button" class="outline hidden" id="companyDispatchMessagesButton" onclick="companyMessaging.open()">Messages</button>
+       <button type="button" class="outline hidden" id="companyDispatchMessagesButton" onclick="companyMessaging.open('fleet')">Driver Message Board</button>
        <span id="companyMessageAnnouncement" class="company-message-announcement" role="status"></span>
       </div>
       <div class="tag hidden" id="fleetIdBadge"></div>
@@ -585,10 +602,10 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
     </div>
     <div id="fleetDashboard">
      <div class="fleet-summary">
-      <div class="card">
-       <h2>Online</h2>
-       <p class="fleet-summary-value" id="fleetDashboardOnlineCount">—</p>
-      </div>
+      <button class="card fleet-online-button" id="fleetDashboardOnlineButton" type="button" aria-haspopup="dialog" disabled>
+       <span class="fleet-online-label">Online</span>
+       <span class="fleet-summary-value" id="fleetDashboardOnlineCount">—</span>
+      </button>
       <div class="card">
        <h2>Employee profiles</h2>
        <p class="fleet-summary-value" id="fleetDashboardEmployeeCount">—</p>
@@ -605,7 +622,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
         <button class="card fleet-tool" type="button" onclick="fleetAdminDriver.open()">My Driver Profile <span aria-hidden="true">›</span></button>
          <button class="card fleet-tool" type="button" onclick="showFleetSection('links')">Linked Profiles <span aria-hidden="true">›</span></button>
         <button class="card fleet-tool" type="button" onclick="showFleetSection('dispatch','equipment')">Assets <span aria-hidden="true">›</span></button>
-        <button class="card fleet-tool" id="companyFleetMessagesButton" type="button" onclick="showFleetSection('messages')">Messages <span aria-hidden="true">›</span></button>
+        <button class="card fleet-tool" id="companyFleetMessagesButton" type="button" onclick="fleetOfficeCommunications.open()">Messages <span aria-hidden="true">›</span></button>
        </div>
       </section>
       <section class="fleet-tools-group">
@@ -931,7 +948,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
            <div class="dispatch-fields">
             <div id="dispatchShipperContacts"></div>
             <div id="dispatchReceiverContacts"></div>
-            <div class="field"><label for="dispatchTruckNumber">Truck number</label><input id="dispatchTruckNumber" name="truckNumber" maxlength="40"></div>
+            <div class="field"><label for="dispatchTruckNumber">Truck number</label><input id="dispatchTruckNumber" name="truckNumber" maxlength="40"><datalist id="dispatchOwnerOpTrucks"></datalist></div>
             <div class="field"><label for="dispatchTrailerNumber">Trailer number</label><input id="dispatchTrailerNumber" name="trailerNumber" maxlength="40"></div>
             <div class="field"><label for="dispatchTrailerType">Trailer type</label><select id="dispatchTrailerType" name="trailerType"><option value="">Select trailer type</option><option value="fleet">Fleet</option><option value="power_only">Power Only</option></select></div>
             <div class="field"><label for="dispatchBrokerPhone">Broker contact number</label><input id="dispatchBrokerPhone" name="brokerPhone" type="tel" maxlength="40"></div>
@@ -1367,6 +1384,10 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
     </div>
    </div>
    <p class="muted" id="driverWorkflowStatus" role="status"></p>
+   <section class="panel hidden" id="ownerOpLoadLinkPrompt" aria-label="Link to a fleet">
+    <p>Link your Owner Op profile to a fleet to receive load assignments.</p>
+    <button class="outline" type="button" onclick="openOwnRigTrackerProfile()">Open Profile and Get Link Key</button>
+   </section>
    <section class="panel">
     <h2>Assignments</h2>
     <div id="driverWorkflowLoads" class="dispatch-load-list"></div>
@@ -1425,12 +1446,62 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
   </section>
   <section id="ownDriverDocumentsPage" class="page fleet-account-page">
    <div class="page-head"><div><button class="back" id="ownDriverDocumentsBack" type="button">← Back to Profile</button><h1 id="ownDriverDocumentsTitle">Documents</h1></div></div>
+   <div class="dispatch-actions hidden" id="ownerOpDocumentTabs" role="group" aria-label="My document categories">
+    <button class="outline" id="ownerOpDocumentTab" type="button" onclick="companyDriverTools.openDocuments()" aria-pressed="true">Documents</button>
+    <button class="outline" id="ownerOpTaxTab" type="button" onclick="companyDriverTools.openDocuments('tax')" aria-pressed="false">Tax Documents</button>
+   </div>
+   <section class="panel hidden" id="ownerOpPersonalFiles" aria-label="My uploads"></section>
    <section class="panel hidden" id="ownWithholdingForms" aria-label="Withholding forms"></section>
    <section class="panel" id="ownDriverRecordsPanel" aria-labelledby="ownDriverDocumentsTitle">
     <h2 class="hidden" id="ownDriverFleetTaxHeading">Tax documents from your fleet</h2>
     <p id="ownDriverDocumentStatus" class="muted" role="status"></p>
     <div id="ownDriverDocumentList" class="dispatch-load-list"></div>
    </section>
+  </section>
+  <section id="ownerOpTrucksPage" class="page fleet-account-page" aria-labelledby="ownerOpTrucksTitle">
+   <div class="page-head">
+    <div><button class="back" type="button" onclick="showPage('dashboardPage')">← Back to Dashboard</button><h1 id="ownerOpTrucksTitle">Truck Profiles</h1></div>
+    <div class="dispatch-actions">
+     <button class="primary-btn" id="ownerOpTruckAdd" type="button" aria-controls="ownerOpTruckForm" aria-expanded="false">Add Truck</button>
+     <button class="outline" id="ownerOpTruckRefresh" type="button">Refresh</button>
+     <button class="outline" type="button" onclick="ownerOpTools.openFleet()">My Fleet</button>
+    </div>
+   </div>
+   <form class="panel hidden" id="ownerOpTruckForm">
+    <h2 id="ownerOpTruckFormTitle">Add Truck</h2>
+    <div class="form-grid fleet-account-fields">
+     <div class="field"><label for="ownerOpTruckUnit">Truck number</label><input id="ownerOpTruckUnit" name="unit_number" maxlength="40" required></div>
+     <div class="field"><label for="ownerOpTruckYear">Year</label><input id="ownerOpTruckYear" name="model_year" type="number" inputmode="numeric" min="1900" max="2199"></div>
+     <div class="field"><label for="ownerOpTruckMake">Make</label><input id="ownerOpTruckMake" name="make" maxlength="80"></div>
+     <div class="field"><label for="ownerOpTruckModel">Model</label><input id="ownerOpTruckModel" name="model" maxlength="80"></div>
+     <div class="field"><label for="ownerOpTruckVin">VIN</label><input id="ownerOpTruckVin" name="vin" maxlength="25" pattern="[A-Za-z0-9]+" autocapitalize="characters"></div>
+     <div class="field"><label for="ownerOpTruckPlate">Plate</label><input id="ownerOpTruckPlate" name="plate" maxlength="20" autocapitalize="characters"></div>
+    </div>
+    <p id="ownerOpTruckFormStatus" class="muted" role="status"></p>
+    <div class="dispatch-actions">
+     <button type="submit" class="primary-btn" id="ownerOpTruckSave">Save Truck</button>
+     <button type="button" class="outline" id="ownerOpTruckCancel">Cancel</button>
+    </div>
+   </form>
+   <p class="muted" id="ownerOpTruckStatus" role="status"></p>
+   <div id="ownerOpTruckList" class="dispatch-load-list"></div>
+  </section>
+  <section id="ownerOpFleetPage" class="page fleet-account-page" aria-labelledby="ownerOpFleetTitle">
+   <div class="page-head"><div><button class="back" type="button" onclick="showPage('dashboardPage')">← Back to Dashboard</button><h1 id="ownerOpFleetTitle">My Fleet</h1></div></div>
+   <p id="ownerOpFleetStatus" class="muted" role="status"></p>
+   <form class="panel hidden" id="ownerOpFleetSetup">
+    <h2>Set Up My Fleet</h2>
+    <p>Use your fleet ID to manage drivers and dispatch loads from this Owner Op account.</p>
+    <div class="field"><label for="ownerOpFleetId">Fleet ID</label><input id="ownerOpFleetId" required maxlength="20" pattern="[A-Za-z0-9]{1,20}" autocapitalize="none"></div>
+    <button class="primary-btn" id="ownerOpFleetSave" type="submit">Set Up Fleet</button>
+   </form>
+   <div class="fleet-tools-grid hidden" id="ownerOpFleetActions">
+    <button class="card fleet-tool" type="button" onclick="ownerOpTools.enterFleet('dispatch')">Dispatch</button>
+    <button class="card fleet-tool" type="button" onclick="ownerOpTools.enterFleet('dispatch','drivers')">Drivers</button>
+    <button class="card fleet-tool" type="button" onclick="ownerOpTools.enterFleet('links')">Link Drivers</button>
+    <button class="card fleet-tool" type="button" onclick="ownerOpTools.enterFleet('messages')">Driver Message Board</button>
+    <button class="card fleet-tool" type="button" onclick="ownerOpTools.openTrucks()">Truck Profiles</button>
+   </div>
   </section>
   <section id="driverDocumentsPage" class="page fleet-account-page">
    <div class="page-head"><div><button class="back" type="button" onclick="showPage('rigTrackerProfilePage')">← Back to Profile</button><h1>Pay Settlements</h1></div></div>
@@ -1660,50 +1731,34 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
   </section>
   <section id="companyMessagesPage" class="page fleet-account-page">
    <div class="page-head">
-    <div><button class="back" type="button" onclick="companyMessaging.back()">← Back</button><h1>Messages</h1></div>
+    <div><button class="back" type="button" onclick="companyMessaging.back()">← Back</button><h1 id="companyMessagesTitle">Messages</h1></div>
     <div class="driver-page-actions">
      <button class="outline" type="button" onclick="companyMessaging.refresh()">Refresh</button>
     </div>
    </div>
+   <nav class="fleet-dashboard-nav message-board-nav hidden" id="driverMessageBoardTabs" aria-label="Message boards">
+    <button type="button" onclick="fleetOfficeCommunications.open()">Office</button>
+    <button type="button" aria-current="page">Drivers</button>
+   </nav>
    <p class="muted" role="status" id="companyMessagesStatus"></p>
    <div id="companyMessageYardHost"></div>
+   <div class="fleet-dashboard-nav message-department-nav hidden" id="companyMessageDepartments" role="group" aria-label="Departments"></div>
    <details id="companyMessageWatchSettings" class="company-message-watch-settings hidden">
-    <summary>Watch list</summary>
+    <summary>Filter drivers</summary>
     <form id="companyMessageWatchForm">
-     <p>Choose which drivers appear in Dispatch message alerts.</p>
+     <p>Choose whose conversations and alerts you want to see.</p>
      <div id="companyMessageWatchChoices"></div>
-     <button type="submit" class="outline">Save watch list</button>
+     <div class="driver-page-actions">
+      <button type="submit" class="outline">Apply Filter</button>
+      <button type="button" class="outline" id="companyMessageShowAllDrivers">Show All Drivers</button>
+     </div>
     </form>
    </details>
-   <div class="driver-page-actions hidden" id="companyDriverTeamLinks" aria-label="Fleet messaging lines" role="group">
-    <button class="outline" type="button" onclick="companyMessaging.openTeam('dispatch')">Dispatch</button>
-    <button class="outline" type="button" onclick="companyMessaging.openTeam('maintenance')">Maintenance</button>
-    <button class="outline" type="button" onclick="companyMessaging.openTeam('safety')">Safety</button>
-   </div>
-   <section id="companyMessageStartPanel" class="panel hidden">
-    <h2>Start a conversation</h2>
-    <form id="companyMessageStart">
-     <div class="form-grid fleet-account-fields">
-      <div class="field"><label id="companyMessageRecipientLabel" for="companyMessageRecipient">Driver</label><select id="companyMessageRecipient" required></select></div>
-      <div class="field"><label for="companyMessageChannel">Conversation</label><select id="companyMessageChannel" required></select></div>
-     </div>
-     <button class="primary-btn" type="submit">Open Conversation</button>
-    </form>
-   </section>
-   <section id="companyPrivateAccessPanel" class="panel hidden">
-    <h2>Private messaging access</h2>
-    <form id="companyPrivateAccessForm">
-     <div class="form-grid fleet-account-fields">
-      <div class="field"><label for="companyPrivateDriver">Driver</label><select id="companyPrivateDriver" required></select></div>
-      <div class="field"><label for="companyPrivateStaff">Staff member</label><select id="companyPrivateStaff" required></select></div>
-     </div>
-     <p class="muted" role="status" id="companyPrivateStatus"></p>
-     <button class="outline" id="companyPrivateSwitch" type="submit" aria-pressed="false">Grant private messaging</button>
-    </form>
-   </section>
    <section class="panel">
     <h2>Conversations</h2>
     <div class="field hidden" id="companyMessageCrewFleetField"><label for="companyMessageCrewFleet">Fleet</label><select id="companyMessageCrewFleet"></select></div>
+    <div class="field hidden" id="companyMessageDriverFleetField"><label for="companyMessageDriverFleet">Linked fleet</label><select id="companyMessageDriverFleet"></select></div>
+    <div class="field hidden" id="companyMessageDriverSearchField"><label for="companyMessageDriverSearch">Search driver contacts</label><input id="companyMessageDriverSearch" type="search"></div>
     <div id="companyMessageThreads" class="dispatch-load-list"></div>
    </section>
    <section id="companyMessageThread" class="panel hidden">
@@ -1772,6 +1827,27 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
     <button class="outline" id="safetyReferenceMore" type="button" hidden>Show More Materials</button>
    </section>
   </section>
+  <section id="fleetOfficeMessagesPage" class="page fleet-account-page" aria-labelledby="fleetOfficeMessagesTitle">
+   <div class="page-head">
+    <div><button class="back" type="button" id="fleetOfficeMessageBack">← Back to Dashboard</button><h1 id="fleetOfficeMessagesTitle">Office Message Board</h1></div>
+    <button class="outline" id="fleetOfficeMessageRefresh" type="button">Refresh</button>
+   </div>
+   <nav class="fleet-dashboard-nav message-board-nav" aria-label="Message boards">
+    <button type="button" id="fleetOfficeMessagesTab" aria-current="page">Office</button>
+    <button type="button" id="fleetOfficeDriverMessagesTab" onclick="companyMessaging.open('fleet')">Drivers</button>
+   </nav>
+   <section class="panel" aria-label="Office contacts">
+    <div class="field"><label for="fleetOfficeRecipient">Search office contacts</label><input id="fleetOfficeRecipient" type="search"></div>
+    <div class="dispatch-load-list" id="fleetOfficeContactList"></div>
+   </section>
+   <h2 id="fleetOfficeConversationTitle"></h2>
+   <p id="fleetOfficeMessageStatus" class="muted" role="status"></p>
+   <div id="fleetOfficeMessageList" class="dispatch-load-list" aria-label="Office conversation"></div>
+   <form class="panel hidden" id="fleetOfficeMessageForm">
+    <div class="field"><label for="fleetOfficeMessageBody">Message</label><textarea id="fleetOfficeMessageBody" required rows="3" maxlength="4000"></textarea></div>
+    <button class="primary-btn" id="fleetOfficeMessageSend" type="submit">Send Message</button>
+   </form>
+  </section>
   <section id="fleetEmployeePage" class="page fleet-account-page">
   <div class="page-head"><div><h1>Office Dashboard</h1><p class="muted" id="employeeAccountSummary" role="status">Loading your profile…</p></div></div>
   <div id="officeDashboardTools" class="hidden fleet-tools">
@@ -1784,7 +1860,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
      <button type="button" class="card fleet-tool hidden" data-office-tool="link-profiles">Link Profiles</button>
      <button type="button" class="card fleet-tool hidden" data-office-tool="equipment">Equipment</button>
      <button type="button" class="card fleet-tool hidden" data-office-tool="assets">Assets</button>
-     <button type="button" class="card fleet-tool hidden" data-office-tool="messages" id="companyOfficeMessagesButton">Messages</button>
+     <button type="button" class="card fleet-tool hidden" data-office-tool="office_messages" id="companyOfficeMessagesButton">Messages</button>
     </div>
    </section>
    <section class="fleet-tools-group" data-office-group>
@@ -1841,12 +1917,19 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
  </section>
 </section>
 </main>
+<dialog class="office-profile-dialog" id="fleetOnlineEmployees" aria-labelledby="fleetOnlineEmployeesTitle">
+ <div class="office-profile-heading"><div><h2 id="fleetOnlineEmployeesTitle">Online Employees</h2></div><button class="outline" id="fleetOnlineClose" type="button">Close</button></div>
+ <p id="fleetOnlineStatus" class="muted" role="status"></p>
+ <div id="fleetOnlineList" class="dispatch-load-list"></div>
+ <button class="outline" id="fleetOnlineRefresh" type="button">Refresh</button>
+</dialog>
 <nav class="driver-app-nav hidden no-print" id="driverAppNav" aria-label="Driver navigation">
  <div class="driver-app-tabs">
   <button type="button" data-driver-tab="loads">Loads<span class="driver-app-badge" hidden aria-hidden="true"></span></button>
   <button type="button" data-driver-tab="messages">Messages<span class="driver-app-badge" hidden aria-hidden="true"></span></button>
   <button type="button" data-driver-tab="settlements">Settlements<span class="driver-app-badge" hidden aria-hidden="true"></span></button>
   <button type="button" data-driver-tab="safety">Safety</button>
+  <button type="button" data-driver-tab="trucks">Trucks</button>
   <button type="button" data-driver-tab="profile">Profile</button>
   <button type="button" data-driver-tab="dashboard">Dashboard</button>
  </div>
@@ -2067,8 +2150,8 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 <script src="./dispatch-route-miles.js?v=1"></script>
 <script src="./dispatch-zip-lookup.js?v=zip-timezone-1"></script>
 <script src="./hazmat-reference.js?v=1"></script>
-<script src="./dispatch.js?v=load-processing-2"></script>
-<script src="./linked-profiles.js?v=driver-push-1"></script>
+<script src="./dispatch.js?v=owner-op-tools-1"></script>
+<script src="./linked-profiles.js?v=owner-op-tools-1"></script>
 <script src="./fleet-equipment.js?v=driver-loads-1"></script>
 <script src="./payroll-tax-jurisdictions.js?v=2"></script>
 <script src="./payroll-tax-new-york.js?v=2"></script>
@@ -2083,29 +2166,30 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 <script src="./payroll-tax-updates.js?v=1"></script>
 <script src="./report-pdf.js?v=1"></script>
 <script src="./payroll-tax-preview.js?v=save-pdf-1"></script>
-<script src="./company-driver-tools.js?v=clock-reminder-1"></script>
-<script src="./company-messages.js?v=saved-locations-1"></script>
+<script src="./company-driver-tools.js?v=owner-op-tools-1"></script>
+<script src="./company-messages.js?v=driver-board-2"></script>
 <script src="./driver-document-scan.js?v=1"></script>
 <script src="./driver-paperwork.js?v=document-scan-1"></script>
 <script src="./payroll-withholding-forms.js?v=document-scan-1"></script>
 <script src="./payroll-contractor-tax.js?v=hr-tax-1"></script>
 <script src="./hr-tax-forms.js?v=driver-1099-1"></script>
-<script src="./driver-workflow.js?v=hazmat-1"></script>
+<script src="./driver-workflow.js?v=owner-op-tools-1"></script>
 <script src="./fleet-admin-driver.js?v=1"></script>
 <script src="./company-safety.js?v=hazmat-1"></script>
-<script src="./driver-app.js?v=hazmat-1"></script>
+<script src="./driver-app.js?v=owner-op-tools-1"></script>
 <script src="./driver-notifications.js?v=1"></script>
 <script src="./fleet-bol-payments.js?v=load-processing-1"></script>
-<script src="./office-tools.js?v=load-processing-1"></script>
+<script src="./office-tools.js?v=office-messages-2"></script>
 <script src="./auth-clock-reminder.js?v=1"></script>
 <script src="./office-payroll.js?v=daily-pay-1"></script>
 <script src="./owner-escrow.js?v=1"></script>
 <script src="./owner-settlement-records.js?v=owner-deductions-1"></script>
 <script src="./owner-settlement-import.js?v=preview-1"></script>
+<script src="./owner-op-tools.js?v=1"></script>
+<script src="./fleet-office-communications.js?v=2"></script>
 <script>
 const SUPABASE_URL = 'https://pxxikzzfrcncwufpzdfp.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_7yQMjUtCtnHC6jgRF4ROLA_CmgsHaZo';
-const TAX_BUCKET = 'tax-documents';
 const supabaseClient = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 let currentUser = null;
 let selectedRole = 'driver';
@@ -2115,7 +2199,6 @@ let settlements = [];
 let editingSettlement = null;
 let settlementChangePending = false;
 let stays = [];
-let taxDocuments = [];
 let deductionLabels = Array.from({length:12},(_,i)=>'Deduction '+(i+1));
 let preferredZone = 'America/New_York';
 let toastTimer;
@@ -2142,7 +2225,10 @@ function showPage(id){
  window.scrollTo({top:0,behavior:'smooth'});
  if(id==='spreadsheetPage')renderSpreadsheet();
  if(['settlementPage','spreadsheetPage','taxPage'].includes(id))void ownerSettlementImport.open();
- if(id==='taxPage')renderTax();
+ if(id==='taxPage'){
+  renderTax();
+  ownerOpTools.mountDocuments(document.getElementById('ownerTaxDocuments'),true);
+ }
  if(id==='perDiemPage')renderPerDiem();
 }
 function accountTypeFor(user){
@@ -2314,7 +2400,9 @@ async function signOut({remindClock=false}={}){
   const result=await supabaseClient.auth.signOut();
   if(result.error)throw result.error;
   stopFleetPresenceTimer();
-  currentUser=null;settlements=[];stays=[];taxDocuments=[];
+  currentUser=null;settlements=[];stays=[];
+  ownerOpTools.reset();
+  fleetOfficeCommunications.reset();
   ownerSettlementImport.reset();
   ownerEscrow.reset();
   payrollTaxPreview.reset();
@@ -2679,30 +2767,6 @@ async function savePreferences(){
  const result=await supabaseClient.from('driver_preferences').upsert({user_id:currentUser.id,deduction_labels:deductionLabels,time_zone:preferredZone},{onConflict:'user_id'});
  if(result.error)showToast('Preference was not saved: '+result.error.message);
 }
-async function uploadTaxDocument(event){
- const file=event.target.files[0];event.target.value='';
- if(!file||!currentUser||!supabaseClient)return;
- const path=currentUser.id+'/tax-'+Date.now()+'-'+file.name.replace(/[^a-zA-Z0-9._-]/g,'_');
- const r=await supabaseClient.storage.from(TAX_BUCKET).upload(path,file,{upsert:false});
- if(r.error){showToast('Document upload failed: '+r.error.message);return}
- showToast('Tax document uploaded.');await loadTaxDocuments();
-}
-async function loadTaxDocuments(){
- if(!currentUser||!supabaseClient)return;
- const r=await supabaseClient.storage.from(TAX_BUCKET).list(currentUser.id,{limit:100,sortBy:{column:'created_at',order:'desc'}});
- if(r.error){showToast('Could not load documents: '+r.error.message);return}
- taxDocuments=r.data||[];
- const links=await Promise.all(taxDocuments.map(async f=>{
-  const path=currentUser.id+'/'+f.name;const signed=await supabaseClient.storage.from(TAX_BUCKET).createSignedUrl(path,3600);
-  return '<div style="display:flex;justify-content:space-between;gap:10px;margin:6px 0"><a href="'+(signed.error?'#':escapeHtml(signed.data.signedUrl))+'" target="_blank" rel="noopener">'+escapeHtml(f.name)+'</a><button class="outline" onclick="deleteTaxDocument(\''+escapeHtml(f.name)+'\')">Delete</button></div>';
- }));
- document.getElementById('taxDocumentList').innerHTML=links.join('');
-}
-async function deleteTaxDocument(name){
- const r=await supabaseClient.storage.from(TAX_BUCKET).remove([currentUser.id+'/'+name]);
- if(r.error){showToast('Could not delete document: '+r.error.message);return}
- await loadTaxDocuments();showToast('Document deleted.');
-}
 async function loadUserData(){
  if(!currentUser||!supabaseClient)return;
  const [settleResult,stayResult,prefResult]=await Promise.all([
@@ -2718,7 +2782,7 @@ async function loadUserData(){
   if(prefResult.data.time_zone)preferredZone=prefResult.data.time_zone;
  }
  document.getElementById('timeZone').value=preferredZone;renderDeductionInputs();document.getElementById('settleDate').value=todayForZone(preferredZone);document.getElementById('stayDate').value=todayForZone(preferredZone);
- await loadTaxDocuments();renderDashboard();renderSpreadsheet();renderTax();await renderPerDiem();
+ renderDashboard();renderSpreadsheet();renderTax();await renderPerDiem();
 }
 const fleetSectionTitles={dashboard:'Fleet Admin Dashboard',dispatch:'Dispatch',settings:'Fleet Settings',profiles:'Employee Profiles',links:'Linked Profiles'};
 const fleetTools={
@@ -2729,6 +2793,7 @@ const fleetTools={
 };
 function renderFleetSections(){
  const office=accountTypeFor(currentUser)==='employee';
+ const ownerFleet=ownerOpTools.managesFleet(adminFleetId);
  const dashboard=fleetSection==='dashboard';
  const dispatch=fleetSection==='dispatch';
  const tool=Object.hasOwn(fleetTools,fleetSection)?fleetTools[fleetSection]:null;
@@ -2776,8 +2841,11 @@ function renderFleetSections(){
   });
   document.getElementById('fleetToolLinks').replaceChildren(...links);
  }
- document.getElementById('fleetAdminNav').classList.toggle('hidden',office);
- document.getElementById('accountLabel').textContent=office?'Office':hasFleet?'Fleet ID '+adminFleetId:ready?'Fleet ID not set':'Fleet Admin';
+ document.getElementById('fleetAdminNav').classList.toggle('hidden',office||ownerFleet);
+ document.getElementById('ownerOpFleetNav').classList.toggle('hidden',!ownerFleet);
+ document.getElementById('fleetDashboardOnlineButton').disabled=office||ownerFleet||!ready||!hasFleet;
+ document.getElementById('fleetToolBack').onclick=()=>office?officeTools.openDashboard():ownerFleet?ownerOpTools.openFleet():showFleetSection('dashboard');
+ document.getElementById('accountLabel').textContent=office?'Office':ownerFleet?'Owner Op':hasFleet?'Fleet ID '+adminFleetId:ready?'Fleet ID not set':'Fleet Admin';
  if(dashboard&&(!ready||!hasFleet)){
   document.getElementById('fleetDashboardOnlineCount').textContent=ready?'0':'—';
   document.getElementById('fleetDashboardEmployeeCount').textContent=ready?'0':'—';
@@ -2786,8 +2854,9 @@ function renderFleetSections(){
  document.getElementById('fleetSettingsId').textContent=hasFleet?'Fleet ID '+adminFleetId:'';
 }
 function showFleetSection(section,dispatchTab='current'){
- if(!currentUser||accountTypeFor(currentUser)!=='fleet')return;
- if(section==='messages')return companyMessaging.open();
+ const ownerFleet=ownerOpTools.managesFleet(adminFleetId);
+ if(!currentUser||(accountTypeFor(currentUser)!=='fleet'&&!(ownerFleet&&['dispatch','links','messages'].includes(section))))return;
+ if(section==='messages')return companyMessaging.open('fleet');
  if(section==='payroll')return officePayroll.open(adminFleetId);
  if(section==='hr')return hrTaxForms.open(adminFleetId);
  if(!Object.hasOwn(fleetSectionTitles,section)&&!Object.hasOwn(fleetTools,section))return;
@@ -2815,7 +2884,7 @@ async function showOfficeDispatch(tab){
  return fleetDispatchApp.open(supabaseClient,fleet,'ready',tab,officeTools.dispatchAccess());
 }
 function loadFleetSectionData(dispatchTab){
- if(fleetSection==='dispatch')return fleetDispatchApp.open(supabaseClient,adminFleetId,fleetLoadState,dispatchTab);
+ if(fleetSection==='dispatch')return fleetDispatchApp.open(supabaseClient,adminFleetId,fleetLoadState,dispatchTab,ownerOpTools.dispatchAccess(adminFleetId));
  if(fleetLoadState!=='ready'||!adminFleetId)return;
  if(fleetSection==='dashboard')return Promise.all([loadFleetEmployeeCount(),loadFleetOnlineCount()]);
  if(fleetSection==='profiles')return loadFleetEmployees();
@@ -2903,6 +2972,7 @@ async function loadFleetOnlineCount(){
  const owner=currentUser;
  const fleetId=adminFleetId;
  if(!owner||accountTypeFor(owner)!=='fleet'||!fleetId||fleetSection!=='dashboard'||fleetLoadState!=='ready'||signingOut||fleetOnlineRequest===owner)return;
+ if(fleetOfficeCommunications.onlineOpen())return fleetOfficeCommunications.refreshOnline();
  fleetOnlineRequest=owner;
  let count=null;
  try{
@@ -2913,7 +2983,7 @@ async function loadFleetOnlineCount(){
  }finally{
   if(fleetOnlineRequest===owner)fleetOnlineRequest=null;
  }
- if(currentUser===owner&&adminFleetId===fleetId){
+ if(currentUser===owner&&adminFleetId===fleetId&&!fleetOfficeCommunications.onlineOpen()){
   document.getElementById('fleetDashboardOnlineCount').textContent=Number.isInteger(count)?String(count):'—';
  }
 }

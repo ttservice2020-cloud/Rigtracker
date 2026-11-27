@@ -4,6 +4,7 @@ let ownProfileRead=null;
 let linkPreview=null;
 let ownLinkKey=null;
 let ownKeyRequest=null;
+const managesLinkFleet=()=>accountTypeFor(currentUser)==='fleet'||ownerOpTools.managesFleet(adminFleetId);
 const linkKeyFormat=/^(?:[A-Z0-9]{6}|[A-F0-9]{20})$/;
 const cleanLinkKey=value=>value.replace(/[\s-]/g,'').toUpperCase();
 const linkExpiryFormat=new Intl.DateTimeFormat(undefined,{dateStyle:'medium',timeStyle:'short'});
@@ -65,7 +66,7 @@ async function loadFleetProfileLinks(){
 async function mutateFleetProfile(control,action,fields,form){
  const owner=currentUser;
  const fleetId=adminFleetId;
- if(!owner||!fleetId||accountTypeFor(owner)!=='fleet'||control.disabled)return;
+ if(!owner||!fleetId||!managesLinkFleet()||control.disabled)return;
  control.disabled=true;
  try{
   const result=await callFleetProfiles(action,fields);
@@ -109,7 +110,7 @@ async function saveRigTrackerLink(event){
  const user=currentUser;
  if(!user||fleetSection!=='links')return;
  const office=accountTypeFor(user)==='employee';
- const allowed=()=>office?officeTools.canLinkProfiles():accountTypeFor(user)==='fleet'&&Boolean(adminFleetId);
+ const allowed=()=>office?officeTools.canLinkProfiles():managesLinkFleet()&&Boolean(adminFleetId);
  if(!allowed())return;
  const form=event.currentTarget;
  const control=document.getElementById('linkProfileSubmit');
@@ -226,7 +227,7 @@ function createCompanyDriver(event){
 }
 
 async function openCompanyDriverCreate(){
- if(accountTypeFor(currentUser)!=='fleet')return;
+ if(!managesLinkFleet())return;
  await showFleetSection('links');
  const form=document.getElementById('companyDriverForm');
  if(fleetSection==='links'&&!form.closest('.hidden')){
