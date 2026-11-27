@@ -80,6 +80,9 @@ p{line-height:1.45}
 #ownerSettlementPreview table{min-width:100%;width:max-content}
 #ownerSettlementPreview caption{text-align:left;padding:10px 12px;font-weight:700;color:#f3f7fc}
 #ownerSettlementPreview .table-shell:focus-visible{outline:2px solid #55a9fb;outline-offset:2px}
+#ownerSettlementReviewTotals table{width:100%;min-width:0}
+#ownerSettlementReviewTotals :is(th,td){white-space:normal}
+#ownerSettlementReview .fleet-tool-links{margin-top:14px}
 .owner-statement-grid{display:grid;grid-template-columns:minmax(0,3fr) minmax(245px,2fr);gap:12px;align-items:start}
 .owner-statement-grid>div,.owner-deduction-layout>div{min-width:0}
 .owner-deduction-layout{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,2fr);gap:14px;align-items:start}
@@ -396,7 +399,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
     <label for="ownerSettlementFiles">Upload Settlement PDF</label>
     <input id="ownerSettlementFiles" type="file" accept="application/pdf,.pdf" aria-describedby="ownerSettlementImportHelp">
    </div>
-   <p id="ownerSettlementImportHelp" class="muted">Choose your Lavalle settlement PDF, review the spreadsheet, and select Save Settlement.</p>
+   <p id="ownerSettlementImportHelp" class="muted">Choose your Lavalle settlement PDF, review the totals, then select Accept &amp; Save.</p>
    <p id="ownerSettlementUploadStatus" class="muted" role="status"></p>
    <div><button class="outline" type="button" onclick="showPage('spreadsheetPage')">Saved Settlement Documents</button></div>
   </section>
@@ -430,7 +433,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
    <h2 id="ownerSettlementDocumentsTitle">Saved Settlement Documents</h2>
    <p id="ownerSettlementImportStatus" class="muted" role="status"></p>
    <div class="fleet-tool-links">
-    <button class="primary-btn hidden" id="ownerSettlementSave" type="button">Save Settlement</button>
+    <button class="primary-btn hidden" id="ownerSettlementReviewButton" type="button">Review Settlement</button>
     <button class="outline" id="ownerSettlementChooseFile" type="button">Choose a Settlement PDF</button>
    </div>
    <div id="ownerSettlementSavedList" aria-label="Saved carrier spreadsheets"></div>
@@ -1983,6 +1986,18 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
  </dialog>
  <div id="toast" class="hidden" role="status"></div>
 <dialog id="driverPaperworkDialog" class="driver-paperwork-dialog" aria-labelledby="driverPaperworkTitle"></dialog>
+<dialog class="office-profile-dialog" id="ownerSettlementReview" aria-labelledby="ownerSettlementReviewTitle">
+ <h2 id="ownerSettlementReviewTitle">Review Settlement</h2>
+ <p id="ownerSettlementReviewContext" class="muted"></p>
+ <div id="ownerSettlementReviewTotals"></div>
+ <p id="ownerSettlementReviewStatus" role="status"></p>
+ <div class="fleet-tool-links">
+  <a class="outline" id="ownerSettlementOriginal" target="_blank" rel="noopener noreferrer">View Original PDF</a>
+  <button class="outline hidden" id="ownerSettlementManual" type="button">Enter Manually</button>
+  <button class="primary-btn hidden" id="ownerSettlementSave" type="button">Accept &amp; Save</button>
+  <button class="outline" id="ownerSettlementReviewClose" type="button">Back to Preview</button>
+ </div>
+</dialog>
 <dialog class="office-profile-dialog" id="dispatchSavedLocationPicker" aria-labelledby="dispatchSavedLocationPickerTitle">
  <h2 id="dispatchSavedLocationPickerTitle">Choose a saved location</h2>
  <div class="field"><label for="dispatchSavedLocationQuery">Search by name or address</label><input id="dispatchSavedLocationQuery" type="search" autocomplete="off" autofocus></div>
@@ -2105,7 +2120,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 <script src="./office-payroll.js?v=daily-pay-1"></script>
 <script src="./owner-escrow.js?v=1"></script>
 <script src="./owner-settlement-records.js?v=owner-deductions-1"></script>
-<script src="./owner-settlement-import.js?v=save-preview-1"></script>
+<script src="./owner-settlement-import.js?v=review-accept-1"></script>
 <script>
 const SUPABASE_URL = 'https://pxxikzzfrcncwufpzdfp.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_7yQMjUtCtnHC6jgRF4ROLA_CmgsHaZo';

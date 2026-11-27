@@ -7,9 +7,18 @@ const ownerSettlementImport = (() => {
   const status = find('ownerSettlementImportStatus');
   const records = find('ownerSettlementSavedList');
   const preview = find('ownerSettlementPreview');
+  const reviewButton = find('ownerSettlementReviewButton');
+  const review = find('ownerSettlementReview');
+  const reviewStatus = find('ownerSettlementReviewStatus');
+  const reviewClose = find('ownerSettlementReviewClose');
+  const originalPdf = find('ownerSettlementOriginal');
+  const manualEntry = find('ownerSettlementManual');
   const saveButton = find('ownerSettlementSave');
   const chooseFile = find('ownerSettlementChooseFile');
   const currency = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
+  const mileageCurrency = new Intl.NumberFormat('en-US', {
+    style: 'currency', currency: 'USD', maximumFractionDigits: 6
+  });
   const formatMoney = cents => Number.isFinite(cents) ? currency.format(cents / 100) : '—';
   const formatMiles = miles => Number.isFinite(miles) ? miles.toLocaleString('en-US') : '—';
   const formatDate = date => date
@@ -32,10 +41,22 @@ const ownerSettlementImport = (() => {
     documents.classList.toggle('hidden', !visible);
   }
 
+  function clearReview() {
+    const url = originalPdf.getAttribute('href');
+    if (url) URL.revokeObjectURL(url);
+    originalPdf.removeAttribute('href');
+    find('ownerSettlementReviewContext').textContent = '';
+    find('ownerSettlementReviewTotals').replaceChildren();
+    reviewStatus.textContent = '';
+  }
+
   function setPending(draft) {
     pending = draft;
-    saveButton.classList.toggle('hidden', !draft);
-    saveButton.disabled = Boolean(saving);
+    reviewButton.classList.toggle('hidden', !draft);
+    if (!draft) {
+      if (review.open) review.close();
+      clearReview();
+    }
   }
 
   function reset() {
@@ -47,6 +68,7 @@ const ownerSettlementImport = (() => {
     input.value = '';
     input.disabled = false;
     chooseFile.disabled = false;
+    reviewButton.disabled = saveButton.disabled = reviewClose.disabled = false;
     status.textContent = '';
     uploadStatus.textContent = '';
     records.replaceChildren();
@@ -84,11 +106,18 @@ const ownerSettlementImport = (() => {
 
   function reserveTable(reserve) {
     const panel = node('div');
+    const balances = [['Previous balance', reserve.prior], ['Deposit this period', reserve.deposit],
+      ['New balance', reserve.balance]].filter(([, value]) => Number.isFinite(value));
     panel.append(table('Repair Reserve', ['Balance detail', 'Amount'],
-      [['Previous balance', formatMoney(reserve.prior)], ['Deposit this period', formatMoney(reserve.deposit)],
-        ['New balance', formatMoney(reserve.balance)]]),
-    node('p', 'The reserve deposit is included in the carrier deductions.', 'muted'));
+      balances.map(([label, value]) => [label, formatMoney(value)])));
+    if (Number.isFinite(reserve.deposit)) {
+      panel.append(node('p', 'The reserve deposit is included in the carrier deductions.', 'muted'));
+    }
     return panel;
+  }
+
+  function hasReserve(reserve) {
+    return [reserve.prior, reserve.deposit, reserve.balance].some(Number.isFinite);
   }
 
   function showDeductions(data) {
@@ -111,7 +140,7 @@ const ownerSettlementImport = (() => {
     }
     if (!data.charges.length) driver.append(node('p', 'No deductions recorded.', 'muted'));
     else driver.append(node('p', 'Driver deductions subtotal ' + formatMoney(data.summary.driver), 'owner-settlement-payout'));
-    if (data.reserve.balance != null) carrier.append(reserveTable(data.reserve));
+    if (hasReserve(data.reserve)) carrier.append(reserveTable(data.reserve));
     find('ownerSettlementDeductionsContext').textContent = statementLabel(data) +
       ' · ' + formatDate(data.periodStart) + ' – ' + formatDate(data.periodEnd);
     find('ownerSettlementDeductionsTotal').textContent = formatMoney(data.summary.driver + data.summary.carrier);
@@ -138,7 +167,8 @@ const ownerSettlementImport = (() => {
       'Miles', 'Gross linehaul', 'Rate', 'Owner pay', 'Fuel surcharge', 'Load total', 'Page'], data.loads.map(load => [
       load.number, load.origin || '—', load.destination || '—', formatDate(load.shipped), formatDate(load.delivered),
       load.tractor || '—', load.mileageType || '—', formatMiles(load.miles), formatMoney(load.gross),
-      Number.isFinite(load.rate) ? load.rate + '%' : '—', formatMoney(load.pay), formatMoney(load.surcharge ?? 0),
+      Number.isFinite(load.rate) ? (load.rateType === 'per_mile' ? mileageCurrency.format(load.rate) + '/mi' : load.rate + '%') : '—',
+      formatMoney(load.pay), formatMoney(load.surcharge ?? 0),
       formatMoney(load.total), load.page
     ]));
     const loads = node('div');
@@ -148,7 +178,7 @@ const ownerSettlementImport = (() => {
     const pay = node('div', undefined, 'panel owner-statement-summary');
     pay.append(payout, amounts, deductionButton);
     overview.append(loads, pay);
-    if (data.reserve.balance != null) loads.append(reserveTable(data.reserve));
+    if (hasReserve(data.reserve)) loads.append(reserveTable(data.reserve));
     preview.replaceChildren(title, facts, ...(issues ? [issues] : []), overview);
   }
 
@@ -242,6 +272,45 @@ const ownerSettlementImport = (() => {
     if (!input.disabled) input.click();
   });
 
+  reviewButton.addEventListener('click', () => {
+    if (!pending || reading || saving || review.open || pending.request.user !== currentUser) return;
+    const { data, file } = pending;
+    const { summary } = data;
+    const issues = Boolean(data.issues.length);
+    const amountRows = [
+      ['Gross pay', summary.printedGross, summary.gross],
+      ['Total deductions', summary.printedDeductions == null ? null : -summary.printedDeductions, -(summary.driver + summary.carrier)],
+      ['Net payout', summary.printedNet, summary.net]
+    ];
+    find('ownerSettlementReviewContext').textContent = statementLabel(data) + ' · Pay date ' + formatDate(data.payDate);
+    find('ownerSettlementReviewTotals').replaceChildren(table('Pay totals', ['Item', 'On the PDF', 'RigTracker'],
+      amountRows.map(([label, printed, calculated]) => [label, formatMoney(printed), formatMoney(calculated)])));
+    reviewStatus.textContent = issues
+      ? 'This import needs review. Compare the figures with the original PDF or enter the settlement manually.'
+      : 'Check the amounts against the PDF before accepting the settlement.';
+    originalPdf.href = URL.createObjectURL(file);
+    manualEntry.classList.toggle('hidden', !issues);
+    saveButton.classList.toggle('hidden', issues);
+    review.showModal();
+  });
+  reviewClose.addEventListener('click', () => review.close());
+  review.addEventListener('cancel', event => { if (saving) event.preventDefault(); });
+  review.addEventListener('close', () => { if (!review.open) clearReview(); });
+  manualEntry.addEventListener('click', () => {
+    if (!pending?.data.issues.length || pending.request.user !== currentUser) return;
+    const { data } = pending;
+    review.close();
+    resetSettlementForm();
+    if (data.payDate) find('settleDate').value = data.payDate;
+    find('settleNumber').value = data.reference ?? '';
+    if (Number.isFinite(data.summary.printedGross)) find('settleGross').value = (data.summary.printedGross / 100).toFixed(2);
+    find('settlementHint').textContent = 'Enter the deductions from your PDF and check the payout before saving.';
+    find('settlementSubmit').textContent = 'Save Settlement';
+    calculateSettlement();
+    showPage('settlementPage');
+    find('settleGross').focus();
+  });
+
   input.addEventListener('change', async () => {
     const request = view;
     const file = input.files?.[0];
@@ -267,19 +336,15 @@ const ownerSettlementImport = (() => {
         if (active()) uploadStatus.textContent = 'Reading page ' + page + ' of ' + total + '…';
       });
       if (!active()) return;
-      const { parseLavalleStatement } = await import('./owner-settlement-reader.mjs?v=reference-1');
+      const { parseLavalleStatement } = await import('./owner-settlement-reader.mjs?v=mileage-review-1');
       const data = parseLavalleStatement(pages);
       if (!active()) return;
       showSpreadsheet(data);
-      if (data.issues.length) {
-        status.textContent = 'Needs Review. Check the issues below. Choose the original PDF or enter the settlement manually.';
-        revealSpreadsheet();
-        return;
-      }
       const previous = request.saved.find(row => ownerSettlementRecords.sameStatement(row.data, data));
       if (previous) return showExistingStatement(previous, data);
-      setPending({ request, documentHash, data });
-      status.textContent = 'Payout matches. Review the spreadsheet and select Save Settlement.';
+      setPending({ request, documentHash, data, file });
+      status.textContent = data.issues.length ? 'Needs Review. Compare the totals with the original PDF.'
+        : 'Payout matches. Review the settlement before saving.';
       revealSpreadsheet();
     } catch (error) {
       if (active()) {
@@ -298,14 +363,14 @@ const ownerSettlementImport = (() => {
   });
 
   saveButton.addEventListener('click', async () => {
-    if (!pending || reading || saving) return;
+    if (!pending || pending.data.issues.length || !review.open || reading || saving) return;
     const { request, documentHash, data } = pending;
     if (view !== request || currentUser !== request.user) return;
     const job = {};
     saving = job;
     const active = () => view === request && currentUser === request.user && saving === job;
-    input.disabled = chooseFile.disabled = saveButton.disabled = true;
-    status.textContent = 'Saving settlement…';
+    input.disabled = chooseFile.disabled = reviewButton.disabled = saveButton.disabled = reviewClose.disabled = true;
+    status.textContent = reviewStatus.textContent = 'Saving settlement…';
     try {
       const { data: saved, error } = await supabaseClient.from('owner_settlement_imports')
         .insert({ document_hash: documentHash, data }).select('id,document_hash,data').single();
@@ -327,11 +392,11 @@ const ownerSettlementImport = (() => {
       status.textContent = 'Settlement saved. You can find it in Saved Settlement Documents.';
       renderTaxIfOpen();
     } catch {
-      if (active()) status.textContent = 'Could not save the settlement. Your preview is still here. Select Save Settlement to try again.';
+      if (active()) status.textContent = reviewStatus.textContent = 'Could not save the settlement. Your preview is still here. Select Accept & Save to try again.';
     } finally {
       if (active()) {
         saving = null;
-        input.disabled = chooseFile.disabled = saveButton.disabled = false;
+        input.disabled = chooseFile.disabled = reviewButton.disabled = saveButton.disabled = reviewClose.disabled = false;
       }
     }
   });
