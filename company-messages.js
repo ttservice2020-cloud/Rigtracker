@@ -3,7 +3,11 @@ const companyMessaging = (() => {
   const teamChannels = ['dispatch', 'safety', 'maintenance'];
   const channels = { dispatch: 'Dispatch', maintenance: 'Maintenance', safety: 'Safety', private: 'Private' };
   const badges = ['companyDriverMessagesButton','companyFleetMessagesButton','companyDispatchMessagesButton','companyOfficeMessagesButton'];
-  const boardLabel = id => id === 'companyDispatchMessagesButton' ? 'Driver Message Board' : 'Messages';
+  const boardLabel = id => {
+    if (id === 'companyDispatchMessagesButton') return 'Driver Message Board';
+    if (id === 'companyFleetMessagesButton' || id === 'companyOfficeMessagesButton') return 'Driver Messages';
+    return 'Messages';
+  };
   const when = new Intl.DateTimeFormat(undefined, { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit', hourCycle:'h23' });
   const imageBucket = 'company-message-images';
   const imageExtensions = { 'image/jpeg':'jpg', 'image/png':'png', 'image/webp':'webp', 'image/gif':'gif', 'image/heic':'heic', 'image/heif':'heif' };
@@ -356,8 +360,9 @@ const companyMessaging = (() => {
         const previews = new Map((images.data || []).map(image => [image.path, image.signedUrl]));
         byId('companyMessageHistory').replaceChildren(...result.messages.map(message => {
           const row = element('li');
-          row.dataset.own = String(message.sender_id === user.id);
-          row.append(element('strong',message.sender_name),
+          const own = message.sender_id === user.id;
+          row.dataset.own = String(own);
+          row.append(element('strong', own ? 'You' : message.sender_name),
             element('span',' · '+when.format(new Date(message.created_at)),'muted'));
           if (message.body) row.append(element('p', message.body));
           if (message.image_path) row.append(messagePhoto(previews.get(message.image_path)));
@@ -408,9 +413,6 @@ const companyMessaging = (() => {
     personalBoard = isPersonal;
     if (!byId('companyMessagesPage').classList.contains('active')) returnPage = document.querySelector('.page.active')?.id;
     showPage('companyMessagesPage');
-    const showTabs = ['fleet','employee'].includes(role);
-    byId('driverMessageBoardTabs').classList.toggle('hidden', !showTabs);
-    if (returnPage === 'fleetOfficeMessagesPage') byId('driverMessageBoardTabs').querySelector('[aria-current]').focus();
     byId('companyMessagesTitle').textContent = isPersonal || role === 'mechanic' ? 'Messages' : 'Driver Message Board';
     byId('companyMessagesStatus').textContent = 'Loading messages…';
     if (accountTypeFor(currentUser) === 'company') void driverLoadWorkflow.refresh(true);
@@ -418,7 +420,6 @@ const companyMessaging = (() => {
   }
 
   function back() {
-    if (returnPage === 'fleetOfficeMessagesPage') return fleetOfficeCommunications.back();
     showPage(returnPage || (accountTypeFor(currentUser)==='fleet' ? 'fleetWorkspace' :
       accountTypeFor(currentUser)==='employee' ? 'fleetEmployeePage' : 'rigTrackerProfilePage'));
   }
