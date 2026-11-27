@@ -11,12 +11,12 @@ const rigTrackerApp = (() => {
     driver: {
       driverLoadsPage: 'loads', driverLoadDetailPage: 'loads', spreadsheetPage: 'settlements', settlementPage: 'settlements',
       dashboardPage: 'dashboard', rigTrackerProfilePage: 'dashboard', ownDriverDocumentsPage: 'dashboard', taxPage: 'dashboard', perDiemPage: 'dashboard',
-      ownerEscrowPage: 'dashboard', ownerSettlementDeductionsPage: 'settlements'
+      ownerEscrowPage: 'dashboard', ownerSettlementDeductionsPage: 'settlements', companySafetyPage: 'safety'
     }
   };
   const allowedTabs = {
     company: new Set(['loads', 'messages', 'settlements', 'safety', 'profile']),
-    driver: new Set(['loads', 'settlements', 'dashboard'])
+    driver: new Set(['loads', 'settlements', 'safety', 'dashboard'])
   };
   let currentPage;
   let role;

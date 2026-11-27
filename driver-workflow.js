@@ -66,7 +66,8 @@ const driverLoadWorkflow = (() => {
   function input(label, name, options = {}) {
     const control = node('input');
     Object.assign(control, { name, ...options });
-    return field(label, control);
+    const wrapper = field(label, control);
+    return name === 'commodity' ? hazmatReference.watch(control, wrapper) : wrapper;
   }
 
   function fields(...children) {
@@ -612,6 +613,7 @@ const driverLoadWorkflow = (() => {
     }
     function fillPickupInfo() {
       for (const [name] of pickupFields) form.elements[name].value = report[name] ?? '';
+      void hazmatReference.update(form.elements.commodity);
       trailer.readOnly = trailerRecorded();
       trailer.value = reportTrailer();
       trailerTypes.disabled = trailerRecorded();
@@ -1498,6 +1500,7 @@ const driverLoadWorkflow = (() => {
           const input = departure?.elements[name];
           if (input && input.value === String(before.progress?.driverReport?.[name] ?? '')) {
             input.value = after.progress?.driverReport?.[name] ?? '';
+            if (name === 'commodity') void hazmatReference.update(input);
           }
         }
       }

@@ -618,7 +618,7 @@ const dispatchProgress = (() => {
       }
       byId('dispatchDetailStops').replaceChildren(...stopRows);
       const details = load.details || {};
-      const commodity = details.commodity === 'Other' ? details.commodityOther : details.commodity;
+      const commodity = details.commodity === 'Other' ? details.commodityOther || details.commodity : details.commodity;
       const names = items => (items || []).map(stop => stop.company).filter(Boolean).join(' / ');
       const contacts = items => (items || []).map(driverLoadWorkflow.stopContact).filter(Boolean).join(' / ');
       const trailerStop = key => stops.find(stop => stop.key === key)?.company;
