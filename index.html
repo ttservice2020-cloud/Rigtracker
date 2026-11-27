@@ -2106,6 +2106,13 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 const SUPABASE_URL = 'https://pxxikzzfrcncwufpzdfp.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_7yQMjUtCtnHC6jgRF4ROLA_CmgsHaZo';
 const TAX_BUCKET = 'tax-documents';
+const emailConfirmed = (() => {
+ const callback=new URLSearchParams(window.location.hash.slice(1));
+ if(callback.get('type')!=='signup'||!callback.has('access_token'))return false;
+ // Auth already verified the email. Keep any existing browser session active.
+ window.history.replaceState(window.history.state,'',window.location.pathname+window.location.search);
+ return true;
+})();
 const supabaseClient = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 let currentUser = null;
 let selectedRole = 'driver';
@@ -3085,6 +3092,7 @@ async function startApp(){
   const notice=sessionStorage.getItem('rigtracker_auth_notice');
   if(notice){sessionStorage.removeItem('rigtracker_auth_notice');showToast(notice);}
  }
+ if(emailConfirmed)showToast('Email address confirmed.');
 }
 startApp();
 </script>
