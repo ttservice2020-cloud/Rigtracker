@@ -586,11 +586,11 @@ const driverPaperwork = (() => {
   function blobJpeg(canvas) {
     return new Promise((resolve, reject) => canvas.toBlob(blob => {
       if (blob) resolve(blob);
-      else reject(new Error('This photo could not be prepared for printing.'));
+      else reject(new Error('This photo could not be converted to PDF.'));
     }, 'image/jpeg', 0.88));
   }
 
-  async function scanPhoto(url) {
+  async function photoCanvas(url) {
     const img = new Image();
     img.src = url;
     await img.decode();
@@ -602,6 +602,12 @@ const driverPaperwork = (() => {
     context.fillStyle = '#fff';
     context.fillRect(0, 0, canvas.width, canvas.height);
     context.drawImage(img, 0, 0, canvas.width, canvas.height);
+    return canvas;
+  }
+
+  async function scanPhoto(url) {
+    const canvas = await photoCanvas(url);
+    const context = canvas.getContext('2d');
     const pixels = context.getImageData(0, 0, canvas.width, canvas.height);
     for (let index = 0; index < pixels.data.length; index += 4) {
       const gray = pixels.data[index] * 0.299 + pixels.data[index + 1] * 0.587 + pixels.data[index + 2] * 0.114;
@@ -610,6 +616,21 @@ const driverPaperwork = (() => {
     }
     context.putImageData(pixels, 0, 0);
     return blobJpeg(canvas);
+  }
+
+  async function embedPaperworkPhoto(pdf, file, mime) {
+    if (file.scan || mime === 'image/jpeg') {
+      return pdf.embedJpg(await (file.scan || file.original).arrayBuffer());
+    }
+    if (mime === 'image/png') return pdf.embedPng(await file.original.arrayBuffer());
+    if (!mime?.startsWith('image/')) throw new Error('Unsupported paperwork file type.');
+    const url = URL.createObjectURL(file.original.slice(0, file.original.size, mime));
+    try {
+      const jpeg = await blobJpeg(await photoCanvas(url));
+      return await pdf.embedJpg(await jpeg.arrayBuffer());
+    } finally {
+      URL.revokeObjectURL(url);
+    }
   }
 
   async function loadPdfLibrary() {
@@ -632,17 +653,25 @@ const driverPaperwork = (() => {
   async function buildPdf(files) {
     const PDFDocument = await loadPdfLibrary();
     const pdf = await PDFDocument.create();
-    for (const { mime, original, scan } of files) {
-      if (mime === 'application/pdf') {
-        const source = await PDFDocument.load(new Uint8Array(await original.arrayBuffer()));
-        for (const page of await pdf.copyPages(source, source.getPageIndices())) pdf.addPage(page);
-        continue;
+    for (const file of files) {
+      try {
+        const original = file.original;
+        const extension = file.path?.split('.').at(-1).toLowerCase();
+        const mime = file.mime || mimeByExtension[extension] || original.type;
+        if (mime === 'application/pdf') {
+          const source = await PDFDocument.load(await original.arrayBuffer());
+          if (files.length === 1) return original.slice(0, original.size, 'application/pdf');
+          for (const page of await pdf.copyPages(source, source.getPageIndices())) pdf.addPage(page);
+          continue;
+        }
+        const image = await embedPaperworkPhoto(pdf, file, mime);
+        const page = pdf.addPage(image.width > image.height ? [792, 612] : [612, 792]);
+        const { width, height } = image.scaleToFit(page.getWidth() - 48, page.getHeight() - 48);
+        page.drawImage(image, { x: (page.getWidth() - width) / 2, y: (page.getHeight() - height) / 2, width, height });
+      } catch (error) {
+        if (file.label) throw new Error('Could not include ' + file.label + ' in the PDF.', { cause: error });
+        throw error;
       }
-      if (!scan) throw new Error('A photo can’t be converted to PDF on this device. You can still download the originals.');
-      const image = await pdf.embedJpg(new Uint8Array(await scan.arrayBuffer()));
-      const page = pdf.addPage(image.width > image.height ? [792, 612] : [612, 792]);
-      const { width, height } = image.scaleToFit(page.getWidth() - 48, page.getHeight() - 48);
-      page.drawImage(image, { x: (page.getWidth() - width) / 2, y: (page.getHeight() - height) / 2, width, height });
     }
     return new Blob([await pdf.save()], { type: 'application/pdf' });
   }
@@ -734,5 +763,5 @@ const driverPaperwork = (() => {
     }
   }
 
-  return { edit, upload, open, close, loadPdfLibrary, captureDocument, scanImage: file => scannedPages.get(file) };
+  return { edit, upload, open, close, loadPdfLibrary, buildPdf, captureDocument, scanImage: file => scannedPages.get(file) };
 })();
