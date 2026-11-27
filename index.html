@@ -298,7 +298,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 #companySignupFields{border:0;padding:0;margin:0;min-inline-size:0}
 </style>
 <link rel="stylesheet" href="./dispatch.css?v=load-history-1">
-<link rel="stylesheet" href="./driver-app.css?v=document-scan-1">
+<link rel="stylesheet" href="./driver-app.css?v=hazmat-1">
 <link rel="stylesheet" href="./office-tools.css?v=withholding-forms-1">
 </head>
 <body>
@@ -359,6 +359,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
   <div class="employee-setup-actions">
     <button class="outline" type="button" onclick="openOwnRigTrackerProfile()">RigTracker Profile</button>
     <button class="primary-btn" id="ownerDriverLoadsButton" type="button" onclick="driverLoadWorkflow.open()">Loads</button>
+    <button class="outline" type="button" onclick="companySafety.open()">Safety</button>
    </div>
    <h2>What would you like to do?</h2>
   <div class="grid tiles" style="margin-top:16px">
@@ -917,15 +918,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
             <div class="field"><label for="dispatchTrailerType">Trailer type</label><select id="dispatchTrailerType" name="trailerType"><option value="">Select trailer type</option><option value="fleet">Fleet</option><option value="power_only">Power Only</option></select></div>
             <div class="field"><label for="dispatchBrokerPhone">Broker contact number</label><input id="dispatchBrokerPhone" name="brokerPhone" type="tel" maxlength="40"></div>
             <div class="field"><label for="dispatchBrokerEmail">Broker email</label><input id="dispatchBrokerEmail" name="brokerEmail" type="email" maxlength="254"></div>
-            <div class="field"><label for="dispatchCommodity">Commodity</label>
-             <select id="dispatchCommodity" name="commodity">
-              <option value="">Select a commodity</option>
-              <option>General Freight</option><option>Food &amp; Beverage</option><option>Produce</option>
-              <option>Building Materials</option><option>Machinery &amp; Equipment</option>
-              <option>Paper Products</option><option>Retail Goods</option><option>Automotive</option><option>Other</option>
-             </select>
-            </div>
-            <div class="field hidden" id="dispatchCommodityOtherField"><label for="dispatchCommodityOther">Describe the commodity</label><input id="dispatchCommodityOther" name="commodityOther" maxlength="120" disabled></div>
+            <div class="field"><label for="dispatchCommodity">Commodity</label><input id="dispatchCommodity" name="commodity" maxlength="120"></div>
             <div class="field"><label for="dispatchWeight">Weight (lb)</label><input id="dispatchWeight" name="weightLbs" type="number" min="0.01" step="0.01" inputmode="decimal"></div>
             <div class="field"><label for="dispatchPieces">Pieces</label><input id="dispatchPieces" name="pieces" type="number" min="1" max="999999999" step="1" inputmode="numeric"></div>
             <div class="field"><label for="dispatchEquipmentType">Equipment Type</label>
@@ -1707,7 +1700,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
     <div><button class="back" type="button" onclick="companySafety.back()">← Back</button><h1>Safety &amp; Compliance</h1></div>
     <div class="driver-page-actions">
      <button class="outline hidden" type="button" data-company-team-link onclick="companyMessaging.openTeam('safety')">Message Safety</button>
-     <button class="outline" type="button" onclick="companySafety.refresh()">Refresh</button>
+     <button class="outline" id="companySafetyRefresh" type="button" onclick="companySafety.refresh()">Refresh</button>
     </div>
    </div>
    <p class="muted" role="status" id="companySafetyStatus"></p>
@@ -1725,9 +1718,24 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
     </div>
     <button class="primary-btn" type="submit">Send Report to Fleet</button>
    </form>
-   <section class="panel">
+   <section class="panel" id="companySafetyReportPanel">
     <h2 id="companySafetyListTitle">Safety reports</h2>
     <div id="companySafetyReports" class="dispatch-load-list"></div>
+   </section>
+   <section class="panel" aria-labelledby="safetyReferenceTitle">
+    <h2 id="safetyReferenceTitle">Hazmat &amp; FMCSA Reference</h2>
+    <div class="field">
+     <label for="safetyReferenceSearch">Search materials or safety topics</label>
+     <input id="safetyReferenceSearch" type="search" placeholder="UN1203, class 3, or hours of service" autocomplete="off">
+    </div>
+    <h3>FMCSA handbooks and safety guides</h3>
+    <ul id="safetyReferenceTopics" class="safety-reference-topics"></ul>
+    <h3>DOT Hazardous Materials Table</h3>
+    <p class="muted">Use the shipping papers and current DOT rules to verify a material before hauling.</p>
+    <p><a href="https://www.ecfr.gov/current/title-49/section-172.101" target="_blank" rel="noopener noreferrer">Open the current DOT table</a></p>
+    <p id="safetyReferenceStatus" class="muted" role="status"></p>
+    <ul id="safetyReferenceMaterials" class="safety-reference-materials"></ul>
+    <button class="outline" id="safetyReferenceMore" type="button" hidden>Show More Materials</button>
    </section>
   </section>
   <section id="fleetEmployeePage" class="page fleet-account-page">
@@ -1985,14 +1993,24 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
   </div>
  </form>
 </dialog>
+<dialog class="office-profile-dialog" id="hazmatMatchDialog" aria-labelledby="hazmatMatchTitle">
+ <h2 id="hazmatMatchTitle">Hazmat Reference</h2>
+ <p>Compare these possible matches with the proper shipping name, UN/NA number, and hazard class on the shipping papers.</p>
+ <p id="hazmatMatchNote" hidden></p>
+ <ul id="hazmatMatchList" class="safety-reference-materials"></ul>
+ <p id="hazmatMatchStatus" class="muted"></p>
+ <p><a href="https://www.ecfr.gov/current/title-49/section-172.101" target="_blank" rel="noopener noreferrer">Current DOT table</a> · <a href="https://www.phmsa.dot.gov/training/hazmat/erg/emergency-response-guidebook-erg" target="_blank" rel="noopener noreferrer">Emergency Response Guidebook</a></p>
+ <button id="hazmatMatchClose" class="outline" type="button" autofocus>Close</button>
+</dialog>
 <div id="modal"><div class="modal-card"><h2 id="modalTitle"></h2><div id="modalBody"></div><button class="primary-btn" onclick="closeModal()">Close</button></div></div>
 
 <script src="./load-history-grid.js?v=1"></script>
-<script src="./dispatch-progress.js?v=load-history-1"></script>
+<script src="./dispatch-progress.js?v=hazmat-1"></script>
 <script src="./dispatch-rate-confirmation.js?v=document-scan-1"></script>
 <script src="./dispatch-route-miles.js?v=1"></script>
 <script src="./dispatch-zip-lookup.js?v=zip-timezone-1"></script>
-<script src="./dispatch.js?v=contract-history-1"></script>
+<script src="./hazmat-reference.js?v=1"></script>
+<script src="./dispatch.js?v=hazmat-1"></script>
 <script src="./linked-profiles.js?v=driver-push-1"></script>
 <script src="./fleet-equipment.js?v=driver-loads-1"></script>
 <script src="./payroll-tax-jurisdictions.js?v=2"></script>
@@ -2015,10 +2033,10 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 <script src="./payroll-withholding-forms.js?v=document-scan-1"></script>
 <script src="./payroll-contractor-tax.js?v=hr-tax-1"></script>
 <script src="./hr-tax-forms.js?v=driver-1099-1"></script>
-<script src="./driver-workflow.js?v=load-history-1"></script>
+<script src="./driver-workflow.js?v=hazmat-1"></script>
 <script src="./fleet-admin-driver.js?v=1"></script>
-<script src="./company-safety.js?v=1"></script>
-<script src="./driver-app.js?v=push-1"></script>
+<script src="./company-safety.js?v=hazmat-1"></script>
+<script src="./driver-app.js?v=hazmat-1"></script>
 <script src="./driver-notifications.js?v=1"></script>
 <script src="./fleet-bol-payments.js?v=paperwork-1"></script>
 <script src="./office-tools.js?v=clock-reminder-1"></script>

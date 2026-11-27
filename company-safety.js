@@ -102,15 +102,21 @@ const companySafety = (() => {
   }
 
   function open() {
-    if (!currentUser || !['company','fleet','employee'].includes(accountTypeFor(currentUser))) return;
-    byId('companySafetyStatus').textContent = 'Loading safety reports…';
+    const role = accountTypeFor(currentUser);
+    if (!currentUser || !['company','driver','fleet','employee'].includes(role)) return;
+    const hasReports = role !== 'driver';
+    byId('companySafetyReportPanel').classList.toggle('hidden', !hasReports);
+    byId('companySafetyRefresh').classList.toggle('hidden', !hasReports);
+    byId('companySafetyStatus').textContent = hasReports ? 'Loading safety reports…' : '';
     showPage('companySafetyPage');
-    return refresh();
+    void hazmatReference.search();
+    if (hasReports) return refresh();
   }
 
   function back() {
     const role = accountTypeFor(currentUser);
     if (role === 'fleet') return showFleetSection('dashboard');
+    if (role === 'driver') return showPage('dashboardPage');
     showPage(role === 'company' ? 'rigTrackerProfilePage' : 'fleetEmployeePage');
   }
 
@@ -170,6 +176,7 @@ const companySafety = (() => {
     byId('companySafetyFleet').replaceChildren();
     byId('companySafetyReports').replaceChildren();
     byId('companySafetyStatus').textContent = '';
+    hazmatReference.reset();
   }
 
   return { open, back, refresh, refreshOfficeAccess, reset };

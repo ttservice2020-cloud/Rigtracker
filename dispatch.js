@@ -11,7 +11,7 @@ const fleetDispatchApp = (() => {
   const stops = { pickup: byId('dispatchPickups'), receiver: byId('dispatchReceivers') };
   const stopContacts = { pickup: byId('dispatchShipperContacts'), receiver: byId('dispatchReceiverContacts') };
   const formDetails = [
-    'secondDriverMode', 'routeNumber', 'pickupNumber', 'commodity', 'commodityOther', 'weightLbs', 'pieces', 'equipmentType', 'equipmentTypeOther',
+    'secondDriverMode', 'routeNumber', 'pickupNumber', 'commodity', 'weightLbs', 'pieces', 'equipmentType', 'equipmentTypeOther',
     'truckNumber', 'trailerNumber', 'brokerPhone', 'brokerEmail',
     'trailerType', 'trailerDrop', 'trailerDropNumber', 'trailerDropStopId', 'trailerDropNotes',
     'trailerPickup', 'trailerPickupMode', 'trailerPickupNumber', 'trailerPickupStopId', 'trailerPickupNotes',
@@ -21,7 +21,6 @@ const fleetDispatchApp = (() => {
     'relayPickup', 'firstLegMiles', 'driver1Pay', 'driver2Pay', 'emptyMiles', 'firstLegEmptyMiles', 'emptyRate', 'fuelSurchargeOverride', 'stopPay'
   ].filter(key => form.elements.namedItem(key));
   const conditionalFreightFields = [
-    ['commodity', 'commodityOther', 'dispatchCommodityOtherField'],
     ['equipmentType', 'equipmentTypeOther', 'dispatchEquipmentTypeOtherField']
   ].filter(([key]) => form.elements.namedItem(key));
   const zones = [
@@ -60,6 +59,8 @@ const fleetDispatchApp = (() => {
   const loadDriverFilter = byId('dispatchLoadDriverFilter');
   const militaryTime = value => progressEnabled ? dispatchProgress.time(value) : value;
   const militaryPattern = '(?:[01][0-9]|2[0-3]):?[0-5][0-9]';
+  hazmatReference.watch(form.elements.commodity);
+  hazmatReference.watch(stopInfoForm.elements.commodity);
 
   function element(tag, text, className) {
     const node = document.createElement(tag);
@@ -679,6 +680,7 @@ const fleetDispatchApp = (() => {
     const runFields = new Set(['pickupNumber', 'brokerLoadNumber', 'relayDate']);
     const details = Object.fromEntries([...formDetails, 'routeMilesZips', 'truckFromDriver', 'trailerFromDriver']
       .filter(key => !runFields.has(key) && Object.hasOwn(original, key)).map(key => [key, original[key]]));
+    if (original.commodity === 'Other' && original.commodityOther) details.commodity = original.commodityOther;
     details.routeNumber = getRouteNumber(load);
     for (const key of ['pickups', 'receivers']) {
       details[key] = (original[key] || []).map(stop => ({ ...stop, date: '' }));
@@ -1439,8 +1441,10 @@ const fleetDispatchApp = (() => {
       const field = form.elements[key];
       if (field.type === 'checkbox') field.checked = data[key] === field.value;
       else if (key === 'trailerPickupMode') field.value = data[key] === 'bobtail' ? 'bobtail' : 'trailer';
+      else if (key === 'commodity' && data.commodity === 'Other') field.value = data.commodityOther || data.commodity;
       else if (typeof data[key] === 'string' || (key === 'loadedMiles' && Number.isFinite(data[key]))) field.value = data[key];
     }
+    void hazmatReference.update(form.elements.commodity);
     edit.routeMilesZips = loadedMiles.value && data.routeMilesZips || '';
     edit.autoRouteMiles = row?.status !== 'completed' && (Boolean(edit.routeMilesZips) || !loadedMiles.value);
     if (edit.routeMilesZips) routeMessage('ZIP-center driving estimate. You can edit these miles.',true);
@@ -1626,6 +1630,7 @@ const fleetDispatchApp = (() => {
     }
     const data = new FormData(form);
     const details = { ...draft.row?.details, ...Object.fromEntries(formDetails.map(key => [key, data.get(key)?.trim() ?? ''])) };
+    delete details.commodityOther;
     if (draft.routeMilesZips && details.loadedMiles) details.routeMilesZips = draft.routeMilesZips;
     else delete details.routeMilesZips;
     if (draft.truckFromDriver) details.truckFromDriver = 'yes';
@@ -2236,6 +2241,7 @@ const fleetDispatchApp = (() => {
     const report = stop.progress.driverReport || {};
     const values = stopInfoSession.drafts.get(stop.key) || report;
     for (const field of stopInfoFields) field.value = values[field.name] ?? '';
+    void hazmatReference.update(stopInfoForm.elements.commodity);
     const trailer = stopInfoForm.elements.trailer;
     trailer.readOnly = Boolean(report.bobtail || report.pickedTrailer);
     trailer.placeholder = report.bobtail ? 'Bobtail' : report.pickedTrailer || '';
