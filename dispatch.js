@@ -8,6 +8,7 @@ const fleetDispatchApp = (() => {
   const locationQuery = byId('dispatchSavedLocationQuery');
   const locationMessage = byId('dispatchLocationMessage');
   const locationRecipient = byId('dispatchLocationMessageDriver');
+  const locationNote = byId('dispatchLocationMessageNote');
   const locationMessageStatus = byId('dispatchLocationMessageStatus');
   const sendLocationMessage = byId('dispatchLocationMessageSend');
   const cancelLocationMessage = byId('dispatchLocationMessageCancel');
@@ -264,9 +265,19 @@ const fleetDispatchApp = (() => {
     return locationMessageDraft === draft && state === draft.scope && currentUser?.id === draft.userId && locationMessage.open;
   }
 
+  function clearLocationMessage() {
+    locationMessageDraft = null;
+    byId('dispatchLocationMessagePreview').textContent = '';
+    locationRecipient.replaceChildren();
+    byId('dispatchLocationMessageNoteDetails').open = false;
+    locationNote.value = '';
+    locationNote.disabled = cancelLocationMessage.disabled = false;
+  }
+
   async function openLocationMessage(location) {
     const scope = state;
     if (!scope?.access.dispatch || !scope.access.messages || !currentUser || locationMessage.open) return;
+    clearLocationMessage();
     const body = [location.name, locationAddress(location), location.gate_code && 'Gate code: ' + location.gate_code]
       .filter(Boolean).join('\n');
     const draft = { scope, userId: currentUser.id, body, messageIds: new Map(), sending: false };
@@ -274,7 +285,6 @@ const fleetDispatchApp = (() => {
     byId('dispatchLocationMessagePreview').textContent = body;
     locationRecipient.replaceChildren(new Option('Choose a driver', ''));
     locationRecipient.disabled = sendLocationMessage.disabled = true;
-    cancelLocationMessage.disabled = false;
     locationMessageStatus.textContent = 'Loading drivers…';
     locationMessage.showModal();
     try {
@@ -296,24 +306,23 @@ const fleetDispatchApp = (() => {
     if (locationMessageDraft?.sending) event.preventDefault();
   });
   locationMessage.addEventListener('close', () => {
-    if (locationMessage.open) return;
-    locationMessageDraft = null;
-    byId('dispatchLocationMessagePreview').textContent = '';
-    locationRecipient.replaceChildren();
-    cancelLocationMessage.disabled = false;
+    if (!locationMessage.open) clearLocationMessage();
   });
   byId('dispatchLocationMessageForm').addEventListener('submit', async event => {
     event.preventDefault();
     const draft = locationMessageDraft;
     const recipient = locationRecipient.value;
     if (!draft || !currentLocationMessage(draft) || !recipient || draft.sending) return;
+    const note = locationNote.value.trim();
+    const body = note ? draft.body + '\n\nNote: ' + note : draft.body;
+    const messageKey = JSON.stringify([recipient, body]);
     draft.sending = true;
-    locationRecipient.disabled = sendLocationMessage.disabled = cancelLocationMessage.disabled = true;
+    locationNote.disabled = locationRecipient.disabled = sendLocationMessage.disabled = cancelLocationMessage.disabled = true;
     locationMessageStatus.textContent = 'Sending…';
-    if (!draft.messageIds.has(recipient)) draft.messageIds.set(recipient, crypto.randomUUID());
+    if (!draft.messageIds.has(messageKey)) draft.messageIds.set(messageKey, crypto.randomUUID());
     try {
       await companyMessaging.sendDispatchMessage(
-        draft.scope.fleetId, recipient, draft.body, draft.messageIds.get(recipient), () => currentLocationMessage(draft)
+        draft.scope.fleetId, recipient, body, draft.messageIds.get(messageKey), () => currentLocationMessage(draft)
       );
       if (!currentLocationMessage(draft)) return;
       locationMessage.close();
@@ -324,7 +333,7 @@ const fleetDispatchApp = (() => {
     } finally {
       if (currentLocationMessage(draft)) {
         draft.sending = false;
-        locationRecipient.disabled = sendLocationMessage.disabled = cancelLocationMessage.disabled = false;
+        locationNote.disabled = locationRecipient.disabled = sendLocationMessage.disabled = cancelLocationMessage.disabled = false;
       }
     }
   });
@@ -2615,11 +2624,9 @@ const fleetDispatchApp = (() => {
 
   function closeLocationDialogs() {
     chooseSavedLocation = null;
-    locationMessageDraft = null;
     if (locationPicker.open) locationPicker.close();
     if (locationMessage.open) locationMessage.close();
-    byId('dispatchLocationMessagePreview').textContent = '';
-    locationRecipient.replaceChildren();
+    clearLocationMessage();
     byId('dispatchSavedLocationChoices').replaceChildren();
   }
 

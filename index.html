@@ -1991,6 +1991,10 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
  <p class="dispatch-location-message" id="dispatchLocationMessagePreview"></p>
  <form id="dispatchLocationMessageForm">
   <div class="field"><label for="dispatchLocationMessageDriver">Driver</label><select id="dispatchLocationMessageDriver" required></select></div>
+  <details id="dispatchLocationMessageNoteDetails">
+   <summary>Add a Note</summary>
+   <div class="field"><label for="dispatchLocationMessageNote">Note to driver</label><textarea id="dispatchLocationMessageNote" rows="2" maxlength="500"></textarea></div>
+  </details>
   <p class="muted" id="dispatchLocationMessageStatus" role="status"></p>
   <div class="dispatch-actions">
    <button class="primary-btn" id="dispatchLocationMessageSend" type="submit" disabled>Send Message</button>
@@ -2063,7 +2067,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 <script src="./dispatch-route-miles.js?v=1"></script>
 <script src="./dispatch-zip-lookup.js?v=zip-timezone-1"></script>
 <script src="./hazmat-reference.js?v=1"></script>
-<script src="./dispatch.js?v=load-processing-1"></script>
+<script src="./dispatch.js?v=load-processing-2"></script>
 <script src="./linked-profiles.js?v=driver-push-1"></script>
 <script src="./fleet-equipment.js?v=driver-loads-1"></script>
 <script src="./payroll-tax-jurisdictions.js?v=2"></script>
