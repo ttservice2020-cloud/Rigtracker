@@ -5,10 +5,14 @@ const fleetOfficeCommunications = (() => {
   const onlineList = byId('fleetOnlineList');
   const onlineRefresh = byId('fleetOnlineRefresh');
   const page = byId('fleetOfficeMessagesPage');
-  const recipient = byId('fleetOfficeRecipient');
+  const picker = byId('fleetOfficeContacts');
+  const contactsButton = byId('fleetOfficeContactsButton');
+  const contactsStatus = byId('fleetOfficeContactsStatus');
+  const contactsRetry = byId('fleetOfficeContactsRetry');
   const contacts = byId('fleetOfficeContactList');
   const title = byId('fleetOfficeConversationTitle');
   const status = byId('fleetOfficeMessageStatus');
+  const refreshButton = byId('fleetOfficeMessageRefresh');
   const list = byId('fleetOfficeMessageList');
   const form = byId('fleetOfficeMessageForm');
   const body = byId('fleetOfficeMessageBody');
@@ -94,16 +98,14 @@ const fleetOfficeCommunications = (() => {
   function setSendPending(scope, pending) {
     scope.sending = pending;
     if (workspace !== scope || currentUser !== scope.user) return;
-    send.disabled = body.disabled = recipient.disabled = pending;
+    send.disabled = body.disabled = contactsButton.disabled = pending;
   }
 
   function paintContacts(scope) {
-    const query = recipient.value.trim().toLowerCase();
     const groups = new Map();
     for (const employee of scope.employees) {
-      const role = employee.office_role || 'Office';
+      const role = employee.office_role?.trim() || 'Office';
       const label = name(employee, scope.fleetId);
-      if (![label, role].some(value => value.toLowerCase().includes(query))) continue;
       if (!groups.has(role)) {
         const group = node('section', '', 'dispatch-load-list');
         group.append(node('h3', role));
@@ -113,12 +115,16 @@ const fleetOfficeCommunications = (() => {
       contact.type = 'button';
       contact.setAttribute('aria-pressed', String(scope.contactId === employee.employee_id));
       contact.addEventListener('click', () => {
-        if (!active(scope) || scope.sending || scope.contactId === employee.employee_id) return;
-        void select(scope, employee);
+        if (!active(scope) || scope.sending) return;
+        picker.close();
+        if (scope.contactId !== employee.employee_id) void select(scope, employee);
+        title.focus();
       });
       groups.get(role).append(contact);
     }
-    contacts.replaceChildren(...(groups.size ? groups.values() : [node('p', 'No matching office contacts.', 'muted')]));
+    const sections = [...groups.entries()].sort(([a], [b]) => a.localeCompare(b));
+    contacts.replaceChildren(...sections.map(([, section]) => section));
+    contactsStatus.textContent = groups.size ? '' : 'No active office contacts yet.';
   }
 
   async function read(scope, quiet = false) {
@@ -139,11 +145,14 @@ const fleetOfficeCommunications = (() => {
       if (signature !== scope.signature) {
         scope.signature = signature;
         list.replaceChildren(...data.slice().reverse().map(row => {
-          const card = node('article', '', 'panel');
-          const sender = row.sender_id === scope.user.id ? 'You' : scope.contact;
+          const card = node('li');
+          const own = row.sender_id === scope.user.id;
+          card.dataset.own = String(own);
+          const sender = own ? 'You' : scope.contact;
           const date = Date.parse(row.created_at);
-          card.append(node('strong', sender), node('p', row.body, 'fleet-office-message-body'));
-          if (Number.isFinite(date)) card.append(node('p', moment.format(date), 'muted'));
+          card.append(node('strong', sender));
+          if (Number.isFinite(date)) card.append(node('span', ' · ' + moment.format(date), 'muted'));
+          card.append(node('p', row.body));
           return card;
         }));
       }
@@ -156,68 +165,85 @@ const fleetOfficeCommunications = (() => {
   }
 
   function select(scope, employee) {
-    scope.contactId = employee?.employee_id;
+    scope.contactId = employee.employee_id;
     const members = [scope.self, scope.contactId].filter(id => id != null).sort();
-    scope.thread = employee ? { employeeId:members[0], peerId:members[1] ?? null } : null;
-    scope.contact = employee ? name(employee, scope.fleetId) : '';
+    scope.thread = { employeeId:members[0], peerId:members[1] ?? null };
+    scope.contact = name(employee, scope.fleetId);
     scope.reading = null;
     scope.signature = null;
     scope.messageIds.clear();
     title.textContent = scope.contact;
     body.value = '';
     list.replaceChildren();
-    form.classList.toggle('hidden', !employee);
-    paintContacts(scope);
-    if (employee) return read(scope);
-    status.textContent = scope.employees.length ? 'Choose an office contact to open a conversation.' : 'No active office contacts yet.';
+    form.classList.remove('hidden');
+    refreshButton.classList.remove('hidden');
+    return read(scope);
   }
 
-  async function open(employeeId = '') {
-    const user = currentUser;
-    const role = accountTypeFor(user);
-    if (!user || !['fleet','employee'].includes(role)) return;
-    if (role === 'fleet' && !adminFleetId) return showToast('Set up your Fleet ID to use office messages.');
-    const fromDrivers = byId('companyMessagesPage').classList.contains('active');
-    const scopeIsCurrent = workspace?.user === user && workspace.employees.length &&
-      (role === 'employee' || workspace.fleetId === adminFleetId);
-    if (fromDrivers && scopeIsCurrent && !employeeId) {
-      showPage('fleetOfficeMessagesPage');
-      byId('fleetOfficeMessagesTab').focus();
-      return read(workspace, true);
-    }
-    const scope = { user, fleetId:adminFleetId, employees:[], messageIds:new Map() };
-    workspace = scope;
-    byId('fleetOfficeDriverMessagesTab').disabled = role === 'employee' && !officeTools.messagesAllowed();
-    recipient.value = '';
-    contacts.replaceChildren();
-    form.classList.add('hidden');
-    title.textContent = body.value = '';
-    list.replaceChildren();
-    showPage('fleetOfficeMessagesPage');
-    if (fromDrivers) byId('fleetOfficeMessagesTab').focus();
-    setSendPending(scope, false);
-    status.textContent = 'Loading office message board…';
+  async function loadContacts(scope) {
+    if (!active(scope) || scope.loadingContacts) return;
+    scope.loadingContacts = true;
+    contactsRetry.classList.add('hidden');
+    contactsStatus.textContent = 'Loading office contacts…';
     try {
       const { data, error } = await supabaseClient.rpc('fleet_office_message_contacts', {
-        requested_fleet_id:role === 'fleet' ? scope.fleetId : null
+        requested_fleet_id:scope.requestedFleet
       });
       if (!active(scope)) return;
       if (error) throw error;
       scope.fleetId = data.fleet_id;
       scope.self = data.employee_id;
       scope.employees = scope.self === null ? data.contacts : [{ employee_id:null, office_role:'Fleet Admin' }, ...data.contacts];
-      const chosen = scope.employees.find(row => row.employee_id === (scope.self !== null && employeeId === '' ? null : employeeId));
-      return select(scope, chosen);
+      scope.contactsLoaded = true;
+      paintContacts(scope);
     } catch {
-      if (active(scope)) status.textContent = 'Could not open Office Messages. Reopen the board to try again.';
+      if (!active(scope)) return;
+      contactsStatus.textContent = 'Could not load office contacts.';
+      contactsRetry.classList.remove('hidden');
+    } finally {
+      scope.loadingContacts = false;
     }
   }
 
-  recipient.addEventListener('input', () => {
+  function openPicker() {
     const scope = workspace;
-    if (!scope || !active(scope)) return;
-    paintContacts(scope);
-  });
+    if (!scope || !active(scope) || scope.sending || picker.open) return;
+    if (scope.contactsLoaded) paintContacts(scope);
+    else void loadContacts(scope);
+    contactsButton.focus({ preventScroll:true });
+    picker.showModal();
+    byId('fleetOfficeContactsTitle').focus();
+  }
+
+  async function open(employeeId) {
+    const user = currentUser;
+    const role = accountTypeFor(user);
+    if (!user || !['fleet','employee'].includes(role)) return;
+    if (role === 'fleet' && !adminFleetId) return showToast('Set up your Fleet ID to use office messages.');
+    const scope = { user, requestedFleet:role === 'fleet' ? adminFleetId : null, employees:[], messageIds:new Map() };
+    workspace = scope;
+    if (picker.open) picker.close();
+    contacts.replaceChildren();
+    form.classList.add('hidden');
+    refreshButton.classList.add('hidden');
+    title.textContent = body.value = '';
+    status.textContent = 'Choose an office contact to open a conversation.';
+    list.replaceChildren();
+    showPage('fleetOfficeMessagesPage');
+    setSendPending(scope, false);
+    if (employeeId == null) return openPicker();
+    await loadContacts(scope);
+    if (!active(scope) || picker.open) return;
+    const chosen = scope.employees.find(row => row.employee_id === employeeId);
+    if (!chosen) return openPicker();
+    const conversation = select(scope, chosen);
+    title.focus();
+    return conversation;
+  }
+
+  contactsButton.addEventListener('click', openPicker);
+  byId('fleetOfficeContactsClose').addEventListener('click', () => picker.close());
+  contactsRetry.addEventListener('click', () => { if (workspace) void loadContacts(workspace); });
 
   form.addEventListener('submit', async event => {
     event.preventDefault();
@@ -245,11 +271,12 @@ const fleetOfficeCommunications = (() => {
   });
 
   function back() {
+    if (picker.open) picker.close();
     if (accountTypeFor(currentUser) === 'fleet') void showFleetSection('dashboard');
     else void officeTools.openDashboard();
   }
   byId('fleetOfficeMessageBack').addEventListener('click', back);
-  byId('fleetOfficeMessageRefresh').addEventListener('click', () => {
+  refreshButton.addEventListener('click', () => {
     if (workspace) void read(workspace);
   });
   setInterval(() => {
@@ -259,12 +286,12 @@ const fleetOfficeCommunications = (() => {
   function reset() {
     workspace = null;
     if (online.open) online.close();
+    if (picker.open) picker.close();
     clearOnline();
-    recipient.value = '';
     contacts.replaceChildren();
     list.replaceChildren();
     title.textContent = status.textContent = body.value = '';
   }
 
-  return { open, back, onlineOpen:() => online.open, refreshOnline, reset };
+  return { open, onlineOpen:() => online.open, refreshOnline, reset };
 })();
