@@ -261,6 +261,9 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 .bol-load-details p{margin:4px 0;overflow-wrap:anywhere}
 .bol-paperwork{display:grid;gap:8px;margin-top:12px}
 .bol-paperwork .dispatch-actions{margin-top:4px}
+.load-packet-documents{border:0;padding:0}
+.load-packet-documents label{display:flex;align-items:flex-start;gap:8px;padding:6px 0;overflow-wrap:anywhere}
+.load-packet-documents input[type="checkbox"]{flex:none;width:18px;height:18px;accent-color:var(--accent)}
 @media(max-width:700px){
  .fleet-dashboard-layout{gap:18px}
  .fleet-dashboard-nav{padding:6px}
@@ -2085,6 +2088,24 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
   </div>
  </form>
 </dialog>
+<dialog class="office-profile-dialog" id="loadPaperworkPacketDialog" aria-labelledby="loadPaperworkPacketTitle">
+ <div class="office-profile-heading">
+  <h2 id="loadPaperworkPacketTitle">Load Paperwork</h2>
+  <button class="outline" id="loadPaperworkPacketClose" type="button">Close</button>
+ </div>
+ <p id="loadPaperworkPacketBroker" class="muted"></p>
+ <fieldset class="load-packet-documents" id="loadPaperworkPacketDocuments">
+  <legend>Documents</legend>
+  <div id="loadPaperworkPacketChoices"></div>
+ </fieldset>
+ <p id="loadPaperworkPacketMissing" class="muted"></p>
+ <p id="loadPaperworkPacketStatus" role="status"></p>
+ <div class="dispatch-actions">
+  <button class="primary-btn" id="loadPaperworkPacketCollect" type="button">Collect Documents</button>
+  <button class="outline" id="loadPaperworkPacketSave" type="button" disabled>Save PDF</button>
+  <button class="outline" id="loadPaperworkPacketEmail" type="button" disabled>Email PDF</button>
+ </div>
+</dialog>
 <dialog class="office-profile-dialog" id="fleetBolPaymentDialog" aria-labelledby="fleetBolPaymentTitle">
  <h2 id="fleetBolPaymentTitle">Mark Paid</h2>
  <p id="fleetBolPaymentLoad"></p>
@@ -2169,7 +2190,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 <script src="./company-driver-tools.js?v=owner-op-tools-1"></script>
 <script src="./company-messages.js?v=driver-board-3"></script>
 <script src="./driver-document-scan.js?v=1"></script>
-<script src="./driver-paperwork.js?v=document-scan-1"></script>
+<script src="./driver-paperwork.js?v=load-packet-1"></script>
 <script src="./payroll-withholding-forms.js?v=document-scan-1"></script>
 <script src="./payroll-contractor-tax.js?v=hr-tax-1"></script>
 <script src="./hr-tax-forms.js?v=driver-1099-1"></script>
@@ -2178,7 +2199,8 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 <script src="./company-safety.js?v=hazmat-1"></script>
 <script src="./driver-app.js?v=owner-op-tools-1"></script>
 <script src="./driver-notifications.js?v=1"></script>
-<script src="./fleet-bol-payments.js?v=load-processing-1"></script>
+<script src="./load-paperwork-packet.js?v=1"></script>
+<script src="./fleet-bol-payments.js?v=load-packet-1"></script>
 <script src="./office-tools.js?v=office-messages-2"></script>
 <script src="./auth-clock-reminder.js?v=1"></script>
 <script src="./office-payroll.js?v=daily-pay-1"></script>

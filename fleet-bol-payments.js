@@ -65,6 +65,7 @@ const fleetBolPayments = (() => {
   }
 
   function loadRow(load) {
+    const scope = workspace;
     const row = node('article', '', 'panel');
     const header = node('header', '', 'bol-load-header');
     const info = node('div', '');
@@ -76,7 +77,10 @@ const fleetBolPayments = (() => {
     if (load.paid_on) dates.push('Paid ' + paidDate.format(Date.parse(load.paid_on)));
     if (dates.length) info.append(node('p', dates.join(' · '), 'muted'));
     header.append(info);
-    if (!load.paid_on) header.append(button('Mark Paid', () => openPayment(load)));
+    const actions = node('div', '', 'dispatch-actions');
+    actions.append(button('Open Paperwork', () => loadPaperworkPacket.open(load, pro(load), () => active(scope))));
+    if (!load.paid_on) actions.append(button('Mark Paid', () => openPayment(load)));
+    header.append(actions);
     row.append(header);
 
     const details = node('div', '', 'bol-load-details');
@@ -90,7 +94,6 @@ const fleetBolPayments = (() => {
 
     const documents = node('section', '');
     documents.append(node('h3', 'Paperwork'));
-    const scope = workspace;
     if (load.rate_confirmation) documents.append(button('View Rate Confirmation', () => {
       if (active(scope)) return dispatchRateConfirmation.open(load.rate_confirmation, supabaseClient, () => active(scope));
     }));
@@ -270,6 +273,7 @@ const fleetBolPayments = (() => {
   });
 
   function reset() {
+    loadPaperworkPacket.reset();
     workspace = null;
     request = null;
     cursor = null;
