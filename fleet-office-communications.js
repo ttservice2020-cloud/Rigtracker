@@ -152,13 +152,13 @@ const fleetOfficeCommunications = (() => {
     noticeTimeout = setTimeout(dismissNotice, 8000);
   }
 
-  async function refreshNotifications() {
+  async function refreshNotifications(force = false) {
     const user = currentUser;
     if (!user || document.hidden) return;
     const role = accountTypeFor(user);
     if (!['fleet','employee'].includes(role) || (role === 'fleet' && !adminFleetId)) return;
-    if (workspace && active(workspace)) return loadContacts(workspace);
-    if (noticeRequest?.user === user) return;
+    if (workspace && active(workspace)) return loadContacts(workspace, force);
+    if (noticeRequest?.user === user && !force) return;
     const requestedFleet = role === 'fleet' ? adminFleetId : null;
     const request = { user };
     noticeRequest = request;
@@ -427,8 +427,15 @@ const fleetOfficeCommunications = (() => {
   refreshButton.addEventListener('click', () => {
     if (workspace) void Promise.all([read(workspace), loadContacts(workspace, true)]);
   });
+  function messageArrived() {
+    const scope = workspace;
+    if (!scope || !active(scope)) return refreshNotifications(true);
+    scope.reading = null;
+    return Promise.all([read(scope, true), refreshNotifications(true)]);
+  }
+
   setInterval(() => {
-    if (document.hidden) return;
+    if (document.hidden || !messageRealtime.shouldPoll('office_message')) return;
     void refreshNotifications();
     if (workspace && !workspace.sending) void read(workspace, true);
   }, 20000);
@@ -451,5 +458,5 @@ const fleetOfficeCommunications = (() => {
     title.textContent = status.textContent = body.value = '';
   }
 
-  return { open, refreshNotifications, onlineOpen:() => online.open, refreshOnline, reset };
+  return { open, refreshNotifications, messageArrived, onlineOpen:() => online.open, refreshOnline, reset };
 })();

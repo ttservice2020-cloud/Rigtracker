@@ -636,6 +636,13 @@ const companyMessaging = (() => {
     for (const id of badges) byId(id).textContent = boardLabel(id);
     if (byId('mechanicMessagesButton')) byId('mechanicMessagesButton').textContent = 'Messages';
   }
-  setInterval(() => { if (!document.hidden) void refresh(); },10000);
-  return { open, openTeam, openDriver, dispatchRecipients, sendDispatchMessage, back, refresh, reset };
+  function messageArrived() {
+    threadRequest = null;
+    return refresh(true);
+  }
+
+  setInterval(() => {
+    if (!document.hidden && messageRealtime.shouldPoll('driver_message')) void refresh();
+  },10000);
+  return { open, openTeam, openDriver, dispatchRecipients, sendDispatchMessage, back, refresh, messageArrived, reset };
 })();
