@@ -2202,7 +2202,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 <script src="./report-pdf.js?v=1"></script>
 <script src="./payroll-tax-preview.js?v=save-pdf-1"></script>
 <script src="./company-driver-tools.js?v=owner-op-tools-1"></script>
-<script src="./company-messages.js?v=driver-board-3"></script>
+<script src="./company-messages.js?v=realtime-1"></script>
 <script src="./driver-document-scan.js?v=1"></script>
 <script src="./driver-paperwork.js?v=document-scan-1"></script>
 <script src="./payroll-withholding-forms.js?v=document-scan-1"></script>
@@ -2221,7 +2221,8 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 <script src="./owner-settlement-records.js?v=owner-deductions-1"></script>
 <script src="./owner-settlement-import.js?v=preview-1"></script>
 <script src="./owner-op-tools.js?v=1"></script>
-<script src="./fleet-office-communications.js?v=4"></script>
+<script src="./fleet-office-communications.js?v=realtime-1"></script>
+<script src="./message-realtime.js?v=1"></script>
 <script>
 const SUPABASE_URL = 'https://pxxikzzfrcncwufpzdfp.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_7yQMjUtCtnHC6jgRF4ROLA_CmgsHaZo';
@@ -2404,6 +2405,7 @@ async function openSignedInApp(user){
   openRigTrackerPasswordChange(false);
   return;
  }
+ void messageRealtime.start(user);
  if(accountType==='fleet'){
   startFleetPresenceTimer(loadFleetOnlineCount,30000);
   showFleetSection('dashboard');
@@ -2437,6 +2439,7 @@ async function signOut({remindClock=false}={}){
   if(result.error)throw result.error;
   stopFleetPresenceTimer();
   currentUser=null;settlements=[];stays=[];
+  messageRealtime.stop();
   ownerOpTools.reset();
   fleetOfficeCommunications.reset();
   ownerSettlementImport.reset();
@@ -3175,6 +3178,7 @@ async function startApp(){
  if(!supabaseClient){showToast('Sign-in is unavailable because the connection did not load.');return}
  supabaseClient.auth.onAuthStateChange(event=>{
   if(event==='SIGNED_OUT'){
+   messageRealtime.stop();
    stopFleetPresenceTimer();
    if(!signingOut){
     sessionStorage.setItem('rigtracker_auth_notice','Your sign-in expired. Sign in again to continue.');
