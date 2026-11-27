@@ -6,7 +6,7 @@ const driverLoadWorkflow = (() => {
     accepted: 'Accepted', rejected: 'Rejected', completed: 'Completed'
   };
   const empty = () => ({ loads: [], yard: [] });
-  const dispatchFleet = () => accountTypeFor(currentUser) === 'fleet' ? adminFleetId
+  const dispatchFleet = () => accountTypeFor(currentUser) === 'fleet' || ownerOpTools.managesFleet(adminFleetId) ? adminFleetId
     : typeof officeTools !== 'undefined' && officeTools.has('dispatch') ? officeTools.dispatchFleet() : null;
   const currency = new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' });
   const rate = new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 6 });
@@ -333,6 +333,7 @@ const driverLoadWorkflow = (() => {
   }
 
   const completedLoads = byId('driverCompletedLoads');
+  const ownerLinkPrompt = byId('ownerOpLoadLinkPrompt');
   const completedHistory = loadHistoryGrid.bind(completedLoads, {
     defaults: ['pro', 'date', 'bol', 'trailer', 'route', 'locations'],
     storageKey: () => currentUser?.id ? 'rigtracker-driver-history-columns:' + currentUser.id : null,
@@ -396,6 +397,18 @@ const driverLoadWorkflow = (() => {
     completedHistory.paint(history);
     completedLoads.classList.remove('hidden');
     paintYard();
+  }
+
+  async function showOwnerLinkPrompt(user, request) {
+    try {
+      const { data, error } = await supabaseClient.from('rigtracker_fleet_links').select('fleet_id')
+        .eq('profile_user_id', user.id).is('unlinked_at', null).not('dispatch_driver_id', 'is', null).limit(1);
+      if (!error && driverRead === request && currentUser === user && byId('driverLoadsPage').classList.contains('active')) {
+        ownerLinkPrompt.classList.toggle('hidden', Boolean(data.length));
+      }
+    } catch {
+      // Keep the load list available if the separate fleet link lookup fails.
+    }
   }
 
   function paintYard() {
@@ -1551,6 +1564,9 @@ const driverLoadWorkflow = (() => {
         if (redraw || snapshot !== driverSnapshot) paintDriverList();
         byId('driverWorkflowStatus').textContent = '';
         driverSnapshot = snapshot;
+        if (role === 'driver' && !data.loads.length && !data.yard.length) await showOwnerLinkPrompt(user, request);
+        else ownerLinkPrompt.classList.add('hidden');
+        if (driverRead !== request || user !== currentUser) return;
       }
       if (detailScreen.classList.contains('active')) {
         byId('driverLoadDetailStatus').textContent = '';
@@ -1746,7 +1762,9 @@ const driverLoadWorkflow = (() => {
     if (byId('driverLoadDetailPage').classList.contains('active')) return refresh();
     selected = null;
     detailTab = 'progress';
-    byId('driverLoadsTitle').textContent = accountTypeFor(currentUser) === 'fleet' ? 'My Loads' : 'Loads';
+    const role = accountTypeFor(currentUser);
+    byId('driverLoadsTitle').textContent = role === 'fleet' ? 'My Loads' : role === 'driver' ? 'Load Operations' : 'Loads';
+    ownerLinkPrompt.classList.add('hidden');
     showPage('driverLoadsPage');
     byId('driverWorkflowStatus').textContent = 'Loading your assignments…';
     return refresh();
@@ -1766,6 +1784,7 @@ const driverLoadWorkflow = (() => {
     detailTab = 'progress';
     driverSnapshot = ''; officeSnapshot = ''; driverData = empty(); seenLoadVersion = '';
     driverInitialized = false; officeInitialized = false;
+    ownerLinkPrompt.classList.add('hidden');
     seenDriver = new Set(); seenOffice = new Set();
     completedHistory.reset();
     completedLoads.classList.add('hidden');

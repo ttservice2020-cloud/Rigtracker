@@ -22,7 +22,6 @@ const officeTools = (() => {
   let employee;
   let editing;
   let pending = false;
-  let hasPrivateThreads = false;
   let employeeRequest;
   let clockRequest;
   let clockWrite;
@@ -31,7 +30,7 @@ const officeTools = (() => {
   const has = permission => Boolean(employee && (employee.office_is_official || employee.office_permissions.includes(permission)));
   const canLinkProfiles = () => Boolean(employee?.office_is_official && employee.office_can_link_profiles && !employee.password_required);
   const fuelSettingsFleet = () => employee?.office_can_manage_fuel_settings && !employee.password_required ? employee.fleet_id : null;
-  const messagesAllowed = () => ['messages','dispatch','assets','policies'].some(has) || hasPrivateThreads;
+  const messagesAllowed = () => Boolean(employee && !employee.password_required && ['messages','dispatch','assets','policies'].some(has));
   const visible = (id, allowed) => byId(id).classList.toggle('hidden', !allowed);
   const displayName = row => [row.first_name,row.last_name].filter(Boolean).join(' ') || 'Office employee';
 
@@ -39,6 +38,7 @@ const officeTools = (() => {
     for (const tab of tabs) {
       const key = tab.dataset.officeTool;
       const available = key === 'review-issue' || key === 'hr' ? Boolean(employee && !employee.password_required)
+        : key === 'office_messages' ? Boolean(employee && !employee.password_required)
         : key === 'profiles' ? employee?.office_can_manage_profiles
         : key === 'link-profiles' ? canLinkProfiles()
         : key === 'equipment' ? has('dispatch') || has('assets')
@@ -166,11 +166,6 @@ const officeTools = (() => {
       return;
     }
     setEmployee(data);
-  }
-
-  function setPrivateThreads(allowed) {
-    hasPrivateThreads = allowed;
-    if (employee) renderTools();
   }
 
   function openDashboard() {
@@ -571,6 +566,7 @@ const officeTools = (() => {
     'link-profiles':openProfileLink,'review-issue':()=>openReviewIssue(),
     hr:()=>hrTaxForms.open(employee.fleet_id),
     bol_payments:()=>fleetBolPayments.open(employee.fleet_id),
+    office_messages:()=>fleetOfficeCommunications.open(),
     dispatch:()=>showOfficeDispatch('current'),drivers:()=>showOfficeDispatch('drivers'),
     equipment:()=>showOfficeDispatch('equipment'),assets:()=>showOfficeDispatch('equipment'),
     messages:()=>companyMessaging.open(),payroll:()=>officePayroll.open(),
@@ -590,7 +586,6 @@ const officeTools = (() => {
     issueRequest = null;
     if (issueDialog.open) issueDialog.close();
     requests.clear();
-    hasPrivateThreads = false;
     employeeRequest = null;
     clockRequest = null;
     clockWrite = null;
@@ -604,5 +599,5 @@ const officeTools = (() => {
     renderTools();
   }
 
-  return { has,canLinkProfiles,fuelSettingsFleet,readEmployee,setEmployee,refreshEmployee,setPrivateThreads,openDashboard,openReviewIssue,dispatchFleet,equipmentFleet,dispatchAccess,loadRoster,updateCreateAccess,clockStatus,updateClock,reset };
+  return { has,canLinkProfiles,fuelSettingsFleet,readEmployee,setEmployee,refreshEmployee,messagesAllowed,openDashboard,openReviewIssue,dispatchFleet,equipmentFleet,dispatchAccess,loadRoster,updateCreateAccess,clockStatus,updateClock,reset };
 })();

@@ -903,16 +903,26 @@ const companyDriverTools = (() => {
     const back = byId('ownDriverDocumentsBack');
     const forms = byId('ownWithholdingForms');
     const office = role === 'employee';
+    const owner = role === 'driver';
+    const personal = byId('ownerOpPersonalFiles');
     back.textContent = backTo ? '← Back to HR' : office ? '← Back to Dashboard' : '← Back to Profile';
     back.onclick = backTo || (office ? () => officeTools.openDashboard() : () => showPage('rigTrackerProfilePage'));
     byId('ownDriverDocumentsTitle').textContent = tax ? 'My Tax Forms' : 'Documents';
     list.replaceChildren();
     forms.replaceChildren();
     forms.classList.toggle('hidden', !tax);
+    byId('ownerOpDocumentTabs').classList.toggle('hidden', !owner);
+    byId('ownerOpDocumentTab').setAttribute('aria-pressed', String(!tax));
+    byId('ownerOpTaxTab').setAttribute('aria-pressed', String(tax));
+    personal.replaceChildren();
+    personal.classList.toggle('hidden', !owner);
     byId('ownDriverRecordsPanel').classList.toggle('hidden', office);
-    byId('ownDriverFleetTaxHeading').classList.toggle('hidden', !tax || office);
+    const fleetHeading = byId('ownDriverFleetTaxHeading');
+    fleetHeading.textContent = tax ? 'Tax documents from your fleet' : 'Documents from your fleet';
+    fleetHeading.classList.toggle('hidden', office || !(tax || owner));
     status.textContent = tax ? 'Loading your tax documents…' : 'Loading your documents…';
     showPage('ownDriverDocumentsPage');
+    if (owner) ownerOpTools.mountDocuments(personal, tax);
     if (!forms.classList.contains('hidden')) void payrollWithholdingForms.mount(forms, active);
     if (office) return;
     try {
@@ -936,7 +946,8 @@ const companyDriverTools = (() => {
         row.append(info, profileFileActions(file.path,info.firstChild.textContent,tax));
         return row;
       }));
-      status.textContent = files.length ? '' : tax ? 'No tax documents are on your profile yet.' : 'No documents are on your profile yet.';
+      status.textContent = files.length ? '' : owner ? 'No files from a fleet yet.'
+        : tax ? 'No tax documents are on your profile yet.' : 'No documents are on your profile yet.';
     } catch (error) {
       if (active()) status.textContent = error.message || 'Could not load your documents.';
     }
@@ -1045,7 +1056,7 @@ const companyDriverTools = (() => {
   function openAdmin(profile, source = 'links', initialProfile, rosterFleet) {
     const user = currentUser;
     const fleet = rosterFleet || (source === 'payroll' ? payroll?.fleet_id : adminFleetId || officeTools.dispatchFleet());
-    const owner = accountTypeFor(user) === 'fleet';
+    const owner = accountTypeFor(user) === 'fleet' || ownerOpTools.managesFleet(fleet);
     if (!user || !fleet || (!owner && source === 'links' && !officeTools.canLinkProfiles())) return;
     view = { user, fleet, profile, source, owner, files: new Set(), pending: new Set(), pages: {} };
     closeEquipmentForm(false);

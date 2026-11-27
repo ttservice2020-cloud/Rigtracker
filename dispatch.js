@@ -1035,7 +1035,7 @@ const fleetDispatchApp = (() => {
   }
 
   function paintDrivers() {
-    const fleetAdmin = accountTypeFor(currentUser) === 'fleet';
+    const fleetAdmin = accountTypeFor(currentUser) === 'fleet' || ownerOpTools.managesFleet(state.fleetId);
     toggle('dispatchCreateCompanyDriver', fleetAdmin);
     const search = byId('dispatchDriverSearch').value.trim().toLowerCase();
     const filter = byId('dispatchDriverFilter').value;
@@ -2799,6 +2799,10 @@ const fleetDispatchApp = (() => {
       return;
     }
     byId('dispatchWorkspace').classList.toggle('office-drivers-only',!access.dispatch);
+    const truckNumber = byId('dispatchTruckNumber');
+    if (access.ownerOpTrucks) truckNumber.setAttribute('list', 'dispatchOwnerOpTrucks');
+    else truckNumber.removeAttribute('list');
+    byId('dispatchOwnerOpTrucks').replaceChildren(...(access.ownerOpTrucks || []).map(unit => new Option(unit)));
     toggle('companyDispatchMessagesButton',access.messages);
     if (state?.fleetId !== fleetId || state.client !== client || JSON.stringify(state.access) !== JSON.stringify(access)) {
       const destination = tab || selectedTab;
