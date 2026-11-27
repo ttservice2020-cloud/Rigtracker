@@ -396,7 +396,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
     <label for="ownerSettlementFiles">Upload Settlement PDF</label>
     <input id="ownerSettlementFiles" type="file" accept="application/pdf,.pdf" aria-describedby="ownerSettlementImportHelp">
    </div>
-   <p id="ownerSettlementImportHelp" class="muted">Choose your Lavalle settlement PDF. RigTracker generates and saves the spreadsheet when the payout matches.</p>
+   <p id="ownerSettlementImportHelp" class="muted">Choose your Lavalle settlement PDF, review the spreadsheet, and select Save Settlement.</p>
    <p id="ownerSettlementUploadStatus" class="muted" role="status"></p>
    <div><button class="outline" type="button" onclick="showPage('spreadsheetPage')">Saved Settlement Documents</button></div>
   </section>
@@ -429,6 +429,10 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
   <section class="panel hidden no-print" id="ownerSettlementDocuments" aria-labelledby="ownerSettlementDocumentsTitle">
    <h2 id="ownerSettlementDocumentsTitle">Saved Settlement Documents</h2>
    <p id="ownerSettlementImportStatus" class="muted" role="status"></p>
+   <div class="fleet-tool-links">
+    <button class="primary-btn hidden" id="ownerSettlementSave" type="button">Save Settlement</button>
+    <button class="outline" id="ownerSettlementChooseFile" type="button">Choose a Settlement PDF</button>
+   </div>
    <div id="ownerSettlementSavedList" aria-label="Saved carrier spreadsheets"></div>
    <div id="ownerSettlementPreview"></div>
   </section>
@@ -2101,7 +2105,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 <script src="./office-payroll.js?v=daily-pay-1"></script>
 <script src="./owner-escrow.js?v=1"></script>
 <script src="./owner-settlement-records.js?v=owner-deductions-1"></script>
-<script src="./owner-settlement-import.js?v=preview-1"></script>
+<script src="./owner-settlement-import.js?v=save-preview-1"></script>
 <script>
 const SUPABASE_URL = 'https://pxxikzzfrcncwufpzdfp.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_7yQMjUtCtnHC6jgRF4ROLA_CmgsHaZo';

@@ -7,6 +7,8 @@ const ownerSettlementImport = (() => {
   const status = find('ownerSettlementImportStatus');
   const records = find('ownerSettlementSavedList');
   const preview = find('ownerSettlementPreview');
+  const saveButton = find('ownerSettlementSave');
+  const chooseFile = find('ownerSettlementChooseFile');
   const currency = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
   const formatMoney = cents => Number.isFinite(cents) ? currency.format(cents / 100) : '—';
   const formatMiles = miles => Number.isFinite(miles) ? miles.toLocaleString('en-US') : '—';
@@ -15,6 +17,8 @@ const ownerSettlementImport = (() => {
     : '—';
   let view;
   let reading;
+  let saving;
+  let pending;
 
   function node(tag, text, className) {
     const element = document.createElement(tag);
@@ -28,12 +32,21 @@ const ownerSettlementImport = (() => {
     documents.classList.toggle('hidden', !visible);
   }
 
+  function setPending(draft) {
+    pending = draft;
+    saveButton.classList.toggle('hidden', !draft);
+    saveButton.disabled = Boolean(saving);
+  }
+
   function reset() {
     view = null;
     reading = null;
+    saving = null;
+    setPending(null);
     togglePanel(false);
     input.value = '';
     input.disabled = false;
+    chooseFile.disabled = false;
     status.textContent = '';
     uploadStatus.textContent = '';
     records.replaceChildren();
@@ -146,7 +159,8 @@ const ownerSettlementImport = (() => {
       const action = node('button', label.join(' · '), 'outline');
       action.type = 'button';
       action.addEventListener('click', () => {
-        if (reading || currentUser !== view?.user) return;
+        if (reading || saving || currentUser !== view?.user) return;
+        setPending(null);
         showSpreadsheet(row.data);
         status.textContent = 'Saved settlement spreadsheet.';
       });
@@ -204,6 +218,7 @@ const ownerSettlementImport = (() => {
   }
 
   function showExistingStatement(existing, data) {
+    setPending(null);
     if (!data || ownerSettlementRecords.sameAmounts(existing.data, data)) {
       showSpreadsheet(existing.data);
       status.textContent = 'This statement was already imported.';
@@ -221,15 +236,23 @@ const ownerSettlementImport = (() => {
     }
   }
 
+  chooseFile.addEventListener('click', () => {
+    showPage('settlementPage');
+    input.focus();
+    if (!input.disabled) input.click();
+  });
+
   input.addEventListener('change', async () => {
     const request = view;
     const file = input.files?.[0];
-    if (!request || currentUser !== request.user || reading || !file || panel.classList.contains('hidden')) return;
+    if (!request || currentUser !== request.user || reading || saving || !file || panel.classList.contains('hidden')) return;
     const job = {};
     reading = job;
-    input.disabled = true;
+    input.disabled = chooseFile.disabled = true;
     const active = () => view === request && currentUser === request.user && reading === job;
     uploadStatus.textContent = 'Opening the statement…';
+    status.textContent = '';
+    setPending(null);
     preview.replaceChildren();
     try {
       const { statementFingerprint, readStatementPages } = await import('./owner-settlement-ocr.mjs?v=1');
@@ -249,41 +272,66 @@ const ownerSettlementImport = (() => {
       if (!active()) return;
       showSpreadsheet(data);
       if (data.issues.length) {
-        status.textContent = 'Needs Review. Choose the full, readable PDF and try again.';
+        status.textContent = 'Needs Review. Check the issues below. Choose the original PDF or enter the settlement manually.';
         revealSpreadsheet();
         return;
       }
       const previous = request.saved.find(row => ownerSettlementRecords.sameStatement(row.data, data));
       if (previous) return showExistingStatement(previous, data);
-      uploadStatus.textContent = 'Payout matches. Saving the spreadsheet…';
-      const { error } = await supabaseClient.from('owner_settlement_imports')
-        .insert({ document_hash: documentHash, data });
+      setPending({ request, documentHash, data });
+      status.textContent = 'Payout matches. Review the spreadsheet and select Save Settlement.';
+      revealSpreadsheet();
+    } catch (error) {
+      if (active()) {
+        const message = error.message;
+        uploadStatus.textContent = /^(Choose|This pilot reads)/.test(message)
+          ? message : 'Could not read the file. Try the original settlement PDF.';
+      }
+    } finally {
+      if (active()) {
+        reading = null;
+        input.disabled = chooseFile.disabled = false;
+        input.value = '';
+        if (!find('settlementPage').classList.contains('active')) uploadStatus.textContent = '';
+      }
+    }
+  });
+
+  saveButton.addEventListener('click', async () => {
+    if (!pending || reading || saving) return;
+    const { request, documentHash, data } = pending;
+    if (view !== request || currentUser !== request.user) return;
+    const job = {};
+    saving = job;
+    const active = () => view === request && currentUser === request.user && saving === job;
+    input.disabled = chooseFile.disabled = saveButton.disabled = true;
+    status.textContent = 'Saving settlement…';
+    try {
+      const { data: saved, error } = await supabaseClient.from('owner_settlement_imports')
+        .insert({ document_hash: documentHash, data }).select('id,document_hash,data').single();
       if (!active()) return;
       if (error?.code === '23505') {
         await loadRecords(request);
         if (!active()) return;
         const existing = request.saved.find(row => row.document_hash === documentHash ||
           ownerSettlementRecords.sameStatement(row.data, data));
-        if (existing) return showExistingStatement(existing, data);
+        if (existing) {
+          renderTaxIfOpen();
+          return showExistingStatement(existing, data);
+        }
       }
-      if (error) throw new Error('The totals match, but the spreadsheet could not be saved. Choose the statement again to retry.');
-      await loadRecords(request);
-      if (!active()) return;
-      status.textContent = 'Spreadsheet saved. Payout matches the statement.';
+      if (error || !saved) throw new Error('Settlement save failed.');
+      request.saved = [saved, ...request.saved.filter(row => row.id !== saved.id)];
+      paintRecords(request.saved);
+      setPending(null);
+      status.textContent = 'Settlement saved. You can find it in Saved Settlement Documents.';
       renderTaxIfOpen();
-      revealSpreadsheet();
-    } catch (error) {
-      if (active()) {
-        const message = error.message;
-        uploadStatus.textContent = /^(Choose|This pilot reads|The totals match|Could not open your saved)/.test(message)
-          ? message : 'Could not read the file. Try the original settlement PDF.';
-      }
+    } catch {
+      if (active()) status.textContent = 'Could not save the settlement. Your preview is still here. Select Save Settlement to try again.';
     } finally {
       if (active()) {
-        reading = null;
-        input.disabled = false;
-        input.value = '';
-        if (!find('settlementPage').classList.contains('active')) uploadStatus.textContent = '';
+        saving = null;
+        input.disabled = chooseFile.disabled = saveButton.disabled = false;
       }
     }
   });
