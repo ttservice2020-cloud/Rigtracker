@@ -4,11 +4,13 @@ const cash = '(\\$?\\s*\\d[\\d,]*\\.\\d{2})';
 const routePattern = new RegExp(
   '^(.+?)\\s+([A-Z]{2})\\s+(.+?)\\s+([A-Z]{2})\\s+(Loaded|Empty)\\s+' +
   '([\\d,.]+)\\s+([0-9A-Za-z-]+)\\s+' + stamp + '\\s+' + stamp +
-  '\\s+' + cash + '\\s+(\\d+(?:\\.\\d+)?)\\s*%\\s+' + cash + '$', 'i'
+  '\\s+(?:' + cash + '\\s+(\\d+(?:\\.\\d+)?)\\s*%|(\\d+(?:\\.\\d+)?))\\s+' + cash + '$', 'i'
 );
+const chargeAmount = '[-−]?\\s*\\$?\\s*[-−]?\\s*\\d[\\d,]*\\.\\d{2}';
 const chargePattern = new RegExp(
-  '^(.+?)\\s+' + stamp + '\\s+[\\d,.]+\\s+[\\d,.]+\\s+([-−]?\\s*\\$?\\s*[-−]?\\s*\\d[\\d,]*\\.\\d{2})$'
+  '^(.+?)\\s+' + stamp + '\\s+[\\d,.]+\\s+[\\d,.]+\\s+(?:_{2,}\\s+)?(' + chargeAmount + ')$'
 );
+const chargeAmountLine = new RegExp('^' + chargeAmount + '$');
 const periodPattern = new RegExp('Pay period\\s*:?\\s*' + stamp + '\\s*[-–—]\\s*' + stamp, 'i');
 const payDatePattern = new RegExp('Check date\\s*:?\\s*' + stamp, 'i');
 const dispatchOrdersPattern = /^Orders\s*:\s*([\d,]+)/i;
@@ -47,13 +49,27 @@ function cleanLines(text) {
 function readLoad(line, load) {
   const parsed = line.match(routePattern);
   if (!parsed) return false;
-  const [, origin, originState, destination, destinationState, mileageType, miles, tractor, shipped, delivered, gross, rate, pay] = parsed;
+  const [, origin, originState, destination, destinationState, mileageType, miles, tractor, shipped, delivered, gross, percent, perMile, pay] = parsed;
   Object.assign(load, {
     origin: origin + ', ' + originState.toUpperCase(), destination: destination + ', ' + destinationState.toUpperCase(),
     mileageType, miles: Number(miles.replaceAll(',', '')), tractor, shipped: date(shipped), delivered: date(delivered),
-    gross: cents(gross), rate: Number(rate), pay: cents(pay)
+    gross: cents(gross), rate: Number(percent ?? perMile), pay: cents(pay),
+    ...(perMile !== undefined ? { rateType: 'per_mile' } : {})
   });
   return true;
+}
+
+function mileagePay(miles, rate) {
+  const parseDecimal = value => /^(\d+)(?:\.(\d+))?$/.exec(String(value));
+  const distance = parseDecimal(miles);
+  const price = parseDecimal(rate);
+  if (!distance || !price) return null;
+  const [, milesWhole, milesFraction = ''] = distance;
+  const [, rateWhole, rateFraction = ''] = price;
+  const numerator = BigInt(milesWhole + milesFraction) * BigInt(rateWhole + rateFraction) * 100n;
+  const denominator = 10n ** BigInt(milesFraction.length + rateFraction.length);
+  const pay = Number((2n * numerator + denominator) / (2n * denominator));
+  return Number.isSafeInteger(pay) ? pay : null;
 }
 
 function readCharge(line, group, page) {
@@ -88,7 +104,8 @@ export function parseLavalleStatement(pages) {
     let openLoad = null;
     let readingPaySummary = false;
     let readingYear = false;
-    for (const line of cleanLines(content)) {
+    const lines = cleanLines(content);
+    for (const [lineIndex, line] of lines.entries()) {
       const loadMatch = line.match(/^Settlement\s+([0-9]{5,15})\b/i);
       if (loadMatch) {
         openLoad = { number: loadMatch[1], page, surcharge: null, total: null };
@@ -111,10 +128,15 @@ export function parseLavalleStatement(pages) {
         group = null;
         readingPaySummary = true;
       }
-      if (/^YTD summary\b/i.test(line)) readingYear = true;
+      if (/^YTD summary\b/i.test(line)) {
+        readingYear = true;
+        readingReserve = false;
+      }
       if (/^Subtotal for driver\b/i.test(line)) group = null;
       if (group) {
-        const charge = readCharge(line, group, page);
+        const next = lines[lineIndex + 1];
+        const chargeLine = /\s+_{2,}$/.test(line) && next && chargeAmountLine.test(next) ? line + ' ' + next : line;
+        const charge = readCharge(chargeLine, group, page);
         if (charge) charges.push(charge);
       }
       if (/^Driver net pay\s*:/i.test(line)) printed.driverNet = lastAmount(line);
@@ -150,10 +172,14 @@ export function parseLavalleStatement(pages) {
   for (const load of loads) {
     const surcharge = load.surcharge ?? 0;
     const hasPayBasis = load.origin && load.shipped && load.delivered && Number.isFinite(load.miles) &&
-      Number.isFinite(load.rate) && load.rate >= 0 && load.rate <= 100 && load.gross !== null && load.pay !== null;
-    // The source rounds each nonnegative percentage payment to the nearest cent.
-    const calculatedPay = hasPayBasis ? Number((BigInt(load.gross) * BigInt(Math.round(load.rate * 100)) + 5000n) / 10000n) : null;
-    if (!hasPayBasis || load.pay !== calculatedPay || load.total === null || load.pay + surcharge !== load.total) {
+      Number.isFinite(load.rate) && load.rate >= 0 && load.pay !== null;
+    let calculatedPay = null;
+    if (hasPayBasis && load.rateType === 'per_mile') calculatedPay = mileagePay(load.miles, load.rate);
+    else if (hasPayBasis && load.rate <= 100 && load.gross !== null) {
+      // The source rounds each nonnegative percentage payment to the nearest cent.
+      calculatedPay = Number((BigInt(load.gross) * BigInt(Math.round(load.rate * 100)) + 5000n) / 10000n);
+    }
+    if (calculatedPay === null || load.pay !== calculatedPay || load.total === null || load.pay + surcharge !== load.total) {
       issues.push('Check load ' + load.number + ' on page ' + load.page + '. Its pay details could not be reconciled.');
     }
   }
@@ -166,23 +192,21 @@ export function parseLavalleStatement(pages) {
   const carrier = sum(charges.filter(charge => charge.group === 'Carrier'), 'amount');
   const net = gross + driver + carrier;
   if (charges.some(charge => !charge.posted || charge.amount === null)) issues.push('A deduction has an unreadable date or amount.');
-  if (printed.orderPay !== orderPay || printed.otherEarnings !== fuelSurcharge || printed.gross !== gross ||
+  if (printed.orderPay !== orderPay || (printed.otherEarnings ?? 0) !== fuelSurcharge || printed.gross !== gross ||
       gross !== orderPay + fuelSurcharge) issues.push('The load earnings do not match the printed pay summary.');
   if (printed.driverNet !== gross + driver) issues.push('The individual driver charges do not match the driver subtotal.');
   if (printed.adjustments !== driver + carrier || printed.net !== net) issues.push('The deductions and final payout do not match the printed pay summary.');
   if (printed.yearEarnings == null) issues.push('The year-to-date earnings page could not be read.');
-  if (Object.keys(reserve).length && (reserve.prior == null || reserve.balance == null || reserve.deposit == null ||
-      reserve.prior + reserve.deposit !== reserve.balance || reserve.deposit !==
-      -sum(charges.filter(charge => /Repair Reserve/i.test(charge.description)), 'amount'))) {
+  const reserveCharges = charges.filter(charge => /Repair Reserve/i.test(charge.description));
+  const hasReserveActivity = reserveCharges.length > 0 || reserve.deposit != null || reserve.balance != null;
+  if (hasReserveActivity && (reserve.prior == null || reserve.balance == null || reserve.deposit == null ||
+      reserve.prior + reserve.deposit !== reserve.balance || reserve.deposit !== -sum(reserveCharges, 'amount'))) {
     issues.push('The repair reserve does not match the reserve deposit and balances on the statement.');
   }
-  if (charges.some(charge => /Repair Reserve/i.test(charge.description)) && reserve.deposit == null) {
-    issues.push('The repair reserve balance could not be read.');
-  }
-
   return {
     ...metadata, loads, charges, reserve, issues,
     summary: { orderPay, fuelSurcharge, gross, driver, carrier, net, printedNet: printed.net ?? null,
+      printedGross: printed.gross ?? null, printedDeductions: printed.adjustments ?? null,
       yearEarnings: printed.yearEarnings ?? null, loadedMiles: sum(loads.filter(load => /^loaded$/i.test(load.mileageType)), 'miles'),
       emptyMiles: sum(loads.filter(load => /^empty$/i.test(load.mileageType)), 'miles') }
   };
