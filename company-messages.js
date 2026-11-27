@@ -76,6 +76,17 @@ const companyMessaging = (() => {
     return data;
   }
 
+  async function dispatchRecipients(fleet) {
+    const result = await rpc('contacts', fleet);
+    return result.drivers;
+  }
+
+  async function sendDispatchMessage(fleet, profileId, body, messageId, isCurrent) {
+    const { id } = await rpc('start', fleet, null, { kind: 'dispatch', profile_id: profileId });
+    if (!isCurrent()) return;
+    await rpc('send', null, id, { body, message_id: messageId });
+  }
+
   function watchedProfiles() {
     try {
       const raw = localStorage.getItem('rigtracker-message-watch:' + (currentUser?.id || ''));
@@ -627,5 +638,5 @@ const companyMessaging = (() => {
     if (byId('mechanicMessagesButton')) byId('mechanicMessagesButton').textContent = 'Messages';
   }
   setInterval(() => { if (!document.hidden) void refresh(); },10000);
-  return { open, openTeam, openDriver, back, refresh, reset };
+  return { open, openTeam, openDriver, dispatchRecipients, sendDispatchMessage, back, refresh, reset };
 })();

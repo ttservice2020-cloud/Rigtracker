@@ -4,6 +4,14 @@ const fleetDispatchApp = (() => {
   const form = byId('dispatchLoadForm');
   const driverForm = byId('dispatchDriverForm');
   const locationForm = byId('dispatchLocationForm');
+  const locationPicker = byId('dispatchSavedLocationPicker');
+  const locationQuery = byId('dispatchSavedLocationQuery');
+  const locationMessage = byId('dispatchLocationMessage');
+  const locationRecipient = byId('dispatchLocationMessageDriver');
+  const locationNote = byId('dispatchLocationMessageNote');
+  const locationMessageStatus = byId('dispatchLocationMessageStatus');
+  const sendLocationMessage = byId('dispatchLocationMessageSend');
+  const cancelLocationMessage = byId('dispatchLocationMessageCancel');
   const stopInfoDialog = byId('dispatchStopInfoDialog');
   const stopInfoForm = byId('dispatchStopInfoForm');
   const stopInfoFields = [...stopInfoForm.querySelectorAll('[data-dispatch-stop-info]')];
@@ -36,13 +44,15 @@ const fleetDispatchApp = (() => {
   const addressParts = ['address', 'city', 'state', 'zip'];
   const stopZipLookups = new WeakMap();
   const locationRequired = ['name', ...addressParts];
+  let chooseSavedLocation;
+  let locationMessageDraft;
   const relayAddressFields = { address: 'relayAddress', city: 'relayCity', state: 'relayState', zip: 'relayZip' };
   const payLabels = { hourly: 'Hourly', split: 'Split Load', per_mile: 'Per mile', load_percent: 'Load %', higher_of: 'Whichever is higher' };
   const companyCalculatedMethods = new Set(['load_percent', 'per_mile', 'higher_of']);
   const payCurrency = new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' });
   const payRate = new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 4 });
   const historyDate = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
-  const ownerAccess = { dispatch:true, drivers:true, equipment:true, maintenance:true, paySettings:true, messages:true };
+  const ownerAccess = { dispatch:true, drivers:true, equipment:true, maintenance:true, paySettings:true, messages:true, processing:true };
   let state;
   let edit;
   let stopInfoSession;
@@ -121,14 +131,58 @@ const fleetDispatchApp = (() => {
 
   function useSavedLocation(field, apply) {
     field.setAttribute('list', 'dispatchLocationNames');
-    field.addEventListener('change', () => {
-      const location = savedLocation(field.value);
-      if (!location) return;
+    function use(location) {
       field.value = location.name;
       apply(location);
       field.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    field.addEventListener('change', () => {
+      const location = savedLocation(field.value);
+      if (location) use(location);
+    });
+    return use;
+  }
+
+  function matchLocations(query) {
+    const terms = query.trim().toLowerCase().split(/\s+/);
+    return (state?.locations || []).filter(location => {
+      const text = locationRequired.map(key => location[key]).join(' ').toLowerCase();
+      return terms.every(term => text.includes(term));
     });
   }
+
+  function paintLocationPicker() {
+    if (!locationPicker.open) return;
+    const locations = matchLocations(locationQuery.value);
+    byId('dispatchSavedLocationChoices').replaceChildren(...locations.slice(0, 40).map(location => {
+      const label = [location.name, location.address, location.city + ', ' + location.state + ' ' + location.zip].join(' · ');
+      return button(label, () => {
+        const apply = chooseSavedLocation;
+        locationPicker.close();
+        apply?.(location);
+      });
+    }));
+    byId('dispatchSavedLocationPickerStatus').textContent = state?.locationsPending ? 'Loading saved locations…'
+      : state?.locationReadError ? 'Could not load saved locations.'
+      : locations.length > 40 ? 'Search to narrow the list.'
+      : locations.length ? '' : 'No matching saved locations.';
+  }
+
+  function pickLocation(apply) {
+    if (!editorCanLookupZip() || locationPicker.open) return;
+    chooseSavedLocation = apply;
+    locationQuery.value = '';
+    locationPicker.showModal();
+    paintLocationPicker();
+    locationQuery.focus();
+    if (state.locationReadError) void readLocations(state);
+  }
+
+  locationQuery.addEventListener('input', paintLocationPicker);
+  byId('dispatchSavedLocationPickerClose').addEventListener('click', () => locationPicker.close());
+  locationPicker.addEventListener('close', () => {
+    if (!locationPicker.open) chooseSavedLocation = null;
+  });
 
   async function lookupAddressZip(key, address) {
     const scope = state;
@@ -172,26 +226,123 @@ const fleetDispatchApp = (() => {
   function paintLocations() {
     const locations = state?.locations || [];
     byId('dispatchLocationNames').replaceChildren(...locations.map(location => new Option(location.address, location.name)));
-    const query = byId('dispatchLocationSearch').value.trim().toLowerCase();
-    const matches = locations.filter(location => [location.name, ...addressParts.map(part => location[part])].join(' ').toLowerCase().includes(query));
+    const query = byId('dispatchLocationSearch').value.trim();
+    const matches = matchLocations(query);
     byId('dispatchLocationList').replaceChildren(...matches.map(location => {
-      const row = element('article', '', 'dispatch-load-row');
-      const info = element('div');
-      info.append(element('strong', location.name), element('p', [location.address, location.city + ', ' + location.state + ' ' + location.zip].join(' · ')));
-      if (location.wait_alert_hours != null) info.append(element('p', 'Wait alert · ' + location.wait_alert_hours + ' hr'));
-      row.append(info, button('Edit', () => editLocation(location)));
+      const row = element('tr');
+      const name = element('th', location.name);
+      name.scope = 'row';
+      row.append(name, element('td', locationAddress(location)), element('td', location.gate_code || '—'));
+      const actions = element('div', '', 'dispatch-actions');
+      if (state?.access.messages) {
+        const send = button('Send to Driver', () => void openLocationMessage(location));
+        send.setAttribute('aria-label', 'Send ' + location.name + ' to driver');
+        actions.append(send);
+      }
+      const edit = button('Edit', () => editLocation(location, true));
+      const remove = button('Remove', () => void removeLocation(location, remove));
+      edit.setAttribute('aria-label', 'Edit ' + location.name);
+      remove.setAttribute('aria-label', 'Remove ' + location.name);
+      actions.append(edit, remove);
+      const cell = element('td');
+      cell.append(actions);
+      row.append(cell);
       return row;
     }));
     byId('dispatchLocationStatus').textContent = state?.locationReadError
-      ? 'Could not load saved locations. Select Saved Locations to retry.'
+      ? 'Could not load saved locations. Try refreshing.'
       : state?.locationsPending ? 'Loading saved locations…'
       : matches.length ? '' : query ? 'No matching locations.' : 'No saved locations yet.';
+    byId('dispatchLocationRefresh').disabled = Boolean(state?.locationsPending);
+    paintLocationPicker();
   }
+
+  function locationAddress(location) {
+    return location.address + ', ' + location.city + ', ' + location.state + ' ' + location.zip;
+  }
+
+  function currentLocationMessage(draft) {
+    return locationMessageDraft === draft && state === draft.scope && currentUser?.id === draft.userId && locationMessage.open;
+  }
+
+  function clearLocationMessage() {
+    locationMessageDraft = null;
+    byId('dispatchLocationMessagePreview').textContent = '';
+    locationRecipient.replaceChildren();
+    byId('dispatchLocationMessageNoteDetails').open = false;
+    locationNote.value = '';
+    locationNote.disabled = cancelLocationMessage.disabled = false;
+  }
+
+  async function openLocationMessage(location) {
+    const scope = state;
+    if (!scope?.access.dispatch || !scope.access.messages || !currentUser || locationMessage.open) return;
+    clearLocationMessage();
+    const body = [location.name, locationAddress(location), location.gate_code && 'Gate code: ' + location.gate_code]
+      .filter(Boolean).join('\n');
+    const draft = { scope, userId: currentUser.id, body, messageIds: new Map(), sending: false };
+    locationMessageDraft = draft;
+    byId('dispatchLocationMessagePreview').textContent = body;
+    locationRecipient.replaceChildren(new Option('Choose a driver', ''));
+    locationRecipient.disabled = sendLocationMessage.disabled = true;
+    locationMessageStatus.textContent = 'Loading drivers…';
+    locationMessage.showModal();
+    try {
+      const drivers = await companyMessaging.dispatchRecipients(scope.fleetId);
+      if (!currentLocationMessage(draft)) return;
+      locationRecipient.append(...drivers.map(driver => new Option(driver.name, driver.profile_id)));
+      locationRecipient.disabled = !drivers.length;
+      locationMessageStatus.textContent = drivers.length ? '' : 'No linked Company Drivers are available.';
+    } catch {
+      if (currentLocationMessage(draft)) locationMessageStatus.textContent = 'Could not load drivers. Close and try again.';
+    }
+  }
+
+  locationRecipient.addEventListener('change', () => {
+    sendLocationMessage.disabled = !locationRecipient.value;
+  });
+  cancelLocationMessage.addEventListener('click', () => locationMessage.close());
+  locationMessage.addEventListener('cancel', event => {
+    if (locationMessageDraft?.sending) event.preventDefault();
+  });
+  locationMessage.addEventListener('close', () => {
+    if (!locationMessage.open) clearLocationMessage();
+  });
+  byId('dispatchLocationMessageForm').addEventListener('submit', async event => {
+    event.preventDefault();
+    const draft = locationMessageDraft;
+    const recipient = locationRecipient.value;
+    if (!draft || !currentLocationMessage(draft) || !recipient || draft.sending) return;
+    const note = locationNote.value.trim();
+    const body = note ? draft.body + '\n\nNote: ' + note : draft.body;
+    const messageKey = JSON.stringify([recipient, body]);
+    draft.sending = true;
+    locationNote.disabled = locationRecipient.disabled = sendLocationMessage.disabled = cancelLocationMessage.disabled = true;
+    locationMessageStatus.textContent = 'Sending…';
+    if (!draft.messageIds.has(messageKey)) draft.messageIds.set(messageKey, crypto.randomUUID());
+    try {
+      await companyMessaging.sendDispatchMessage(
+        draft.scope.fleetId, recipient, body, draft.messageIds.get(messageKey), () => currentLocationMessage(draft)
+      );
+      if (!currentLocationMessage(draft)) return;
+      locationMessage.close();
+      showToast('Location sent to driver.');
+    } catch (error) {
+      if (currentLocationMessage(draft)) locationMessageStatus.textContent = error.code === '42501'
+        ? 'This driver is unavailable for Dispatch messages.' : 'Could not send the message. Try again.';
+    } finally {
+      if (currentLocationMessage(draft)) {
+        draft.sending = false;
+        locationNote.disabled = locationRecipient.disabled = sendLocationMessage.disabled = cancelLocationMessage.disabled = false;
+      }
+    }
+  });
 
   async function readLocations(scope) {
     if (!scope.access.dispatch || scope.locationsPending) return;
     scope.locationsPending = true;
     scope.locationReadError = false;
+    byId('dispatchLocationRefresh').disabled = true;
     const version = scope.locationVersion;
     try {
       const locations = await readRecords(scope, locationTable, 'name', true);
@@ -204,15 +355,20 @@ const fleetDispatchApp = (() => {
     }
   }
 
-  function editLocation(location = null) {
+  function editLocation(location = null, open = false) {
     if (!state || state.locationSaving) return;
     state.locationEdit = location;
     locationZipLookup.reset();
     locationForm.reset();
-    if (location) for (const field of [...locationRequired, 'wait_alert_hours']) locationForm.elements.namedItem(field).value = location[field] ?? '';
+    showLocationIssue('');
+    if (location) for (const field of [...locationRequired, 'gate_code', 'wait_alert_hours']) {
+      locationForm.elements.namedItem(field).value = location[field] ?? '';
+    }
     byId('dispatchLocationHeading').textContent = location ? 'Edit location' : 'Add a location';
-    toggle('dispatchLocationCancel', Boolean(location));
-    if (location) byId('dispatchLocationName').focus();
+    locationForm.classList.toggle('hidden', !open);
+    byId('dispatchLocationAdd').setAttribute('aria-expanded', String(open));
+    if (open) byId('dispatchLocationName').focus();
+    else if (selectedTab === 'locations') byId('dispatchLocationAdd').focus();
   }
 
   async function saveLocation(event) {
@@ -227,6 +383,7 @@ const fleetDispatchApp = (() => {
     }
     value.state = value.state.toUpperCase();
     value.wait_alert_hours = value.wait_alert_hours === '' ? null : Number(value.wait_alert_hours);
+    value.gate_code ||= null;
     const table = scope.client.from(locationTable);
     const save = byId('dispatchLocationSave');
     scope.locationSaving = save.disabled = byId('dispatchLocationCancel').disabled = true;
@@ -253,15 +410,39 @@ const fleetDispatchApp = (() => {
     }
   }
 
+  async function removeLocation(location, control) {
+    const scope = state;
+    if (!scope?.access.dispatch || scope.locationSaving || control.disabled) return;
+    if (!window.confirm('Remove ' + location.name + ' from Saved Locations?')) return;
+    control.disabled = true;
+    try {
+      const { error } = await scope.client.from(locationTable).delete()
+        .eq('fleet_id', scope.fleetId).eq('id', location.id).select('id').single();
+      if (state !== scope) return;
+      if (error) throw error;
+      scope.locationVersion++;
+      scope.locations = scope.locations.filter(row => row.id !== location.id);
+      if (scope.locationEdit?.id === location.id) editLocation();
+      paintLocations();
+      showToast('Location removed.');
+    } catch {
+      if (state === scope) showToast('Could not remove the location. Refresh and try again.');
+    } finally {
+      control.disabled = false;
+    }
+  }
+
   locationForm.addEventListener('submit', saveLocation);
+  byId('dispatchLocationAdd').addEventListener('click', () => editLocation(null, true));
   byId('dispatchLocationCancel').addEventListener('click', () => editLocation());
   byId('dispatchLocationSearch').addEventListener('input', paintLocations);
+  byId('dispatchLocationRefresh').addEventListener('click', () => { if (state) void readLocations(state); });
 
   function availableTabs() {
     if (!state) return [];
     return tabs.filter(node => {
       const tab = node.dataset.dispatchTab;
-      return state.access[tab === 'drivers' || tab === 'equipment' ? tab : 'dispatch'];
+      return state.access[['drivers', 'equipment', 'processing'].includes(tab) ? tab : 'dispatch'];
     });
   }
 
@@ -294,6 +475,8 @@ const fleetDispatchApp = (() => {
     toggle('dispatchLoadDriverFilterField',view === 'list' && ['current','history'].includes(tab));
     byId('dispatch-panel-create').setAttribute('aria-labelledby', 'dispatch-tab-' + (showEditor ? tab : 'create'));
     byId('dispatchWorkspace').dataset.board = String(tab === 'current' && view === 'list');
+    if (view === 'list' && tab === 'processing') void fleetBolPayments.openInDispatch(state.fleetId);
+    else if (typeof fleetBolPayments !== 'undefined') fleetBolPayments.pageChanged();
     if (view === 'list' && (tab === 'current' || tab === 'day')) paintLoads();
     if (view === 'list' && tab === 'saved') void readSavedLoads(state);
     if (tab === 'equipment' && view === 'list') {
@@ -1080,7 +1263,8 @@ const fleetDispatchApp = (() => {
     };
     const required = { required: edit?.row?.status !== 'completed' };
     const company = input('text', 120);
-    field('company', kind === 'pickup' ? 'Shipper name' : 'Receiver company name', company, { required: true, wide: true });
+    const companyField = field('company', kind === 'pickup' ? 'Shipper name' : 'Receiver company name', company,
+      { required: true, wide: true });
     field('address', 'Street address', input('text', 180), { ...required, wide: true });
     field('city', 'City', input('text', 80), required);
     const region = input('text', 2);
@@ -1141,12 +1325,13 @@ const fleetDispatchApp = (() => {
     const waitAlert = input('number');
     Object.assign(waitAlert, { min:'0', step:'any', placeholder:'2', inputMode:'decimal' });
     field('waitAlertHours', 'Wait alert (hours after appointment)', waitAlert);
-    useSavedLocation(company, location => {
+    const applyLocation = useSavedLocation(company, location => {
       zipLookup.reset();
       for (const key of addressParts) group.querySelector('[data-stop-field=' + key + ']').value = location[key];
       waitAlert.value = location.wait_alert_hours ?? '';
       void updateZone();
     });
+    companyField.append(button('Use Saved Location', () => pickLocation(applyLocation)));
     const contact = element('div');
     const contactName = input('text', 120);
     const phone = input('tel', 40);
@@ -1309,10 +1494,11 @@ const fleetDispatchApp = (() => {
     for (const field of relayFields) form.elements[field].required = configured && !unchangedLegacyRelay;
   }
 
-  useSavedLocation(form.elements.relayLocation, location => {
+  const applyRelayLocation = useSavedLocation(form.elements.relayLocation, location => {
     relayZipLookup.reset();
     for (const [key, name] of Object.entries(relayAddressFields)) form.elements[name].value = location[key];
   });
+  byId('dispatchPickRelayLocation').addEventListener('click', () => pickLocation(applyRelayLocation));
 
   function routeZips() {
     const entries = Object.entries(stops).flatMap(([kind,container]) => [...container.children].map(group => ({
@@ -1581,19 +1767,11 @@ const fleetDispatchApp = (() => {
     }
   });
 
-  async function viewRateConfirmation(attachment) {
-    if (!state?.access.dispatch || !attachment?.path) return;
-    const tab = window.open('about:blank', '_blank');
-    if (!tab) { showToast('Allow a new tab to open the rate confirmation.'); return; }
-    tab.opener = null;
-    try {
-      const { data, error } = await state.client.storage.from(dispatchRateConfirmation.bucket).createSignedUrl(attachment.path, 120);
-      if (error || !data?.signedUrl) throw error || new Error();
-      tab.location.replace(data.signedUrl);
-    } catch {
-      tab.close();
-      showToast('Could not open the rate confirmation.');
-    }
+  function viewRateConfirmation(attachment) {
+    const scope = state;
+    if (!scope?.access.dispatch || !attachment?.path) return;
+    const userId = currentUser?.id;
+    return dispatchRateConfirmation.open(attachment.path, scope.client, () => state === scope && currentUser?.id === userId);
   }
 
   byId('dispatchEditorRateConfirmation').addEventListener('click', () => {
@@ -2436,11 +2614,20 @@ const fleetDispatchApp = (() => {
 
   function pageChanged() {
     if (!visible()) {
+      if (!byId('dispatchWorkspace').getClientRects().length) closeLocationDialogs();
       watchLoad(null);
       return;
     }
     const id = progressView?.id() || (editorVisible() ? edit?.row?.id : null);
     watchLoad(id);
+  }
+
+  function closeLocationDialogs() {
+    chooseSavedLocation = null;
+    if (locationPicker.open) locationPicker.close();
+    if (locationMessage.open) locationMessage.close();
+    clearLocationMessage();
+    byId('dispatchSavedLocationChoices').replaceChildren();
   }
 
   async function saveLoadAction(load, action, args) {
@@ -2551,6 +2738,7 @@ const fleetDispatchApp = (() => {
   }
 
   function reset() {
+    closeLocationDialogs();
     if (stopInfoDialog.open) stopInfoDialog.close();
     stopInfoSession = null;
     setStopInfoSaving(false);
@@ -2575,7 +2763,8 @@ const fleetDispatchApp = (() => {
     byId('dispatchLocationSearch').value = '';
     byId('dispatchLocationHeading').textContent = 'Add a location';
     byId('dispatchLocationSave').disabled = byId('dispatchLocationCancel').disabled = false;
-    toggle('dispatchLocationCancel', false);
+    locationForm.classList.add('hidden');
+    byId('dispatchLocationAdd').setAttribute('aria-expanded', 'false');
     paintLocations();
     toggle('dispatchPayProfile', false);
     byId('dispatchLoadSearch').value = '';

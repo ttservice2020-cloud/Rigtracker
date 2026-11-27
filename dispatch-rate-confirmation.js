@@ -126,5 +126,20 @@ const dispatchRateConfirmation = (() => {
     }
   }
 
-  return { bucket, scan };
+  async function open(path, client, isCurrent) {
+    const tab = window.open('about:blank', '_blank');
+    if (!tab) { showToast('Allow a new tab to open the rate confirmation.'); return; }
+    tab.opener = null;
+    try {
+      const { data, error } = await client.storage.from(bucket).createSignedUrl(path, 120);
+      if (!isCurrent()) { tab.close(); return; }
+      if (error || !data?.signedUrl) throw error || new Error();
+      tab.location.replace(data.signedUrl);
+    } catch {
+      tab.close();
+      if (isCurrent()) showToast('Could not open the rate confirmation.');
+    }
+  }
+
+  return { bucket, scan, open };
 })();

@@ -231,6 +231,22 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 .bol-tabs button[aria-selected="true"]{background:#173a58;border-color:#358ce0;color:#edf6ff}
 .bol-load-list .panel{margin:0;padding:14px}
 .bol-load-list h2{margin:0 0 6px;font-size:18px}
+.bol-toolbar{display:flex;flex-wrap:wrap;align-items:end;justify-content:space-between;gap:8px;margin:16px 0}
+.bol-toolbar .bol-search{flex:1;margin:0}
+.bol-toolbar>button{margin:0}
+.dispatch-location-toolbar .field{flex:1 1 180px;margin:0}
+.dispatch-history-table.dispatch-location-table{min-width:550px;table-layout:auto}
+.dispatch-history-table.dispatch-location-table :is(th,td){width:auto;vertical-align:top;white-space:normal;overflow-wrap:anywhere}
+.dispatch-history-table.dispatch-location-table td:not(:last-child){white-space:normal}
+.dispatch-history-table.dispatch-location-table :is(th,td):last-child{position:static;width:190px;text-align:left}
+.dispatch-location-table .dispatch-actions{margin:0;justify-content:flex-start}
+.dispatch-location-table .dispatch-actions button{margin:0}
+.dispatch-location-message{white-space:pre-wrap;overflow-wrap:anywhere}
+.bol-load-header{display:flex;align-items:start;justify-content:space-between;flex-wrap:wrap;gap:8px}
+.bol-load-header p{margin:4px 0}
+.bol-load-details{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:12px;margin-top:12px}
+.bol-load-details h3{font-size:15px;margin:0 0 6px}
+.bol-load-details p{margin:4px 0;overflow-wrap:anywhere}
 .bol-paperwork{display:grid;gap:8px;margin-top:12px}
 .bol-paperwork .dispatch-actions{margin-top:4px}
 @media(max-width:700px){
@@ -583,7 +599,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
        <h2>Operations</h2>
        <div class="fleet-tools-grid">
         <button class="card fleet-tool" type="button" onclick="showFleetSection('dispatch')">Dispatch <span aria-hidden="true">›</span></button>
-        <button class="card fleet-tool" type="button" onclick="fleetBolPayments.open(adminFleetId)">BOLs &amp; Payments <span aria-hidden="true">›</span></button>
+        <button class="card fleet-tool" type="button" onclick="fleetBolPayments.open(adminFleetId)">Load Processing <span aria-hidden="true">›</span></button>
         <button class="card fleet-tool" type="button" onclick="showFleetSection('dispatch','drivers')">Drivers <span aria-hidden="true">›</span></button>
         <button class="card fleet-tool" type="button" onclick="fleetAdminDriver.open('loads')">My Loads <span aria-hidden="true">›</span></button>
         <button class="card fleet-tool" type="button" onclick="fleetAdminDriver.open()">My Driver Profile <span aria-hidden="true">›</span></button>
@@ -631,6 +647,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
         <button id="dispatch-tab-saved" type="button" role="tab" aria-selected="false" aria-controls="dispatch-panel-saved" data-dispatch-tab="saved" tabindex="-1">Saved Loads</button>
         <button id="dispatch-tab-contract" type="button" role="tab" aria-selected="false" aria-controls="dispatch-panel-contract" data-dispatch-tab="contract" tabindex="-1">Contract Loads</button>
         <button id="dispatch-tab-history" type="button" role="tab" aria-selected="false" aria-controls="dispatch-panel-history" data-dispatch-tab="history" tabindex="-1">Load History</button>
+        <button id="dispatch-tab-processing" type="button" role="tab" aria-selected="false" aria-controls="dispatch-panel-processing" data-dispatch-tab="processing" tabindex="-1">Load Processing</button>
         <button id="dispatch-tab-day" type="button" role="tab" aria-selected="false" aria-controls="dispatch-panel-day" data-dispatch-tab="day" tabindex="-1">Past 14 Days</button>
         <button id="dispatch-tab-drivers" type="button" role="tab" aria-selected="false" aria-controls="dispatch-panel-drivers" data-dispatch-tab="drivers" tabindex="-1">Drivers</button>
         <button id="dispatch-tab-equipment" type="button" role="tab" aria-selected="false" aria-controls="dispatch-panel-equipment" data-dispatch-tab="equipment" tabindex="-1">Equipment</button>
@@ -860,6 +877,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
            <summary>Split Load Details</summary>
            <div class="dispatch-fields">
             <div class="field dispatch-wide"><label for="dispatchRelayLocation">Relay location</label><input id="dispatchRelayLocation" name="relayLocation" maxlength="180" list="dispatchLocationNames"></div>
+            <div class="dispatch-actions dispatch-wide"><button class="outline" id="dispatchPickRelayLocation" type="button">Use Saved Location</button></div>
             <div class="field dispatch-wide"><label for="dispatchRelayAddress">Relay street address</label><input id="dispatchRelayAddress" name="relayAddress" maxlength="180"></div>
             <div class="field"><label for="dispatchRelayCity">Relay city</label><input id="dispatchRelayCity" name="relayCity" maxlength="80"></div>
             <div class="field"><label for="dispatchRelayState">Relay state</label><input id="dispatchRelayState" name="relayState" maxlength="2" pattern="[A-Za-z]{2}" title="Two-letter state abbreviation" autocapitalize="characters"></div>
@@ -965,7 +983,12 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
        </section>
        <datalist id="dispatchLocationNames"></datalist>
        <section id="dispatch-panel-locations" class="dispatch-panel hidden" role="tabpanel" aria-labelledby="dispatch-tab-locations" tabindex="0">
-        <form class="panel" id="dispatchLocationForm">
+        <div class="bol-toolbar dispatch-location-toolbar">
+         <div class="field"><label for="dispatchLocationSearch">Search saved locations</label><input id="dispatchLocationSearch" type="search"></div>
+         <button class="primary-btn" id="dispatchLocationAdd" type="button" aria-controls="dispatchLocationForm" aria-expanded="false">Add Location</button>
+         <button class="outline" id="dispatchLocationRefresh" type="button">Refresh</button>
+        </div>
+        <form class="panel hidden" id="dispatchLocationForm">
          <h2 id="dispatchLocationHeading">Add a location</h2>
          <div class="dispatch-fields">
           <div class="field dispatch-wide"><label for="dispatchLocationName">Location name</label><input id="dispatchLocationName" name="name" maxlength="120" required></div>
@@ -974,13 +997,18 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
           <div class="field"><label for="dispatchLocationState">State</label><input id="dispatchLocationState" name="state" maxlength="2" pattern="[A-Za-z]{2}" title="Two-letter state abbreviation" autocapitalize="characters" required></div>
           <div class="field"><label for="dispatchLocationZip">ZIP</label><input id="dispatchLocationZip" name="zip" maxlength="10" pattern="[0-9]{5}(-[0-9]{4})?" title="5-digit or ZIP+4 code" inputmode="numeric" required><p class="muted dispatch-compact" id="dispatchLocationZipStatus" role="status"></p></div>
           <div class="field"><label for="dispatchLocationWaitAlert">Wait alert (hours)</label><input id="dispatchLocationWaitAlert" name="wait_alert_hours" type="number" min="0" step="any" placeholder="2" inputmode="decimal"></div>
+          <div class="field"><label for="dispatchLocationGateCode">Gate code</label><input id="dispatchLocationGateCode" name="gate_code" maxlength="80" autocomplete="off" autocapitalize="none" spellcheck="false"></div>
          </div>
          <p class="dispatch-form-issues hidden" id="dispatchLocationIssues" role="alert"></p>
-         <div class="dispatch-actions"><button class="primary-btn" id="dispatchLocationSave" type="submit">Save Location</button><button class="outline hidden" id="dispatchLocationCancel" type="button">Cancel Edit</button></div>
+         <div class="dispatch-actions"><button class="primary-btn" id="dispatchLocationSave" type="submit">Save Location</button><button class="outline" id="dispatchLocationCancel" type="button">Cancel</button></div>
         </form>
-        <div class="field"><label for="dispatchLocationSearch">Search saved locations</label><input id="dispatchLocationSearch" type="search"></div>
         <p id="dispatchLocationStatus" class="muted" role="status"></p>
-        <div id="dispatchLocationList" class="dispatch-load-list"></div>
+        <div class="dispatch-history-scroll">
+         <table class="dispatch-history-table dispatch-location-table" aria-label="Saved locations">
+          <thead><tr><th scope="col">Location</th><th scope="col">Address</th><th scope="col">Gate code</th><th scope="col">Actions</th></tr></thead>
+          <tbody id="dispatchLocationList"></tbody>
+         </table>
+        </div>
        </section>
        <section id="dispatch-panel-saved" class="dispatch-panel hidden" role="tabpanel" aria-labelledby="dispatch-tab-saved" tabindex="0">
         <p id="dispatchSavedLoadStatus" class="muted" role="status"></p>
@@ -999,6 +1027,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
          </table>
         </div>
        </section>
+       <section class="dispatch-panel hidden" id="dispatch-panel-processing" role="tabpanel" aria-labelledby="dispatch-tab-processing" tabindex="0"></section>
        <section class="dispatch-panel hidden" id="dispatch-panel-equipment" role="tabpanel" aria-labelledby="dispatch-tab-equipment">
         <section class="panel">
          <div class="page-head">
@@ -1203,6 +1232,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
          <legend>Access</legend>
          <div class="employee-access-list">
           <label><input type="checkbox" name="officePermission" value="dispatch"> Dispatch</label>
+          <label><input type="checkbox" name="officePermission" value="bol_payments"> Load Processing</label>
           <label><input type="checkbox" name="officePermission" value="drivers"> Drivers</label>
           <label><input type="checkbox" name="officePermission" value="assets"> Assets</label>
           <label><input type="checkbox" name="officePermission" value="messages"> Messages</label>
@@ -1603,26 +1633,30 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
   </section>
   <section id="fleetBolPaymentsPage" class="page fleet-account-page" aria-labelledby="fleetBolPaymentsHeading">
    <div class="page-head">
-    <div><button class="back" type="button" id="fleetBolBack">← Back to Dashboard</button><h1 id="fleetBolPaymentsHeading">BOLs &amp; Payments</h1></div>
-    <button class="outline" type="button" id="fleetBolRefresh">Refresh</button>
+    <div><button class="back" type="button" id="fleetBolBack">← Back to Dashboard</button><h1 id="fleetBolPaymentsHeading">Load Processing</h1></div>
    </div>
-   <div class="fleet-dashboard-nav bol-tabs" id="fleetBolTabs" role="tablist" aria-label="BOLs and payments status">
-    <button type="button" id="fleetBolAttentionTab" role="tab" aria-selected="true" aria-controls="fleetBolAttentionPanel">Needs Attention</button>
-    <button type="button" id="fleetBolCompletedTab" role="tab" aria-selected="false" aria-controls="fleetBolCompletedPanel" tabindex="-1">Completed</button>
+   <div id="fleetBolWorkspace">
+    <div class="fleet-dashboard-nav bol-tabs" id="fleetBolTabs" role="tablist" aria-label="Payment status">
+     <button type="button" id="fleetBolAttentionTab" role="tab" aria-selected="true" aria-controls="fleetBolAttentionPanel">Unpaid</button>
+     <button type="button" id="fleetBolCompletedTab" role="tab" aria-selected="false" aria-controls="fleetBolCompletedPanel" tabindex="-1">Paid</button>
+    </div>
+    <div class="bol-toolbar">
+     <form class="bol-search" id="fleetBolSearchForm" role="search" aria-label="Find a load by PRO">
+      <div class="field"><label for="fleetBolSearch">PRO number</label><input id="fleetBolSearch" type="search" placeholder="A-10001" maxlength="21" autocomplete="off"></div>
+      <button class="outline" type="submit">Search</button>
+      <button class="outline hidden" type="button" id="fleetBolClearSearch">Clear</button>
+     </form>
+     <button class="outline" type="button" id="fleetBolRefresh">Refresh</button>
+    </div>
+    <p class="muted" id="fleetBolStatus" role="status"></p>
+    <section id="fleetBolAttentionPanel" role="tabpanel" aria-labelledby="fleetBolAttentionTab" tabindex="0">
+     <div class="dispatch-load-list bol-load-list" id="fleetBolAttentionList"></div>
+    </section>
+    <section id="fleetBolCompletedPanel" class="hidden" role="tabpanel" aria-labelledby="fleetBolCompletedTab" tabindex="0">
+     <div class="dispatch-load-list bol-load-list" id="fleetBolCompletedList"></div>
+    </section>
+    <button class="outline hidden" type="button" id="fleetBolMore">Load More</button>
    </div>
-   <form class="bol-search" id="fleetBolSearchForm" role="search" aria-label="Find a load by PRO">
-    <div class="field"><label for="fleetBolSearch">PRO number</label><input id="fleetBolSearch" type="search" placeholder="A-10001" maxlength="21" autocomplete="off"></div>
-    <button class="outline" type="submit">Search</button>
-    <button class="outline hidden" type="button" id="fleetBolClearSearch">Clear</button>
-   </form>
-   <p class="muted" id="fleetBolStatus" role="status"></p>
-   <section id="fleetBolAttentionPanel" role="tabpanel" aria-labelledby="fleetBolAttentionTab" tabindex="0">
-    <div class="dispatch-load-list bol-load-list" id="fleetBolAttentionList"></div>
-   </section>
-   <section id="fleetBolCompletedPanel" class="hidden" role="tabpanel" aria-labelledby="fleetBolCompletedTab" tabindex="0">
-    <div class="dispatch-load-list bol-load-list" id="fleetBolCompletedList"></div>
-   </section>
-   <button class="outline hidden" type="button" id="fleetBolMore">Load More</button>
   </section>
   <section id="companyMessagesPage" class="page fleet-account-page">
    <div class="page-head">
@@ -1745,7 +1779,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
     <h2>Operations</h2>
     <div class="fleet-tools-grid">
      <button type="button" class="card fleet-tool hidden" data-office-tool="dispatch">Dispatch</button>
-     <button type="button" class="card fleet-tool hidden" data-office-tool="bol_payments">BOLs &amp; Payments</button>
+     <button type="button" class="card fleet-tool hidden" data-office-tool="bol_payments">Load Processing</button>
      <button type="button" class="card fleet-tool hidden" data-office-tool="drivers">Drivers</button>
      <button type="button" class="card fleet-tool hidden" data-office-tool="link-profiles">Link Profiles</button>
      <button type="button" class="card fleet-tool hidden" data-office-tool="equipment">Equipment</button>
@@ -1945,6 +1979,29 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
  </dialog>
  <div id="toast" class="hidden" role="status"></div>
 <dialog id="driverPaperworkDialog" class="driver-paperwork-dialog" aria-labelledby="driverPaperworkTitle"></dialog>
+<dialog class="office-profile-dialog" id="dispatchSavedLocationPicker" aria-labelledby="dispatchSavedLocationPickerTitle">
+ <h2 id="dispatchSavedLocationPickerTitle">Choose a saved location</h2>
+ <div class="field"><label for="dispatchSavedLocationQuery">Search by name or address</label><input id="dispatchSavedLocationQuery" type="search" autocomplete="off" autofocus></div>
+ <p class="muted" id="dispatchSavedLocationPickerStatus" role="status"></p>
+ <div class="dispatch-load-list" id="dispatchSavedLocationChoices"></div>
+ <button class="outline" id="dispatchSavedLocationPickerClose" type="button">Cancel</button>
+</dialog>
+<dialog class="office-profile-dialog" id="dispatchLocationMessage" aria-labelledby="dispatchLocationMessageTitle">
+ <h2 id="dispatchLocationMessageTitle">Send location to driver</h2>
+ <p class="dispatch-location-message" id="dispatchLocationMessagePreview"></p>
+ <form id="dispatchLocationMessageForm">
+  <div class="field"><label for="dispatchLocationMessageDriver">Driver</label><select id="dispatchLocationMessageDriver" required></select></div>
+  <details id="dispatchLocationMessageNoteDetails">
+   <summary>Add a Note</summary>
+   <div class="field"><label for="dispatchLocationMessageNote">Note to driver</label><textarea id="dispatchLocationMessageNote" rows="2" maxlength="500"></textarea></div>
+  </details>
+  <p class="muted" id="dispatchLocationMessageStatus" role="status"></p>
+  <div class="dispatch-actions">
+   <button class="primary-btn" id="dispatchLocationMessageSend" type="submit" disabled>Send Message</button>
+   <button class="outline" id="dispatchLocationMessageCancel" type="button">Cancel</button>
+  </div>
+ </form>
+</dialog>
 <dialog class="office-profile-dialog" id="fleetBolPaymentDialog" aria-labelledby="fleetBolPaymentTitle">
  <h2 id="fleetBolPaymentTitle">Mark Paid</h2>
  <p id="fleetBolPaymentLoad"></p>
@@ -2006,11 +2063,11 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 
 <script src="./load-history-grid.js?v=1"></script>
 <script src="./dispatch-progress.js?v=hazmat-1"></script>
-<script src="./dispatch-rate-confirmation.js?v=document-scan-1"></script>
+<script src="./dispatch-rate-confirmation.js?v=load-processing-1"></script>
 <script src="./dispatch-route-miles.js?v=1"></script>
 <script src="./dispatch-zip-lookup.js?v=zip-timezone-1"></script>
 <script src="./hazmat-reference.js?v=1"></script>
-<script src="./dispatch.js?v=hazmat-1"></script>
+<script src="./dispatch.js?v=load-processing-2"></script>
 <script src="./linked-profiles.js?v=driver-push-1"></script>
 <script src="./fleet-equipment.js?v=driver-loads-1"></script>
 <script src="./payroll-tax-jurisdictions.js?v=2"></script>
@@ -2027,7 +2084,7 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 <script src="./report-pdf.js?v=1"></script>
 <script src="./payroll-tax-preview.js?v=save-pdf-1"></script>
 <script src="./company-driver-tools.js?v=clock-reminder-1"></script>
-<script src="./company-messages.js?v=driver-push-1"></script>
+<script src="./company-messages.js?v=saved-locations-1"></script>
 <script src="./driver-document-scan.js?v=1"></script>
 <script src="./driver-paperwork.js?v=document-scan-1"></script>
 <script src="./payroll-withholding-forms.js?v=document-scan-1"></script>
@@ -2038,8 +2095,8 @@ footer{text-align:center;color:#aaa;border-top:1px solid #777;padding:18px;margi
 <script src="./company-safety.js?v=hazmat-1"></script>
 <script src="./driver-app.js?v=hazmat-1"></script>
 <script src="./driver-notifications.js?v=1"></script>
-<script src="./fleet-bol-payments.js?v=paperwork-1"></script>
-<script src="./office-tools.js?v=clock-reminder-1"></script>
+<script src="./fleet-bol-payments.js?v=load-processing-1"></script>
+<script src="./office-tools.js?v=load-processing-1"></script>
 <script src="./auth-clock-reminder.js?v=1"></script>
 <script src="./office-payroll.js?v=daily-pay-1"></script>
 <script src="./owner-escrow.js?v=1"></script>
@@ -2080,6 +2137,7 @@ function showPage(id){
  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
  const page=document.getElementById(id);if(page)page.classList.add('active');
  fleetDispatchApp.pageChanged();
+ fleetBolPayments.pageChanged();
  rigTrackerApp.pageChanged(id,currentUser ? accountTypeFor(currentUser) : null);
  window.scrollTo({top:0,behavior:'smooth'});
  if(id==='spreadsheetPage')renderSpreadsheet();
