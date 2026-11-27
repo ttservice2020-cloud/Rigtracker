@@ -311,6 +311,53 @@ const driverLoadWorkflow = (() => {
     } finally { control.disabled = false; }
   }
 
+  function lastFinishedStop(load) {
+    let last;
+    for (const stop of load.stops) {
+      const instant = Date.parse(stop.progress?.completedAt);
+      if (Number.isFinite(instant) && (!last || instant > last.instant)) last = { instant, zone: stop.info?.zone };
+    }
+    return last;
+  }
+
+  function lastStopDate(load) {
+    const stop = load.lastFinishedStop;
+    if (!stop) return '';
+    try { return dispatchProgress.localDateTime(stop.instant, stop.zone || undefined).slice(0, 10); }
+    catch { return dispatchProgress.localDateTime(stop.instant, undefined).slice(0, 10); }
+  }
+
+  function historyReportValues(load, read) {
+    return [...new Set(load.stops.map(stop => read(stop.progress?.driverReport)).filter(Boolean))];
+  }
+
+  const completedLoads = byId('driverCompletedLoads');
+  const completedHistory = loadHistoryGrid.bind(completedLoads, {
+    defaults: ['pro', 'date', 'bol', 'trailer', 'route', 'locations'],
+    storageKey: () => currentUser?.id ? 'rigtracker-driver-history-columns:' + currentUser.id : null,
+    dateFor: lastStopDate,
+    reference: pro,
+    onView: load => openLoad(load.id),
+    viewLabel: 'View load',
+    columns: {
+      pro: { label: 'PRO', read: pro },
+      date: { label: 'Last Stop Date', read: lastStopDate },
+      bol: { label: 'BOL #', read: load => [...new Set([
+        load.freight?.bolNumber, ...historyReportValues(load, report => report?.bol)
+      ].filter(Boolean).map(String))].join(' / ') },
+      trailer: { label: 'Trailer', read: load => historyReportValues(load, report => report?.pickedTrailer || report?.trailer)
+        .join(' / ') || load.freight?.trailerNumber },
+      route: { label: 'Route', read: load => load.freight?.route },
+      locations: { label: 'Origin / Destination', read: load => [...new Set([
+        place(load.stops[0]?.info), place(load.stops.at(-1)?.info)
+      ].filter(Boolean))].join(' → ') },
+      pickup: { label: 'Pickup #', read: load => load.freight?.pickupNumber },
+      truck: { label: 'Truck', read: load => load.freight?.truckNumber },
+      commodity: { label: 'Commodity', read: load => load.freight?.commodity },
+      miles: { label: 'Loaded Miles', read: load => load.freight?.miles }
+    }
+  });
+
   function paintDriverList() {
     function loadRow(load) {
       const row = node('article', '', 'dispatch-load-row');
@@ -332,8 +379,7 @@ const driverLoadWorkflow = (() => {
       ['Current Load', driverData.loads.filter(load => Number(load.queuePosition) === 1)],
       ['Queued Loads', queue],
       ['New Offers', driverData.loads.filter(isOffer)],
-      ['Other Loads', driverData.loads.filter(load => !load.queuePosition && !isOffer(load) && load.status !== 'completed')],
-      ['Completed Loads', driverData.loads.filter(load => load.status === 'completed' && !load.queuePosition)]
+      ['Other Loads', driverData.loads.filter(load => !load.queuePosition && !isOffer(load) && load.status !== 'completed')]
     ];
     const rows = groups.filter(([, loads]) => loads.length).map(([title, loads]) => {
       const group = node('section', '', 'driver-assignment-group');
@@ -342,7 +388,12 @@ const driverLoadWorkflow = (() => {
       group.append(node('h3', title), cards);
       return group;
     });
-    setList('driverWorkflowLoads', rows, 'No loads are assigned to you.');
+    setList('driverWorkflowLoads', rows, 'No active assignments.');
+    const history = driverData.loads.filter(load => load.status === 'completed' && !load.queuePosition)
+      .map(load => ({ ...load, lastFinishedStop: lastFinishedStop(load) }))
+      .sort((a, b) => (b.lastFinishedStop?.instant ?? 0) - (a.lastFinishedStop?.instant ?? 0));
+    completedHistory.paint(history);
+    completedLoads.classList.remove('hidden');
     paintYard();
   }
 
@@ -1682,6 +1733,7 @@ const driverLoadWorkflow = (() => {
     paintDriverList();
     driverSnapshot = JSON.stringify(driverData);
     showPage('driverLoadsPage');
+    if (completedHistory.focusRun(previous)) return;
     const row = [...byId('driverWorkflowLoads').querySelectorAll('[data-driver-load-id]')]
       .find(item => item.dataset.driverLoadId === previous);
     (row?.querySelector('button') || byId('driverLoadsTitle')).focus();
@@ -1712,6 +1764,8 @@ const driverLoadWorkflow = (() => {
     driverSnapshot = ''; officeSnapshot = ''; driverData = empty(); seenLoadVersion = '';
     driverInitialized = false; officeInitialized = false;
     seenDriver = new Set(); seenOffice = new Set();
+    completedHistory.reset();
+    completedLoads.classList.add('hidden');
     for (const id of ['driverWorkflowLoads','driverWorkflowDetail','driverYardList','dispatchWorkflowReturns',
       'dispatchWorkflowYard','dispatchWorkflowResponses']) byId(id).replaceChildren();
     byId('driverLoadDetailStatus').textContent = '';

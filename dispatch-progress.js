@@ -218,7 +218,7 @@ const dispatchProgress = (() => {
   }
 
   function bind({ byId, toggle, element, button, getLoad, getLoads, getRouteNumber, loadDrivers, loadDriverContacts, displayedDriverIds, unassignedDriver, messageDriver,
-    proLabel, describeRoute, editLoad,
+    proLabel, describeRoute, loadBols, editLoad, historyColumnKey,
     back, setProgress, hasUpdate, isReviewing = () => false, openRateConfirmation, canEdit, paintLeaseStatus, saveLoadAction, relayDriverChoices }) {
     const view = byId('dispatchLoadDetail');
     const manual = byId('dispatchArrivalForm');
@@ -230,13 +230,71 @@ const dispatchProgress = (() => {
     let activeId;
     let selectedStop;
     let request;
-    let historyDate = '';
     let splitFactsKey;
     let splitChoicesKey;
 
     const set = (id, text) => { byId(id).textContent = text; };
     const active = () => activeId && getLoad(activeId);
     const progressLabel = stop => (stop.kind === 'pickup' ? 'Pickup' : 'Delivery') + ' ' + (stop.index + 1);
+    function completedTime(run) {
+      const recorded = Date.parse(run.progress?.completedAt);
+      return Number.isFinite(recorded) ? recorded : Date.parse(run.updated_at);
+    }
+
+    function runDate(run) {
+      const instant = completedTime(run);
+      return Number.isFinite(instant) ? localDateTime(instant, undefined).slice(0, 10) : '';
+    }
+
+    function contractRunTime(instant, zone) {
+      if (!Number.isFinite(instant)) return '—';
+      const iso = new Date(instant).toISOString();
+      const date = element('time', recordedTime(iso, zone));
+      date.dateTime = iso;
+      return date;
+    }
+
+    function recordedTrailer(run) {
+      const trailers = stopsFor(run, false).filter(stop => stop.kind === 'pickup')
+        .map(stop => {
+          const report = stop.progress.driverReport;
+          return report?.pickedTrailer || report?.trailer;
+        }).filter(Boolean);
+      return [...new Set(trailers)].join(' / ') || run.details.trailerNumber;
+    }
+
+    const columnDefinitions = {
+      pro: { label: 'PRO', read: run => proLabel(run.pro_number) },
+      date: { label: 'Date', read: runDate },
+      bol: { label: 'BOL #', read: loadBols },
+      trailer: { label: 'Trailer', read: recordedTrailer },
+      route: { label: 'Route', read: getRouteNumber },
+      drivers: { label: 'Driver', read: loadDrivers },
+      pickup: { label: 'Pickup #', read: run => run.details.pickupNumber },
+      completed: { label: 'Completed Time', read: run => contractRunTime(completedTime(run)) },
+      arrivals: { label: 'Stop Arrivals', read: run => {
+        const arrivals = stopsFor(run, false).filter(stop => Number.isFinite(Date.parse(stop.progress.arrivalAt)));
+        if (!arrivals.length) return '';
+        const list = element('ul');
+        for (const stop of arrivals) {
+          const item = element('li', progressLabel(stop) + ' · ');
+          item.append(contractRunTime(Date.parse(stop.progress.arrivalAt), stop.zone));
+          list.append(item);
+        }
+        return list;
+      } },
+      locations: { label: 'Origin / Destination', read: describeRoute },
+      truck: { label: 'Truck', read: run => run.details.truckNumber }
+    };
+
+    const historyGrid = loadHistoryGrid.bind(byId('dispatchDetailHistory'), {
+      columns: columnDefinitions,
+      defaults: ['pro', 'date', 'bol', 'trailer', 'route', 'drivers'],
+      storageKey: historyColumnKey,
+      dateFor: runDate,
+      reference: run => proLabel(run.pro_number),
+      onView: run => show(run.id)
+    });
 
     function fact(label, value) {
       const pair = element('div');
@@ -367,31 +425,9 @@ const dispatchProgress = (() => {
       toggle('dispatchDetailHistory', Boolean(contract));
       if (!contract) return;
       set('dispatchHistoryRoute', 'Route ' + getRouteNumber(contract));
-      const completedOn = run => run.progress?.completedAt || run.updated_at;
-      const runDate = run => localDateTime(Date.parse(completedOn(run)), undefined).slice(0, 10);
       const rows = getLoads().filter(item => item.status === 'completed' && item.contract_load_id === contract.id && item.id !== load.id)
-        .sort((a, b) => Date.parse(completedOn(b)) - Date.parse(completedOn(a)));
-      const dates = [...new Set(rows.map(runDate))];
-      if (!dates.includes(historyDate)) historyDate = '';
-      const selector = byId('dispatchHistoryDate');
-      selector.replaceChildren(new Option('All dates', ''), ...dates.map(date => new Option(date, date)));
-      selector.value = historyDate;
-      selector.disabled = !rows.length;
-      const visible = historyDate ? rows.filter(run => runDate(run) === historyDate) : rows;
-      byId('dispatchContractRuns').replaceChildren(...visible.map(run => {
-        const row = element('li', '', 'dispatch-history-run');
-        const completedAt = completedOn(run);
-        row.append(element('strong', run.details.pickupNumber ? 'Pickup #' + run.details.pickupNumber : loadDrivers(run) || 'Contract run'),
-          element('span', clockText(Date.parse(completedAt)), 'muted'));
-        if (run.details.pickupNumber && loadDrivers(run)) row.append(element('span', loadDrivers(run), 'muted'));
-        const visits = stopsFor(run).filter(stop => stop.progress.arrivalAt);
-        if (visits.length) {
-          row.append(element('span', visits.map(stop => progressLabel(stop) + ' · ' + recordedTime(stop.progress.arrivalAt, stop.zone)).join(' / '), 'muted'));
-        }
-        row.append(button('View Run', () => show(run.id)));
-        return row;
-      }));
-      toggle('dispatchContractRunsEmpty', !rows.length);
+        .sort((a, b) => (completedTime(b) || 0) - (completedTime(a) || 0));
+      historyGrid.paint(rows);
     }
 
     function editLumper(load,stop) {
@@ -698,7 +734,7 @@ const dispatchProgress = (() => {
       if (activeId !== id) {
         byId('dispatchLoadNoteText').value = '';
         byId('dispatchDetailFreightPanel').open = false;
-        historyDate = '';
+        historyGrid.reset();
       }
       activeId = id;
       selectedStop = null;
@@ -711,13 +747,10 @@ const dispatchProgress = (() => {
       closeMessageDrivers();
       activeId = null;
       selectedStop = null;
+      historyGrid.reset();
       view.classList.add('hidden');
     }
 
-    byId('dispatchHistoryDate').addEventListener('change', event => {
-      historyDate = event.target.value;
-      if (active()) history(active());
-    });
     byId('dispatchDetailBack').addEventListener('click', back);
     messageButton.addEventListener('click', () => {
       const load = active();

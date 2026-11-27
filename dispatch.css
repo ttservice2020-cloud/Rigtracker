@@ -194,11 +194,11 @@
 .dispatch-relay-driver{width:100%;min-width:0;min-height:36px;padding:4px 6px}
 .dispatch-arrival-header .dispatch-actions{margin-top:0}
 .dispatch-arrival-form [role="alert"]{color:#ffc7cd}
-.dispatch-detail-stops,.dispatch-contract-runs{list-style:none;margin:0;padding:0}
-.dispatch-detail-stop,.dispatch-history-run{display:grid;gap:3px;padding:8px 0;overflow-wrap:anywhere}
-.dispatch-detail-stop+.dispatch-detail-stop,.dispatch-history-run+.dispatch-history-run{border-top:1px solid #2b4059}
+.dispatch-detail-stops{list-style:none;margin:0;padding:0}
+.dispatch-detail-stop{display:grid;gap:3px;padding:8px 0;overflow-wrap:anywhere}
+.dispatch-detail-stop+.dispatch-detail-stop{border-top:1px solid #2b4059}
 .dispatch-detail-stop[data-stop-state="next"]>small:first-child{color:#a6d2ff}
-.dispatch-detail-stop>.outline,.dispatch-history-run>.outline{justify-self:start}
+.dispatch-detail-stop>.outline{justify-self:start}
 .dispatch-load-row .dispatch-actions{margin:0}
 @container dispatch (max-width:530px){
  .dispatch-detail-grid{grid-template-columns:minmax(0,1fr)}
@@ -206,6 +206,30 @@
  .dispatch-milestones li:nth-child(3)::after{display:none}
 }
 .dispatch-history-filter{max-width:180px;margin:8px 0}
+#dispatchDetailHistory,#driverCompletedLoads{min-width:0}
+.load-history-controls{display:flex;align-items:end;flex-wrap:wrap;gap:8px 12px;margin:10px 0}
+.load-history-controls .dispatch-history-filter{flex:1 1 130px;margin:0}
+.load-history-controls button{margin:0;min-height:40px}
+.load-history-scroll{max-height:min(62vh,34rem);border:1px solid #334a64;border-radius:8px}
+.load-history-table{width:100%;border-spacing:0;border-collapse:separate;font-size:14px;font-variant-numeric:tabular-nums}
+.load-history-table :is(th,td){text-align:left;vertical-align:middle;padding:8px 10px;border-right:1px solid #334a64;border-bottom:1px solid #334a64}
+.load-history-table :is(th,td):last-child{border-right:0}
+.load-history-table tr:last-child td,.load-history-table tbody tr:last-child th{border-bottom:0}
+.load-history-table thead th{position:sticky;top:0;z-index:2;padding:5px;background:#203653;white-space:nowrap}
+.load-history-table thead select{min-width:6.4rem;width:100%;min-height:38px;margin:0;padding:5px 7px;border-color:#476483}
+.load-history-table tbody tr{--run-background:#101d2d}
+.load-history-table tbody tr:nth-child(even){--run-background:#142539}
+.load-history-table tbody :is(td,th){background:var(--run-background);overflow-wrap:anywhere}
+.load-history-table :is(th,td):first-child{position:sticky;left:0;z-index:1}
+.load-history-table tbody [data-column="action"]{position:sticky;right:0;z-index:1}
+.load-history-table thead :is(th:first-child,[data-column="action"]){z-index:3}
+.load-history-table thead [data-column="action"]{right:0}
+.load-history-table [data-column="action"]{width:1%;text-align:center;border-left:1px solid #334a64}
+.load-history-table :is([data-column="date"],[data-column="completed"]){white-space:nowrap}
+.load-history-table [data-column="arrivals"]{min-width:13rem}
+.load-history-table [data-column="locations"]{min-width:11rem}
+.load-history-table button{min-height:38px;margin:0;padding:5px 8px;white-space:nowrap}
+.load-history-table ul{list-style:none;margin:0;padding:0}
 
 .load-offer{background:#0b1627;border:1px solid #253c5b;scroll-margin-block-start:12px}
 .load-offer-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:14px}
